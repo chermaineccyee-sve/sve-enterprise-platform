@@ -1595,7 +1595,7 @@ body:not(:has(.page:target)) #dashboard{display:block!important}
  </div>
  
 <div class="consulting-method-signature card workflow-premium">
- <div class="workflow-head"><div><button class="method-link" type="button" onclick="openConsultingMethod()">SVE CONSULTING METHOD →</button><h3>Insight to Action Workflow</h3><p>Move from verified information to a clear client action or decision.</p></div><button class="btn gold" onclick="openInsight()">+ New Insight</button></div>
+ <div class="workflow-head"><div><span class="method-link method-static" aria-label="SVE Consulting Method reference">SVE CONSULTING METHOD</span><h3>Insight to Action Workflow</h3><p>Move from verified information to a clear client action or decision.</p></div><button class="btn gold" onclick="openInsight()">+ New Insight</button></div>
  <div class="workflow-track workflow-slider">
   <div class="flowstage fact" onclick="goPage('master')"><div class="flowicon">▤</div><span class="flownum">1</span><h4>Fact</h4><p>Capture and verify credible evidence.</p><button>Create Evidence </button></div>
   
@@ -1851,29 +1851,7 @@ body:not(:has(.page:target)) #dashboard{display:block!important}
 <div class="table-scroll"><table class="record-table"><thead><tr><th>DECISION ID</th><th>MATTER</th><th>DECISION</th><th>RATIONALE / BASIS</th><th>OWNER</th><th>STATUS</th></tr></thead><tbody><tr><td>DEC-026</td><td>VT Worldwide</td><td><b>Proceed with standalone policy architecture</b></td><td>Working scope confirmed for review</td><td>Lead Consultant</td><td><span class="badge ok">Recorded</span></td></tr><tr><td>DEC-025</td><td>Nusantara</td><td><b>Escalate licensing conclusion</b></td><td>Professional regulatory input required</td><td>Eric / Reviewer</td><td><span class="badge review">Open Action</span></td></tr></tbody></table></div>
 </section>
 
-<section id="research" class="page"><div class="module-hero"><div><span class="eyebrow">STEP 02</span><h2>Research &amp; Data Collection</h2><p>Collect raw evidence from internal and external sources before validation.</p></div></div><section class="research-workbench">
-  <div class="rw-head">
-    <div><span class="rw-kicker">STEP 02 · KNOWLEDGE-TO-DECISION ENGINE</span>
-    <h2>Research &amp; Data Collection</h2>
-    <p>Capture the research question, search authoritative sources, collect evidence and register each accepted item into the controlled evidence workflow.</p></div>
-  </div>
-  <div class="rw-search">
-    <input id="researchQuery" type="search" placeholder="Search topic, jurisdiction, regulation, sector or indicator…">
-    <button class="btn" onclick="sveWebSearch()">Search Web ↗</button>
-  </div>
-  <div class="rw-source-grid">
-    <div class="rw-source"><b>Primary / Official</b><span>Regulators · Ministries · Statutes · Official statistics</span></div>
-    <div class="rw-source"><b>Institutional</b><span>Multilateral bodies · Government-linked institutions</span></div>
-    <div class="rw-source"><b>Professional / Industry</b><span>Industry reports · Professional bodies · Market research</span></div>
-    <div class="rw-source"><b>News / Market Intelligence</b><span>Current developments and market colour — verify before reliance</span></div>
-  </div>
-  <div class="rw-actions">
-    <button class="btn" onclick="goPage('policyMonitor')">Open Policy Monitor</button>
-    <button class="btn" onclick="goPage('monitor')">Open News Monitor</button>
-    <button class="btn" onclick="openMatterPage('master')">Open Master Index</button>
-    <button class="btn" onclick="goPage('vault')">Open Data Vault</button>
-  </div>
-</section></section><section id="policyMonitor" class="page hidden"><a class="static-back" href="#dashboard" onclick="event.preventDefault();return contextBack();">← Back</a>
+<section id="policyMonitor" class="page hidden"><a class="static-back" href="#dashboard" onclick="event.preventDefault();return contextBack();">← Back</a>
 <div class="module-hero"><div><h2>Policy Monitor</h2><p>Track official regulatory, licensing, legislative and compliance developments and determine whether evidence or client work requires an update.</p></div><div class="module-actions"><button class="btn light" onclick="showToast('Official source added.')">+ Add Source</button><button class="btn gold" onclick="goPage('master')">Evidence Index</button></div></div>
 <div class="stat-strip"><div class="mini-stat"><b>4</b><span>NEW / UPDATED</span></div><div class="mini-stat"><b>2</b><span>HIGH IMPACT</span></div><div class="mini-stat"><b>1</b><span>OPEN CONSULTATION</span></div><div class="mini-stat"><b>3</b><span>REFRESH DUE</span></div></div>
 <div class="module-grid"><div class="clean-list">
@@ -2163,6 +2141,7 @@ function filterNews(tag,btn){
 
 function openProjectCommand(name,jur,work,status,pct){
  window.SVE_CURRENT_PROJECT={name:name,jur:jur,work:work,status:status,pct:pct}; window.SVE_CURRENT_MATTER=name;
+ if(window.SVEVaultRouter)window.SVEVaultRouter.setMatter(window.SVE_CURRENT_PROJECT);
  document.getElementById('pcTitle').textContent=name;
  document.getElementById('pcMeta').textContent=jur+' · '+work;
  document.getElementById('pcStatus').textContent=status;
@@ -2194,37 +2173,9 @@ function openOperatingModel(){
   const el=document.querySelector('.engine-panel'); if(!el)return;
   el.scrollIntoView({behavior:'smooth',block:'start'}); el.classList.add('focus-pulse'); setTimeout(()=>el.classList.remove('focus-pulse'),900);
 }
-function openConsultingMethod(){
-  const el=document.querySelector('.consulting-method-signature'); if(!el)return;
-  el.scrollIntoView({behavior:'smooth',block:'start'}); el.classList.add('focus-pulse'); setTimeout(()=>el.classList.remove('focus-pulse'),900);
-}
+function openConsultingMethod(){ return false; }
 function focusTaskLane(index){
   const lanes=document.querySelectorAll('#tasks .task-lane'); const lane=lanes[index]; if(lane)lane.scrollIntoView({behavior:'smooth',block:'start',inline:'nearest'});
-}
-let pageHistory=['dashboard'];
-function goPage(id,fromBack=false,preserveMatter=false){
- const page=document.getElementById(id);if(!page)return;
- if(!preserveMatter&&id!=='projects'){window.SVE_CURRENT_MATTER=null;window.SVE_CURRENT_PROJECT=null;document.querySelectorAll('.page').forEach(p=>p.classList.remove('matter-scoped'));document.querySelectorAll('.matter-context-banner').forEach(x=>x.remove());document.querySelectorAll('.matter-scope-hidden').forEach(x=>x.classList.remove('matter-scope-hidden'))}
- const current=[...document.querySelectorAll('.page')].find(p=>!p.classList.contains('hidden'))?.id; if(!fromBack&&current&&current!==id){pageHistory.push(current);if(pageHistory.length>30)pageHistory.shift()}
- if(location.hash!=='#'+id)location.hash=id;
- document.querySelectorAll('.page').forEach(p=>p.classList.toggle('hidden',p.id!==id));
- document.querySelectorAll('.side .nav').forEach(x=>x.classList.toggle('active',x.dataset.page===id));
- const titleEl=document.getElementById('title');
- if(titleEl)titleEl.textContent=titles[id]||'SVE Strategy Intelligence';
- const toggle=document.getElementById('navToggle');if(toggle)toggle.checked=false;
- window.scrollTo({top:0,behavior:'smooth'});
-}
-function goBackPage(){
- const current=[...document.querySelectorAll('.page')].find(p=>!p.classList.contains('hidden'))?.id;
- let prev=pageHistory.pop();while(prev===current&&pageHistory.length)prev=pageHistory.pop();
- goPage(prev||'dashboard',true);
-}
-function injectBackButtons(){
- document.querySelectorAll('.page:not(#dashboard) .module-hero').forEach(hero=>{
-  if(hero.querySelector('.module-back'))return;
-  const left=hero.firstElementChild;if(!left)return;
-  const b=document.createElement('button');b.className='module-back';b.textContent='← Back';b.onclick=goBackPage;left.insertBefore(b,left.firstChild);
- });
 }
 function toggleFab(){document.getElementById('fabmenu').classList.toggle('show')}
 function closeDrawer(){document.getElementById('detailDrawer').classList.remove('show')}
@@ -2466,27 +2417,6 @@ function exportDataIDAudit(){
 }
 document.addEventListener('DOMContentLoaded',sveLoadDataIDs);
 
-/* V15.4 canonical Home routing */
-(function(){
-  function openHome(){
-    if(typeof goPage==='function'){ goPage('dashboard'); }
-    else{
-      document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
-      var h=document.getElementById('dashboard'); if(h) h.classList.add('active');
-      location.hash='dashboard'; window.scrollTo(0,0);
-    }
-  }
-  document.addEventListener('click',function(e){
-    var el=e.target.closest('a,button');
-    if(!el) return;
-    var label=(el.textContent||'').trim().toLowerCase();
-    var target=(el.getAttribute('data-page')||'').toLowerCase();
-    var href=(el.getAttribute('href')||'').toLowerCase();
-    if(target==='dashboard'||href==='#dashboard'||label==='home'||label==='back to home'){
-      e.preventDefault(); openHome();
-    }
-  },true);
-})();
 
 /* V15.4.3 sidebar accordion + single-active-state */
 (function(){
@@ -2694,50 +2624,6 @@ function filterDocStatus(status,tableId){
 function openClientRoom(name){showToast(name+' Data Room opened');}
 </script>
 
-<script id="sidebar-single-active-fix">
-(function(){
-  function syncSidebarActive(pageId){
-    var side=document.querySelector('.side');
-    if(!side)return;
-    var items=side.querySelectorAll('[onclick*="goPage("], a[href^="#"]');
-    items.forEach(function(el){el.classList.remove('active')});
-    var target=null;
-    items.forEach(function(el){
-      var oc=el.getAttribute('onclick')||'';
-      var href=el.getAttribute('href')||'';
-      if(oc.indexOf("goPage('"+pageId+"')")!==-1 ||
-         oc.indexOf('goPage("'+pageId+'")')!==-1 ||
-         href==='#'+pageId){ target=el; }
-    });
-    if(target)target.classList.add('active');
-  }
-
-  var originalGoPage=window.goPage;
-  if(typeof originalGoPage==='function'){
-    window.goPage=function(pageId){
-      var result=originalGoPage.apply(this,arguments);
-      syncSidebarActive(pageId);
-      return result;
-    };
-  }
-
-  document.addEventListener('click',function(e){
-    var el=e.target.closest('.side [onclick*="goPage("], .side a[href^="#"]');
-    if(!el)return;
-    var oc=el.getAttribute('onclick')||'';
-    var href=el.getAttribute('href')||'';
-    var m=oc.match(/goPage\(['"]([^'"]+)['"]\)/);
-    if(m)syncSidebarActive(m[1]);
-    else if(href.charAt(0)==='#')syncSidebarActive(href.slice(1));
-  });
-
-  // Initial state: Home only.
-  syncSidebarActive('dashboard');
-})();
-</script>
-
-
-
 <script id="landing-datetime-live-fix">
 (function(){
   var target=document.getElementById('landingDateTime');
@@ -2774,6 +2660,7 @@ function openClientRoom(name){showToast(name+' Data Room opened');}
 })();
 </script>
 
+<script src="./router.js"></script>
 <script id="svegip-session-bridge">
 (async()=>{try{
  const r=await fetch('/api/session',{credentials:'same-origin'});
@@ -2804,7 +2691,7 @@ window.loadVaultAccessAdmin=async function(){
 };
 window.saveVaultAccess=async function(id){const role=document.getElementById('var-role-'+id)?.value;const dataVaultAccess=!!document.getElementById('var-vault-'+id)?.checked;try{const r=await fetch('/api/admin/users',{method:'PATCH',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({id,role,dataVaultAccess})});if(!r.ok)throw new Error();showToast('Employee access updated.');loadVaultAccessAdmin()}catch(e){showToast('Unable to update access. Administrator permission is required.')}};
 
-</script></body></html><style id="v26-mobile-final-fixes">
+</script><style id="v26-mobile-final-fixes">
 @media(max-width:820px){
  .side{overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:calc(100px + env(safe-area-inset-bottom))!important}
  .drawer{padding-bottom:calc(120px + env(safe-area-inset-bottom))!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch}
@@ -2831,11 +2718,4 @@ html,body{height:100%;overflow:hidden}.app{height:100dvh;min-height:0;overflow:h
 @media(min-width:701px){.engine-flow{grid-template-columns:repeat(5,minmax(0,1fr))!important}.task-sequence{grid-template-columns:repeat(5,minmax(0,1fr))!important}.task-stage{min-width:0!important}.main>.content{max-width:1600px;margin:0 auto;width:100%}}
 @media(max-width:700px){.app{height:100dvh!important}.side{height:100dvh!important;max-height:100dvh!important;padding-bottom:calc(100px + env(safe-area-inset-bottom))!important}.main{height:100dvh!important;overflow-y:auto!important}.content{padding-bottom:calc(105px + env(safe-area-inset-bottom))!important}.task-sequence{display:grid!important;grid-template-columns:1fr!important;overflow:visible!important}.task-sequence>*{width:100%!important;flex:none!important}.engine-flow{display:grid!important;grid-template-columns:1fr!important;overflow:visible!important}.engine-step{width:100%!important;flex:none!important}.vault-access-row{grid-template-columns:1fr!important;align-items:stretch}.vault-access-row select,.vault-access-row button{width:100%}.module-hero{align-items:flex-start!important}.module-actions{flex-wrap:wrap!important}}
 </style>
-<script id="v261-routing-fixes">
-(function(){
- document.querySelectorAll('.side a.nav[data-page]').forEach(function(a){a.onclick=function(e){e.preventDefault();goPage(this.dataset.page);return false}});
- document.querySelectorAll('.engine-step[data-page]').forEach(function(a){a.onclick=function(e){e.preventDefault();openMatterPage&&window.SVE_CURRENT_MATTER?openMatterPage(this.dataset.page):goPage(this.dataset.page);return false}});
- // Exactly one visible back control per secondary module: use module hero back, hide legacy static duplicate.
- document.querySelectorAll('.page:not(#dashboard) > .static-back').forEach(function(a){a.style.display='none'});
-})();
-</script>
+</body></html>
