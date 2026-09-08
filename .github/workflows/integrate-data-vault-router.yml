@@ -1,0 +1,43 @@
+name: Integrate Data Vault Router
+
+on:
+  push:
+    branches: [feature/data-vault-rebuild]
+    paths:
+      - '.github/workflows/integrate-data-vault-router.yml'
+      - 'scripts/integrate-data-vault-router.mjs'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/data-vault-rebuild
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Integrate canonical router
+        run: node scripts/integrate-data-vault-router.mjs
+      - name: Validate Data Vault scripts
+        run: |
+          node --check data-vault/router.js
+          test "$(grep -c 'function goPage' data-vault/index.html || true)" -eq 0
+          test "$(grep -c 'sidebar-single-active-fix' data-vault/index.html || true)" -eq 0
+          test "$(grep -c 'v261-routing-fixes' data-vault/index.html || true)" -eq 0
+          test "$(grep -c 'id="research"' data-vault/index.html || true)" -eq 0
+          grep -q '<script src="./router.js"></script>' data-vault/index.html
+      - name: Commit integrated Data Vault
+        run: |
+          if git diff --quiet; then
+            echo 'No integration changes required.'
+            exit 0
+          fi
+          git config user.name 'SVEGIP Build'
+          git config user.email 'actions@users.noreply.github.com'
+          git add data-vault/index.html
+          git commit -m 'Integrate canonical Data Vault router'
+          git push origin HEAD:feature/data-vault-rebuild
