@@ -1,0 +1,1 @@
+import type { Config } from "@netlify/functions";export default async()=>new Response(null,{status:204,headers:{"Set-Cookie":"svegip_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0","Cache-Control":"no-store"}});export const config:Config={path:"/api/logout"};

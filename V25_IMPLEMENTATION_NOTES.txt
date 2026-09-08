@@ -1,0 +1,35 @@
+SVEGIP PHASE 1 — V25 CONSOLIDATED IMPLEMENTATION
+
+Implemented from desktop + mobile walkthrough:
+- Group-level navigation hierarchy for Management Command Centre, Insight to Implementation, Decision Tracker, SVE Data Vault and Administration.
+- SVE International reduced to operational workspaces only.
+- Full authenticated display-name handling, including Data Vault greeting.
+- Group-level context labels for management workflow screens.
+- Main portal mobile navigation drawer + overlay + accessible Sign out.
+- SKL naming consistency: Matters & Projects, SOP & Governance, Documents & Resources; home card renamed Documents & Resources.
+- People & HR legacy demo-user wording removed; Employee Directory aligned to authenticated accounts.
+- Administration legacy Reset Review Data control removed.
+- Knowledge & Documents separated into Knowledge & Resources plus Controlled Document Repository CTA.
+- Mobile record-card views added for portal project, governance, documents, employee account and administration records.
+- Mobile modal/action safe-area and sticky-action handling strengthened.
+- Data Vault full-name identity correction and SVE Group Strategy & Intelligence eyebrow consistency.
+- Data Vault mobile 10-step engine converted to swipeable step cards; governance controls made mobile chips.
+- Data Vault mobile modal scroll/safe-area improvements and Project Command Centre tab scrolling.
+- Research page fixed-height/min-height mobile gap override.
+- Review Queue mobile review path formatting improved.
+- News Monitor mobile spacing/filter treatment improved.
+- Evidence Master Index rows now open evidence details rather than the New Evidence form.
+- Matter context introduced for Project Command Centre drill-downs. Evidence, Documents, Risks, Tasks, Deliverables and Decisions can retain current matter context; matter context banner and contextual return to Command Centre added.
+- Direct/global Data Vault navigation clears matter context so Group registers remain Group-wide.
+- Context-aware Back behaviour added for matter drill-downs.
+
+Phase 1 limitation retained intentionally:
+- Some Data Vault prototype records continue to use existing client-side prototype/localStorage data. V25 does not claim confidential-production readiness or migrate all Vault prototype state to the shared database. Existing hardened authentication, live entitlement controls and controlled portal/document APIs are preserved.
+
+POST-WALKTHROUGH CONSOLIDATED QA PASS:
+- Group Home business-unit gateway cards removed to avoid duplicating sidebar navigation.
+- Group Home welcome area replaced by a responsive strategic SVE banner based on the supplied corporate-banner direction: Strategic Perspective / Sustainable Impact + four service pillars.
+- Main portal mobile sidebar made independently scrollable with touch momentum and safe-area padding.
+- Data Vault mobile sidebar/drawers given independent scrolling and bottom safe-area clearance.
+- Research & Data Collection removed from Data Vault navigation for Phase 1 because the page has no supported workflow.
+- Data Vault sign-out strengthened to clear the authenticated session and force return to login route.
