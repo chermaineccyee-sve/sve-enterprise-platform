@@ -1,0 +1,21 @@
+SVEGIP INTEGRATED UI / FUNCTIONAL REVIEW — FIXED BUILD
+
+FIXES APPLIED
+1. Corrected a literal \n token in app.js that caused a JavaScript syntax failure.
+2. Aligned RBAC to the portal's real page keys: home, sve, skl, executive, projects, governance, people, documents, admin.
+3. Contextual SVE and SKL sidebars now filter restricted destinations instead of exposing raw nav buttons.
+4. Group Meetings navigation now passes through access checking.
+5. Employee Account Administration is restricted to Administrator or explicit accounts.manage, independent of general Management access.
+6. Rebuilt Employee Directory/Profile wrappers against the actual SVEGIP shell; the prior version referenced a non-existent sidebar() helper.
+7. Session refresh now re-checks the employee account in Netlify Database, including Active/Inactive state and current role/permissions.
+8. Data Vault scripts were syntax-checked separately and remain protected by the Netlify Edge guard.
+9. Responsive employee-directory/profile styling retained.
+
+REVIEW STATUS
+- app.js: Node syntax check passed.
+- Embedded Data Vault scripts: Node syntax checks passed.
+- Existing SVEGIP visual identity retained.
+- Existing live Netlify site has NOT been changed.
+
+IMPORTANT BEFORE PRODUCTION
+The legacy portal business-content modules still use browser localStorage because that is how the supplied SVEGIP prototype was built. Employee identity/authentication is database-backed in this build, but shared announcements/projects/policies/documents/meetings should be migrated to the central database before treating the whole portal as production multi-user data.

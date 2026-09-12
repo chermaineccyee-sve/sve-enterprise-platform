@@ -1,0 +1,28 @@
+SVEGIP CENTRAL BUSINESS DATA — DATABASE MIGRATION BUILD
+
+WHAT MOVED TO NETLIFY DATABASE
+- Group Announcements
+- Projects & Clients
+- Policies
+- Documents / Knowledge resources
+- Meetings
+- Actions
+- Business-content audit history
+
+HOW IT WORKS
+- Portal reads shared records from /api/portal-data after authentication.
+- The central database is authoritative; browser localStorage is no longer used for these modules.
+- Administrator and Management can create/update/delete business-content records, preserving the prototype's existing canEdit model.
+- Every create/update/delete operation writes a server-side audit event including the authenticated employee email.
+- Record IDs are allocated centrally by the database API.
+- The old browser “reset management-review data” function is disabled.
+- Employee authentication/accounts remain in employee_accounts and are not mixed with the legacy People demo module.
+
+CURRENT SEED
+The existing review/demo records from the supplied SVEGIP source are inserted by migration 002 only when the individual module/id record does not already exist.
+
+PRODUCTION NOTE
+This centralises record metadata/content currently represented by the prototype. Actual uploaded/private document files still require a protected file-storage implementation; this migration does not pretend that document metadata rows are the document binaries themselves.
+
+NOT DEPLOYED
+The live SVEGIP site has not been modified.

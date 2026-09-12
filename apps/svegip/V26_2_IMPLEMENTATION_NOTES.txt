@@ -1,0 +1,25 @@
+SVEGIP Phase 1 V26.2 — Functional Correction
+Date: 8 September 2026
+
+Group Portal
+- Removed the strategic marketing banner from Group Home.
+- Repositioned Group Home as an operating dashboard with Group Management Overview first.
+- Group Announcements now opens as a dedicated portal page with correct active navigation state.
+- Moved Our Insights out of Group Resources and into the SK Lai & Partners workspace.
+- Preserved working Sign out and responsive sidebar behavior.
+
+SVE Data Vault
+- Rebound all sidebar navigation items directly to the single goPage router.
+- Added a delegated route safety layer for data-page controls across desktop/mobile.
+- Operating Model and Consulting Method entry controls now respond and focus their relevant workflow sections.
+- Operating Pipeline and workflow cards route through the same page registry.
+- Tasks & Decisions sequence stages are interactive and move to the relevant task lane.
+- Strengthened client/matter context routing through openMatterPage and project command centre.
+- Improved mobile modal/profile scrolling and safe-area clearance.
+- Search SVE Intelligence now searches authorised in-portal navigation plus available Data Vault evidence records; it is not represented as a generative AI assistant.
+- News Monitor remains a controlled/stored signals module unless an external source integration is configured; no false live-feed claim is introduced.
+
+Preserved
+- Existing hardened authentication/API/database functions and migrations.
+- Data Vault entitlement checks and employee-account administration.
+- Management Command Centre, Insight to Implementation and Decision Tracker implementation.

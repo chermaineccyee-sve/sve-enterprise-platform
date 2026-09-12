@@ -1,0 +1,56 @@
+SVEGIP PORTAL-WIDE ACCESS CONTROL — PILOT BASELINE
+
+ADMINISTRATOR
+- Full SVEGIP
+- SVE International
+- SK Lai & Partners
+- Projects / Governance / Reports / Documents
+- Administration
+- Employee Account Administration
+- Data Vault subject to account entitlement; Administrator defaults to full Vault administration/audit permissions.
+
+MANAGEMENT
+- Group Home
+- SVE International
+- SK Lai & Partners
+- Group Resources
+- Projects / Governance / Reports / Documents
+- Administration landing permitted for management-level portal functions
+- Employee Account Administration only when accounts.manage is separately granted
+- Data Vault controlled by employee dataVaultAccess entitlement
+
+EXECUTIVE OFFICE
+- Group Home
+- SVE International
+- Group Resources
+- Projects / Governance / Reports / Documents
+- No SKL workspace by default
+- No Administration by default
+- Data Vault controlled by employee dataVaultAccess entitlement
+
+SKL USER / LEGAL REVIEWER
+- Default landing: SK Lai & Partners when unit=SKL
+- SKL workspace
+- Announcements / Directory / Policies / Meetings / Documents
+- No SVE strategy/project/governance workspace by default
+- No Administration
+- Data Vault only when explicitly granted for SVE-linked legal/regulatory review
+
+EMPLOYEE
+- Group Home
+- Announcements
+- Directory
+- Policies
+- Meetings
+- Own business-unit workspace is allowed when unit matches SVE or SKL
+- No Projects / Governance / Reports / Administration by default
+- Data Vault only when explicitly granted
+
+ENFORCEMENT
+1. Navigation items are filtered by authenticated role/unit.
+2. Direct in-app navigation calls are checked centrally by portalAllowed().
+3. Data Vault has its own independent Edge-level entitlement guard.
+4. Account Administration API remains server-authorised.
+5. UI hiding is not treated as the security boundary for Data Vault or employee-account administration.
+
+This is the pilot access model and can be adjusted before deployment.

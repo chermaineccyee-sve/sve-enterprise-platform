@@ -1,0 +1,18 @@
+SECURE SVEGIP + DATA VAULT INTEGRATION
+Existing SVEGIP UI retained. Demo login replaced by employee email/password. Server-side PBKDF2 password verification. Signed HttpOnly secure session carries employee name, role and unit. Existing role controls consume the authenticated role. SVE Data Vault is linked from SVE International and /data-vault/ is protected at Netlify Edge. Direct unauthenticated access returns to SVEGIP login. Configure SVEGIP_SESSION_SECRET and SVEGIP_USERS before deployment. Not deployed over the current live site.
+
+RBAC UPDATE
+- Data Vault access is explicit per employee account through dataVaultAccess.
+- The Data Vault link is hidden in SVEGIP for accounts without entitlement.
+- The Netlify Edge guard independently blocks direct URL access for restricted accounts.
+- Data Vault Administration is restricted to Administrator / vault.admin.
+- Data ID Audit Trail is restricted to Administrator / vault.audit.
+- Role, unit, Data Vault entitlement and permission flags are carried in the signed secure session.
+
+PORTAL-WIDE RBAC UPDATE
+- Added a central SVEGIP access policy.
+- Sidebar navigation now follows authenticated employee role and unit.
+- Direct in-app page navigation is checked, not merely hidden.
+- SKL legal users assigned to SKL land in the SKL workspace after authentication.
+- Employee business-unit workspace access follows assigned unit.
+- Data Vault and account administration retain independent server-side protection.

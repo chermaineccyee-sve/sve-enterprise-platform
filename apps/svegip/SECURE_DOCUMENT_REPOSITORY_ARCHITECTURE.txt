@@ -1,0 +1,38 @@
+SVEGIP CONTROLLED DOCUMENT REPOSITORY — INTERIM BACKEND DESIGN
+
+PURPOSE
+Netlify is the interim backend. The document-control domain is deliberately isolated behind /api/documents-control and a storage adapter so a future SVE Database Hub can replace the backend without rebuilding the portal UI.
+
+CONTROLLED DOCUMENT MODEL
+- Document code
+- Title
+- Business unit: SVE / SKL / Group
+- Category
+- Classification: Internal / Confidential / Restricted
+- Owner
+- Status: Draft / Under Review / Approved / Superseded / Archived
+- Current version
+- Storage provider/reference
+- File metadata
+- Version history
+- Access grants
+- Audit trail
+
+ACCESS BASELINE
+- Administrator / Management: document-control management
+- Other authenticated users: filtered by business unit and classification
+- Restricted documents are not exposed to ordinary users
+- SKL and SVE business-unit boundaries are enforced by the API, not only by the interface
+
+MIGRATION PATH
+Today:
+SVEGIP UI -> /api/documents-control -> Netlify Database -> provider-neutral storage reference
+
+Future:
+SVEGIP UI -> same document-control contract -> SVE API / Database Hub -> SVE-managed object/document storage
+
+IMPORTANT
+This build does NOT upload confidential binaries into Netlify. It implements the governed document registry, access model, version history, audit trail and storage abstraction first. A secure storage connector can be attached later without redesigning the repository screens.
+
+LIVE SITE
+Not deployed.
