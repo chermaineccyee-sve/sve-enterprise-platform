@@ -46,3 +46,26 @@ jobs:
             echo "checking $f"
             npx --yes esbuild@0.28.2 --loader=ts < "$f" > /dev/null
           done
+
+  validate-platform-contracts:
+    name: Validate packages/ contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # packages/* are interface-only .ts contracts with no build tooling
+      # wired up yet (see docs/architecture/platform-architecture.md
+      # "Deferred tooling") — a syntax-only pass, same technique as
+      # validate-svegip's .mts check, catches real breakage without
+      # requiring a tsconfig/workspace setup that nothing consumes yet.
+      - name: Syntax-check packages/ TypeScript contracts
+        run: |
+          set -e
+          for f in $(find packages -name '*.ts'); do
+            echo "checking $f"
+            npx --yes esbuild@0.28.2 --loader=ts < "$f" > /dev/null
+          done

@@ -10,8 +10,9 @@
 ## Repository layout
 
 - `apps/svegip/` — the existing SVEGIP application. Self-contained: its own `package.json`, `netlify.toml`, and Netlify Functions. Treat changes here as changes to a live, deployed application.
-- `platform-services/` — reserved for future shared enterprise services (identity, HRMS, payroll, iClaims, accounting, workflow, audit, Data Vault backend). Nothing lives here yet; see `SVEGIP_ENTERPRISE_ASSESSMENT.md` for the planned roadmap before adding to it.
-- `docs/` — architecture assessment and migration records.
+- `platform-services/` — shared enterprise services (identity, HRMS, payroll, iClaims, accounting, workflow, audit, Data Vault backend). Scaffolded (each has a `README.md` describing its boundaries) but not implemented yet — read `docs/architecture/platform-architecture.md` and the target module's own `README.md` before adding real code to it.
+- `packages/` — shared contracts (`types`, `security`, `shared`, `config`) that `platform-services/*` will depend on. Interface-only today; no build tooling is wired up until the first module needs it (see `docs/architecture/platform-architecture.md` "Deferred tooling").
+- `docs/` — architecture documentation, the baseline assessment, and migration records.
 
 ## Environment variables and secrets
 
