@@ -1,0 +1,40 @@
+EMPLOYEE ACCOUNT ADMINISTRATION
+
+This build moves employee accounts from an environment JSON list into Netlify Database (Postgres).
+
+ADMIN SCREEN
+Administration → Employee Accounts & Access
+
+An authorised Administrator can:
+- Add employee account
+- Set employee email and name
+- Assign role and business unit
+- Activate / deactivate account
+- Grant / revoke SVE Data Vault access
+- Grant Data ID Audit Trail permission
+- Grant Data Vault Administration permission
+- Grant Employee Account Administration permission
+- Reset an employee password
+
+SECURITY
+- Passwords are PBKDF2-SHA256 hashed with a unique random salt.
+- Plaintext passwords are never stored in the database.
+- Authentication still issues the signed HttpOnly Secure SameSite session.
+- Employee account management API checks Administrator / accounts.manage.
+- Account changes are recorded in employee_account_audit.
+- Data Vault remains protected independently at the Edge.
+
+FIRST ADMINISTRATOR
+A bootstrap endpoint exists only to create the first account when the employee_accounts table is empty.
+Set SVEGIP_BOOTSTRAP_SECRET temporarily, call /api/bootstrap-admin once, then remove the environment variable.
+
+This build is for testing/review and has NOT been deployed over the live SVEGIP.
+
+ADMINISTRATION UX UPDATE
+- Employee Directory with account KPIs
+- Search by name, email, role or business unit
+- Status and business-unit filters
+- Individual Employee Profile
+- Effective permissions matrix
+- Account Activity & Audit History timeline
+- Responsive mobile layout

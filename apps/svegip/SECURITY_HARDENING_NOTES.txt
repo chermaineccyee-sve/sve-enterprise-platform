@@ -1,0 +1,60 @@
+SVEGIP PHASE 1 SECURITY HARDENING BUILD
+Date: 7 September 2026
+
+Scope completed
+1. Added netlify/functions/_auth-core.mts as the shared live authorization resolver.
+   - Verifies the existing svegip_session HMAC signature and expiry.
+   - Re-queries employee_accounts by email on every protected API request.
+   - Requires the canonical account status "Active".
+   - Returns current role, unit, Data Vault entitlement and permissions.
+
+2. Hardened /api/portal-data.
+   - Preserves the existing frontend response contract.
+   - Filters portal_records on the server before returning JSON.
+   - Projects/actions are withheld from ordinary Employee roles.
+   - SKL project visibility is constrained to SKL-linked project records for SKL User / Legal Reviewer.
+   - Legacy portal document records respect their access field.
+   - Portal business audit is returned only to Administrator.
+   - Existing Management write operations and existing audit writes are preserved.
+
+3. Hardened /api/admin/users.
+   - Removed authorization decisions based on stale role/permission claims in the cookie.
+   - Uses the shared live account context.
+   - Administrator or current accounts.manage entitlement is required.
+   - Existing account payloads, password hashing and employee_account_audit behavior are preserved.
+   - PATCH now preserves permissions and Data Vault entitlement when omitted instead of silently clearing them.
+
+4. Hardened Data Vault route authorization.
+   - Added /api/vault-authorize as the authoritative live entitlement gate.
+   - Edge protection does not open a database connection directly.
+   - Edge guard calls the same-origin serverless authorization gate and proceeds only on HTTP 204.
+   - Inactive/revoked users and users whose data_vault_access has been removed no longer rely solely on the stale cookie entitlement.
+
+5. Completed controlled document read ACL enforcement.
+   - documents.mts now uses the shared live security resolver.
+   - controlled_document_access is consulted for explicit view/read grants.
+   - Supported ACL subjects are USER/EMPLOYEE/EMAIL, ROLE and BUSINESS_UNIT/UNIT (case-insensitive).
+   - Restricted remains deny-by-default for ordinary users unless an explicit ACL grant exists.
+   - Existing Group / same-business-unit baseline remains intact.
+   - Administrator and Management retain the existing management override.
+   - Single-document GET and list GET use the same authorization function.
+   - ACL and audit details remain visible only to management-level document controllers.
+
+6. Centralized Management Decisions authentication.
+   - decisions.mts now uses the same shared live authorization resolver.
+   - Existing read/write role and decisions.manage rules remain unchanged.
+
+Validation performed
+- TypeScript syntax/type pass completed using temporary local Netlify type stubs because project dependencies are not installed in the audit workspace.
+- No syntax/type errors remained after stubbing only the external Netlify modules/globals.
+- No Prisma or db.query() abstraction was introduced.
+- No database migration was changed in this hardening pass.
+- No frontend endpoint or payload contract was intentionally changed.
+
+Remaining before production/confidential data
+- Run the build with installed project dependencies under `netlify dev` or a staging Netlify deploy.
+- Test each role and business unit with representative non-confidential records.
+- Add management UI/API operations to administer controlled_document_access if granular ACL grants will be used operationally.
+- Move remaining SVE Data Vault localStorage persistence behind controlled server-side APIs and database tables.
+- Review free-text role/unit/status constraints as a later hardening step.
+- Consider session rotation/shorter privileged-session duration and enterprise SSO/MFA in the deployment-hardening phase.

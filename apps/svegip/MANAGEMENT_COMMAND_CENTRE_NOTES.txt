@@ -1,0 +1,31 @@
+SVEGIP MANAGEMENT COMMAND CENTRE
+
+PURPOSE
+A single executive view for Management / Executive Office to see the operating picture without navigating module by module.
+
+LIVE DATA SOURCES
+- Projects & Clients: central portal database
+- Open Actions: central portal database
+- Meetings: central portal database
+- Announcements: central portal database
+- Controlled Documents: controlled-document API/database
+- Data Vault: secure hand-off to the existing SVE Data Vault when the employee has entitlement
+
+DASHBOARD AREAS
+- Portfolio Oversight
+- Action Watch
+- Upcoming Meetings
+- Governance & Documents
+- SVE Data Vault strategy-intelligence entry
+- Latest Group Announcements
+- Live local clock/date
+- KPI cards for active projects, open actions, upcoming meetings and controlled documents
+
+ACCESS
+Administrator, Management and Executive Office only.
+
+DESIGN INTENT
+This is an executive command surface, not a second database. It reads from the same underlying modules so there is one operational source rather than duplicated dashboard data.
+
+LIVE SITE
+Not deployed.

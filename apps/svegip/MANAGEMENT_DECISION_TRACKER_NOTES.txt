@@ -1,0 +1,41 @@
+SVEGIP MANAGEMENT DECISION TRACKER
+
+WORKFLOW
+Decision Required
+→ Management Direction
+→ Owner & Due Date
+→ Implementation
+→ Closed
+
+PURPOSE
+This layer connects management oversight to execution. It prevents decisions from disappearing into meeting minutes, chat messages or project updates without a clear owner and closure path.
+
+DATA MODEL
+- Unique decision code (SVE-DEC-0001...)
+- Title / decision required
+- Source type and source reference
+- Linked project
+- Linked meeting
+- Linked SVE Data Vault ID
+- Priority
+- Status
+- Management direction
+- Owner
+- Due date
+- Implementation note
+- Closed timestamp
+- Full audit trail
+
+ACCESS
+- Administrator / Management: read and write
+- Executive Office: read
+- Executive Office may be granted decisions.manage for write access if management wishes
+- API enforces permissions server-side
+
+INTEGRATION
+- Management Command Centre includes direct entry to Decision Tracker
+- Decision records can reference projects, meetings and Data Vault IDs
+- Future enhancement can automatically generate a decision item from meeting actions or Data Vault recommendations without changing the underlying workflow
+
+LIVE SITE
+Not deployed.

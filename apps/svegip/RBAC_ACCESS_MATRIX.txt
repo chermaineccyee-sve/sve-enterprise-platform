@@ -1,0 +1,50 @@
+SVEGIP ROLE & ACCESS MODEL — PILOT BASELINE
+
+Administrator
+- SVEGIP: Full access
+- SVE Data Vault: Full access
+- Data Vault Administration: Yes
+- Data ID Audit Trail: Yes
+- Permission flags: vault.admin, vault.audit
+
+Management
+- SVEGIP: Management-level access / edit
+- SVE Data Vault: Yes
+- Data Vault Administration: No
+- Data ID Audit Trail: No by default
+- Optional: vault.audit where oversight requires issuance-history access
+
+Executive Office
+- SVEGIP: Executive Office, projects and governance working access
+- SVE Data Vault: Yes
+- Data Vault Administration: No
+- Data ID Audit Trail: No by default
+
+SKL User / Legal Reviewer
+- SVEGIP: SKL workspace plus permitted Group resources
+- SVE Data Vault: Account-specific
+- Recommended: enable only for users assigned to SVE-linked legal/regulatory review
+- Data Vault Administration: No
+- Data ID Audit Trail: No
+
+Employee
+- SVEGIP: Standard Group and assigned business-unit resources
+- SVE Data Vault: Account-specific
+- Recommended: enable for staff performing research, evidence or strategy work
+- Data Vault Administration: No
+- Data ID Audit Trail: No
+
+CONTROL PRINCIPLE
+Data Vault access is an explicit employee entitlement (dataVaultAccess), not merely inferred from job title.
+Administration and Data ID Audit Trail are separately controlled using vault.admin and vault.audit.
+
+EXAMPLE USER OBJECT
+{
+  "email":"employee@svegroup.com",
+  "name":"Employee Name",
+  "role":"Executive Office",
+  "unit":"SVE",
+  "status":"Active",
+  "dataVaultAccess":true,
+  "permissions":[]
+}

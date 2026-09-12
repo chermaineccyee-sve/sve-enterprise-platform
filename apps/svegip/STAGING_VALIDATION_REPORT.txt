@@ -1,0 +1,111 @@
+SVEGIP PHASE 1 SECURITY HARDENING - VALIDATION REPORT
+Date: 7 September 2026
+Target build: SVEGIP_SECURITY_HARDENED_PHASE1
+
+EXECUTIVE VERDICT
+The hardened build is READY FOR CONTROLLED STAGING DEPLOYMENT using representative non-confidential data.
+It is not yet classified as production-ready for confidential SVE Data Vault information.
+
+CONNECTED NETLIFY STATUS
+- Staging project identified: svegip-staging
+- Production project identified separately: svegip
+- Production was not modified.
+- Existing staging deploy is healthy/ready and has migrations 001-004 applied.
+- Existing staging deploy is the pre-hardening build (9 deployed Functions + 1 Edge Function).
+- Hardened local package adds the live Vault authorization endpoint and centralized authorization module.
+- The available connected deployment action cannot upload the local hardened ZIP; triggering it would redeploy the existing source rather than this validated package, so no misleading deployment was performed.
+
+DATABASE / MIGRATION ALIGNMENT
+Validated against:
+001_employee-accounts
+002_portal-business-data
+003_secure-document-control
+004_management-decisions
+
+No Prisma, ORM migration, db.query(), invented audit table, or new schema dependency was introduced.
+
+SECURITY VALIDATION HARNESS
+The modified Netlify Function handlers were executed locally using:
+- real HMAC-signed svegip_session cookie generation;
+- mocked @netlify/database tagged db.sql behavior matching the existing schema;
+- representative live account states and portal/document records.
+
+RESULT: 12 / 12 CHECKS PASSED
+
+1. PASS - Employee portal
+   - no portal business audit returned;
+   - projects/actions withheld;
+   - Group document available;
+   - SKL-only document withheld.
+
+2. PASS - SKL User / Legal Reviewer portal
+   - SKL announcement visible;
+   - SKL-linked project visible;
+   - SKL document visible;
+   - audit and action data withheld.
+
+3. PASS - Executive Office portal
+   - action data available;
+   - SKL-only project withheld.
+
+4. PASS - Administrator portal
+   - portal business audit visible.
+
+5. PASS - Inactive employee account
+   - request rejected despite a cryptographically valid session cookie.
+
+6. PASS - Stale Administrator cookie after live downgrade
+   - Employee Account Administration rejected the request based on the live database role.
+
+7. PASS - Live Administrator
+   - Employee Account Directory remained accessible.
+
+8. PASS - Revoked Data Vault entitlement
+   - request rejected despite the cookie still containing prior Data Vault access.
+
+9. PASS - Current Data Vault entitlement
+   - authorization endpoint returned HTTP 204.
+
+10. PASS - Employee controlled-document list
+    - Group and own-unit documents visible;
+    - Restricted document denied by default;
+    - Restricted document with explicit USER view grant visible.
+
+11. PASS - SKL controlled-document isolation
+    - Group and SKL documents visible;
+    - SVE-only document withheld.
+
+12. PASS - Management controlled-document override
+    - existing management visibility preserved.
+
+SESSION / COOKIE REVIEW
+- HttpOnly: yes
+- Secure: yes
+- SameSite=Lax: yes
+- Cache-Control=no-store on authentication/session paths: yes
+- Session max age: 28,800 seconds / 8 hours
+- /api/session performs live employee_accounts status/role/unit/permission refresh: yes
+- inactive account causes session rejection and cookie clearing: yes
+
+CURRENT CLASSIFICATION
+Central live authorization: READY WITH CONDITIONS
+portal-data server filtering: READY WITH CONDITIONS
+admin-users stale privilege protection: READY WITH CONDITIONS
+Data Vault live entitlement gate: READY WITH CONDITIONS
+Controlled document ACL enforcement: READY WITH CONDITIONS
+Management Decisions authorization: READY
+Database migrations 001-004: READY FOR STAGING
+Production/confidential use: NOT YET READY
+
+CONDITIONS BEFORE PRODUCTION / CONFIDENTIAL DATA
+1. Deploy this exact hardened package to the separate staging project.
+2. Confirm SVEGIP_SESSION_SECRET is configured with a strong non-empty secret in staging runtime.
+3. Confirm bootstrap secret lifecycle and disable/remove it after the first administrative account exists.
+4. Execute live role-by-role browser tests against the actual Netlify Database.
+5. Confirm the Data Vault Edge -> /api/vault-authorize call operates successfully in deployed Netlify runtime.
+6. Add operational UI/API management for controlled_document_access if granular ACL grants will be administered routinely.
+7. Move remaining Data Vault localStorage persistence behind SVE-controlled APIs/database tables before confidential Vault use.
+8. Later hardening: role/unit/status constraints, shorter/rotated privileged sessions, enterprise SSO/MFA, rate limiting and broader production security review.
+
+PHASE 1 DECISION
+Proceed to controlled staging deployment and live representative-user testing. Do not introduce Google Drive, Microsoft Entra, or confidential SVE Data Vault information before this staging gate passes.

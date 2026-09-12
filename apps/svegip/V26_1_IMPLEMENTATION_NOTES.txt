@@ -1,0 +1,24 @@
+SVEGIP Phase 1 V26.1 — Consolidated QA Build
+
+Portal shell
+- Shared responsive shell rebuilt so desktop and mobile main content scroll independently.
+- Group, SVE International and SKL sidebars use a scrollable navigation region with a persistent account/sign-out footer.
+- Management Command Centre, Insight to Implementation, Decision Tracker and Administration use the same scroll-safe shell.
+- Group Announcements now returns to and focuses the Latest Announcements panel.
+- Group Meetings sidebar entry replaced by Our Insights, opening SK Lai & Partners Insights.
+- Group Home uses the supplied SVE strategic corporate banner asset without reconstructing the artwork.
+
+Data Vault
+- Data Vault shell and long modal/page scrolling hardened for desktop and mobile.
+- Legacy unsupported Research & Data Collection navigation removed; Step 02 is Source & Signal Monitoring.
+- Internal Data Vault navigation normalized so page buttons and sidebar routes use goPage consistently.
+- Matter/client command-centre routes preserve the selected matter when opening evidence, documents, risks, tasks, deliverables, decisions, source monitor, insights and review.
+- Legacy duplicate static Back controls hidden in favour of one module Back control.
+- Tasks & Decisions and Knowledge-to-Decision Engine sequencing reflowed for mobile and desktop.
+- News Monitor reclassified as News & Market Signals / Source Monitor. It no longer claims a live automated feed; current official-source gateways are provided.
+- Data Vault Administration now loads the central employee account register for administrators and can update role and Data Vault entitlement through /api/admin/users.
+- Data Vault Sign out clears the server session and returns to SVEGIP login.
+
+Security / scope
+- Existing hardened authentication, session, portal RBAC, Data Vault authorization, document ACL and database migrations preserved.
+- Phase 1 remains non-confidential validation scope; no production-readiness claim is introduced.
