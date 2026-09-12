@@ -24,10 +24,14 @@ export interface User {
 
 /** The minimal, optional hook to a future Employee Master record. */
 export interface UserEmployeeLink {
+  id: string;
   userId: string;
   employeeId: string;
   linkedAt: string;
   linkedBy: string;
+  /** Set when this link has been deliberately unlinked — the row is kept for audit history rather than deleted. See platform-services/organisation, this link's current consumer. */
+  unlinkedAt: string | null;
+  unlinkedBy: string | null;
 }
 
 export interface Group {

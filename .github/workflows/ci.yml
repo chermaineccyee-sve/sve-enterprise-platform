@@ -189,3 +189,69 @@ jobs:
       - name: Run tests
         working-directory: platform-services/data-vault
         run: npm test
+
+  validate-organisation:
+    name: Validate platform-services/organisation
+    runs-on: ubuntu-latest
+    # Same shared Postgres schema as Identity and Data Vault (this package's
+    # tables — business_units/departments/positions/employees/employment_
+    # assignments — are applied by the same migration runner) — see
+    # docs/architecture/organisation-employee-master.md "Module ownership
+    # and dependency direction".
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sve_identity
+          POSTGRES_PASSWORD: sve_identity_ci_only
+          POSTGRES_DB: sve_identity_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sve_identity"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://sve_identity:sve_identity_ci_only@localhost:5432/sve_identity_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            platform-services/identity/package-lock.json
+            platform-services/organisation/package-lock.json
+
+      # Organisation imports platform-services/identity's Postgres
+      # repositories, session/RBAC/audit services, and migration runner by
+      # source path (see src/composition/container.ts) rather than through
+      # a published package — same documented cross-package-import boundary
+      # as Data Vault (see platform-services/organisation/README.md).
+      - name: Install platform-services/identity dependencies (Organisation imports its Postgres/session/RBAC/audit implementations)
+        working-directory: platform-services/identity
+        run: npm ci
+
+      - name: Install platform-services/organisation dependencies
+        working-directory: platform-services/organisation
+        run: npm ci
+
+      - name: Type-check
+        working-directory: platform-services/organisation
+        run: npm run typecheck
+
+      - name: Run migrations against the CI database
+        working-directory: platform-services/organisation
+        run: npm run migrate
+
+      # Real unit + integration tests — organisation structure, Employee
+      # Master CRUD, effective-dated assignment transitions/history,
+      # reporting-cycle prevention, RBAC/entity/classification enforcement
+      # (including SK Lai & Partners' privileged tier), Identity linkage,
+      # mass-assignment and IDOR/existence-leak checks — against the real
+      # shared Postgres schema.
+      - name: Run tests
+        working-directory: platform-services/organisation
+        run: npm test

@@ -23,6 +23,30 @@ function mapUser(row: UserRow): User {
   };
 }
 
+interface LinkRow {
+  id: string;
+  user_id: string;
+  employee_id: string;
+  linked_at: string;
+  linked_by: string;
+  unlinked_at: string | null;
+  unlinked_by: string | null;
+}
+
+const LINK_COLUMNS = "id, user_id, employee_id, linked_at, linked_by, unlinked_at, unlinked_by";
+
+function mapLink(row: LinkRow): UserEmployeeLink {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    employeeId: row.employee_id,
+    linkedAt: row.linked_at,
+    linkedBy: row.linked_by,
+    unlinkedAt: row.unlinked_at,
+    unlinkedBy: row.unlinked_by,
+  };
+}
+
 export function createPgUserRepository(db: DatabaseProvider): UserRepository {
   return {
     async createUser(input: { email: string; accountType: AccountType }): Promise<User> {
@@ -76,12 +100,30 @@ export function createPgUserRepository(db: DatabaseProvider): UserRepository {
       if (!row) return null;
       return { hash: row.password_hash, salt: row.password_salt, algorithm: row.password_algorithm, params: row.password_params };
     },
-    async linkEmployee(link: Omit<UserEmployeeLink, "linkedAt">): Promise<UserEmployeeLink> {
-      const result = await db.query<{ linked_at: string }>(
-        `INSERT INTO user_employee_links(user_id, employee_id, linked_by) VALUES ($1, $2, $3) RETURNING linked_at`,
+    async linkEmployee(link: { userId: string; employeeId: string; linkedBy: string }): Promise<UserEmployeeLink> {
+      const result = await db.query<LinkRow>(
+        `INSERT INTO user_employee_links(user_id, employee_id, linked_by) VALUES ($1, $2, $3)
+         RETURNING ${LINK_COLUMNS}`,
         [link.userId, link.employeeId, link.linkedBy],
       );
-      return { ...link, linkedAt: result.rows[0]!.linked_at };
+      return mapLink(result.rows[0]!);
+    },
+    async findActiveLinkByUserId(userId: string): Promise<UserEmployeeLink | null> {
+      const result = await db.query<LinkRow>(
+        `SELECT ${LINK_COLUMNS} FROM user_employee_links WHERE user_id = $1 AND unlinked_at IS NULL`,
+        [userId],
+      );
+      return result.rows[0] ? mapLink(result.rows[0]) : null;
+    },
+    async findActiveLinkByEmployeeId(employeeId: string): Promise<UserEmployeeLink | null> {
+      const result = await db.query<LinkRow>(
+        `SELECT ${LINK_COLUMNS} FROM user_employee_links WHERE employee_id = $1 AND unlinked_at IS NULL`,
+        [employeeId],
+      );
+      return result.rows[0] ? mapLink(result.rows[0]) : null;
+    },
+    async unlinkEmployee(linkId: string, unlinkedBy: string): Promise<void> {
+      await db.query(`UPDATE user_employee_links SET unlinked_at = NOW(), unlinked_by = $2 WHERE id = $1 AND unlinked_at IS NULL`, [linkId, unlinkedBy]);
     },
   };
 }

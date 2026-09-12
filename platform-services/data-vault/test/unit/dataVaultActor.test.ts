@@ -160,6 +160,11 @@ test("5. native bearer-token requests are never subject to the origin check, eve
       linkEmployee: async () => {
         throw new Error("not used");
       },
+      findActiveLinkByUserId: async () => null,
+      findActiveLinkByEmployeeId: async () => null,
+      unlinkEmployee: async () => {
+        throw new Error("not used");
+      },
     } as DataVaultContainer["users"],
   });
 
@@ -194,6 +199,11 @@ test("an unprovisioned SVEGIP-authenticated caller (trusted origin, no matching 
       setCredential: async () => {},
       getCredential: async () => null,
       linkEmployee: async () => {
+        throw new Error("not used");
+      },
+      findActiveLinkByUserId: async () => null,
+      findActiveLinkByEmployeeId: async () => null,
+      unlinkEmployee: async () => {
         throw new Error("not used");
       },
     } as DataVaultContainer["users"],

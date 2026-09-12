@@ -38,10 +38,23 @@ export function createInMemoryUserRepository(store: InMemoryStore): UserReposito
     async getCredential(userId: string): Promise<PasswordHash | null> {
       return store.credentials.get(userId) ?? null;
     },
-    async linkEmployee(link: Omit<UserEmployeeLink, "linkedAt">): Promise<UserEmployeeLink> {
-      const full: UserEmployeeLink = { ...link, linkedAt: new Date().toISOString() };
+    async linkEmployee(link: { userId: string; employeeId: string; linkedBy: string }): Promise<UserEmployeeLink> {
+      const full: UserEmployeeLink = { id: randomUUID(), ...link, linkedAt: new Date().toISOString(), unlinkedAt: null, unlinkedBy: null };
       store.employeeLinks.push(full);
       return full;
+    },
+    async findActiveLinkByUserId(userId: string): Promise<UserEmployeeLink | null> {
+      return store.employeeLinks.find((l) => l.userId === userId && l.unlinkedAt === null) ?? null;
+    },
+    async findActiveLinkByEmployeeId(employeeId: string): Promise<UserEmployeeLink | null> {
+      return store.employeeLinks.find((l) => l.employeeId === employeeId && l.unlinkedAt === null) ?? null;
+    },
+    async unlinkEmployee(linkId: string, unlinkedBy: string): Promise<void> {
+      const link = store.employeeLinks.find((l) => l.id === linkId && l.unlinkedAt === null);
+      if (link) {
+        link.unlinkedAt = new Date().toISOString();
+        link.unlinkedBy = unlinkedBy;
+      }
     },
   };
 }
