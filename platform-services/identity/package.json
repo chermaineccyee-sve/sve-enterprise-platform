@@ -1,0 +1,26 @@
+{
+  "name": "@sve/identity-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SVE Enterprise Platform Identity & Access foundation. Operates in parallel with apps/svegip's existing authentication — see README.md.",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "migrate": "node scripts/migrate.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-concurrency=1",
+    "test:unit": "node --test test/unit",
+    "test:integration": "node --test --test-concurrency=1 test/integration",
+    "dev": "node src/server.ts"
+  },
+  "dependencies": {
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.2",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}
