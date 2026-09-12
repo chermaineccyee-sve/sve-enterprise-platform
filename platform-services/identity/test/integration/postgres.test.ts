@@ -14,6 +14,7 @@ import { createSessionService } from "../../src/services/sessionService.ts";
 import { hashPassword, verifyPassword } from "../../src/crypto/password.ts";
 import { encryptTotpSecret, decryptTotpSecret } from "../../src/crypto/mfaSecretCipher.ts";
 import { generateTotpSecret } from "../../src/crypto/totp.ts";
+import { createAuditService } from "../../src/services/auditService.ts";
 
 const skip: boolean | string = getTestDatabaseUrl()
   ? false

@@ -4,6 +4,12 @@
  * `http` module plus a small manual path/method table is simpler and has
  * zero additional dependencies. See docs/architecture/identity-foundation.md
  * "Why no HTTP framework".
+ *
+ * Scope: Identity/access/session/MFA routes only — Data Vault's
+ * /api/v1/data-vault/* routes are served by platform-services/data-vault's
+ * own HTTP server (src/api/http.ts there), not mounted here. See
+ * docs/architecture/data-vault-foundation.md "Module ownership and
+ * dependency direction".
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Container } from "../container.ts";

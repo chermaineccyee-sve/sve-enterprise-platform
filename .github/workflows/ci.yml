@@ -121,3 +121,71 @@ jobs:
       # database isn't raced by multiple files truncating it at once.
       - name: Run tests
         run: npm test
+
+  validate-data-vault:
+    name: Validate platform-services/data-vault
+    runs-on: ubuntu-latest
+    # Same shared Postgres schema as Identity (Data Vault's own tables live
+    # alongside Identity's, applied by the same migration runner) — see
+    # docs/architecture/data-vault-foundation.md "Module ownership and
+    # dependency direction".
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sve_identity
+          POSTGRES_PASSWORD: sve_identity_ci_only
+          POSTGRES_DB: sve_identity_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sve_identity"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://sve_identity:sve_identity_ci_only@localhost:5432/sve_identity_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            platform-services/identity/package-lock.json
+            platform-services/data-vault/package-lock.json
+
+      # Data Vault imports platform-services/identity's Postgres
+      # repositories, session/RBAC/audit services, and migration runner by
+      # source path (see src/composition/container.ts) rather than through
+      # a published package — Node resolves each imported file's own
+      # dependencies (e.g. `pg`) relative to that file's location, so
+      # Identity's own node_modules must be installed here too, not just
+      # Data Vault's. This is a documented consequence of the current
+      # cross-package-import boundary, not an oversight — see
+      # platform-services/data-vault/README.md.
+      - name: Install platform-services/identity dependencies (Data Vault imports its Postgres/session/RBAC/audit implementations)
+        working-directory: platform-services/identity
+        run: npm ci
+
+      - name: Install platform-services/data-vault dependencies
+        working-directory: platform-services/data-vault
+        run: npm ci
+
+      - name: Type-check
+        working-directory: platform-services/data-vault
+        run: npm run typecheck
+
+      - name: Run migrations against the CI database
+        working-directory: platform-services/data-vault
+        run: npm run migrate
+
+      # Real unit + integration tests — RBAC/entity/classification
+      # enforcement, the SVEGIP session-cookie bridge, CSRF/origin
+      # protection for cookie-authenticated writes, mass-assignment and
+      # IDOR/existence-leak checks, and versioning/archive behaviour —
+      # against the real shared Postgres schema.
+      - name: Run tests
+        working-directory: platform-services/data-vault
+        run: npm test

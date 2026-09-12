@@ -5,6 +5,14 @@
  * docs/architecture/platform-architecture.md "platform-services/core" and
  * deployment-portability.md. The API layer (src/api/*) depends only on this
  * container's shape, never on Postgres or `pg` directly.
+ *
+ * Scope: Identity/access/session/MFA/security only. This file has no
+ * knowledge of Data Vault or any other business domain — see
+ * platform-services/data-vault/src/composition/container.ts, which
+ * imports the pieces below (repositories, services, types) to build its
+ * OWN container, rather than this file owning or wiring anything
+ * Data-Vault-specific. See docs/architecture/data-vault-foundation.md
+ * "Module ownership and dependency direction".
  */
 import type { DatabaseProvider } from "../../../packages/shared/src/DatabaseProvider.ts";
 import type { SecretsProvider } from "../../../packages/security/src/SecretsProvider.ts";
