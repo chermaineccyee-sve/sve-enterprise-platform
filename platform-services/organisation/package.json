@@ -1,0 +1,23 @@
+{
+  "name": "@sve/organisation-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SVE Organisation structure + Employee Master foundation. Depends on platform-services/identity's Identity/RBAC/Audit contracts and services (imported by source path — see README.md); does not duplicate their implementation, and platform-services/identity has no dependency on this package.",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "migrate": "node ../identity/scripts/migrate.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-concurrency=1",
+    "test:unit": "node --test test/unit",
+    "test:integration": "node --test --test-concurrency=1 test/integration",
+    "dev": "node src/server.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "22.20.2",
+    "typescript": "5.9.3"
+  }
+}

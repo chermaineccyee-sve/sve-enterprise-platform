@@ -11,7 +11,18 @@
 import pg from "pg";
 import type { DatabaseProvider, QueryResult } from "../../../../../packages/shared/src/DatabaseProvider.ts";
 
-const { Pool } = pg;
+const { Pool, types } = pg;
+
+// `pg`'s default parser turns a `DATE` column (e.g. employment_assignments.
+// effective_from/effective_to, data_vault_records.checked_date) into a JS
+// `Date` object — every domain type across all three packages declares
+// these fields as plain `string` ('YYYY-MM-DD'), and application code
+// throughout (date-range comparisons, string equality checks, JSON
+// serialization) relies on that. Registered once, here — the one file in
+// the codebase that imports `pg` directly (see this file's header comment)
+// — so it applies process-wide to every package that imports this
+// provider, not just Identity's own queries.
+types.setTypeParser(types.builtins.DATE, (value: string) => value);
 
 export function createPgDatabaseProvider(connectionString: string): DatabaseProvider & { close(): Promise<void> } {
   const pool = new Pool({ connectionString });

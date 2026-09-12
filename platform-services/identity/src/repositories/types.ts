@@ -33,7 +33,10 @@ export interface UserRepository {
   setStatus(userId: string, status: "active" | "disabled"): Promise<void>;
   setCredential(userId: string, hash: PasswordHash): Promise<void>;
   getCredential(userId: string): Promise<PasswordHash | null>;
-  linkEmployee(link: Omit<UserEmployeeLink, "linkedAt">): Promise<UserEmployeeLink>;
+  linkEmployee(link: { userId: string; employeeId: string; linkedBy: string }): Promise<UserEmployeeLink>;
+  findActiveLinkByUserId(userId: string): Promise<UserEmployeeLink | null>;
+  findActiveLinkByEmployeeId(employeeId: string): Promise<UserEmployeeLink | null>;
+  unlinkEmployee(linkId: string, unlinkedBy: string): Promise<void>;
 }
 
 export interface OrganisationRepository {
