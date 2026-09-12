@@ -59,7 +59,7 @@ export async function createOrganisationContainer(db: DatabaseProvider): Promise
   const audit = createAuditService({ audit: auditRepo });
 
   const employees = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
-  const assignments = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+  const assignments = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
   const orgStructure = createOrganisationStructureService({ orgStructure: orgStructureRepo, organisation, rbac, audit });
 
   return { users, organisation, sessions, rbac, audit, employees, assignments, orgStructure };

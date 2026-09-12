@@ -504,7 +504,7 @@ test("Reporting-cycle concurrency: two simultaneous, mutually-adversarial report
     const rbac = createRbacService({ rbac: rbacRepo, organisation });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
-    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
 
     const entities = await organisation.listLegalEntities();
     const my = entities.find((e) => e.key === "sve-international-my")!;
@@ -589,7 +589,7 @@ test("Reporting-cycle concurrency: self-reporting, ordinary multi-hop cycle dete
     const rbac = createRbacService({ rbac: rbacRepo, organisation });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
-    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
 
     const entities = await organisation.listLegalEntities();
     const my = entities.find((e) => e.key === "sve-international-my")!;
@@ -691,7 +691,7 @@ test("Current manager assignment integrity: reporting to the manager's current (
     const rbac = createRbacService({ rbac: rbacRepo, organisation });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
-    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
 
     const admin = await users.createUser({ email: "org.pg.mgrintegrity.current.admin@example.test", accountType: "employee" });
     const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.current.hr@example.test", admin.id);
@@ -721,7 +721,7 @@ test("Current manager assignment integrity: reporting to a manager's CLOSED (his
     const rbac = createRbacService({ rbac: rbacRepo, organisation });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
-    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
 
     const admin = await users.createUser({ email: "org.pg.mgrintegrity.closed.admin@example.test", accountType: "employee" });
     const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.closed.hr@example.test", admin.id);
@@ -760,7 +760,7 @@ test("Current manager assignment integrity: a nonexistent manager assignment id 
     const rbac = createRbacService({ rbac: rbacRepo, organisation });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
-    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
 
     const admin = await users.createUser({ email: "org.pg.mgrintegrity.leak.admin@example.test", accountType: "employee" });
     const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.leak.hr@example.test", admin.id);
@@ -808,7 +808,7 @@ test("Current manager assignment integrity: self-reporting and cycle protection 
     const rbac = createRbacService({ rbac: rbacRepo, organisation });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
-    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
 
     const admin = await users.createUser({ email: "org.pg.mgrintegrity.cycle.admin@example.test", accountType: "employee" });
     const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.cycle.hr@example.test", admin.id);
@@ -852,7 +852,7 @@ test("Current manager assignment integrity: a closed historical assignment retai
     const rbac = createRbacService({ rbac: rbacRepo, organisation });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
-    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
 
     const admin = await users.createUser({ email: "org.pg.mgrintegrity.history.admin@example.test", accountType: "employee" });
     const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.history.hr@example.test", admin.id);
@@ -900,7 +900,7 @@ test("Current manager assignment integrity: a transfer/promotion can establish a
     const rbac = createRbacService({ rbac: rbacRepo, organisation });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
-    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
 
     const admin = await users.createUser({ email: "org.pg.mgrintegrity.newmgr.admin@example.test", accountType: "employee" });
     const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.newmgr.hr@example.test", admin.id);
