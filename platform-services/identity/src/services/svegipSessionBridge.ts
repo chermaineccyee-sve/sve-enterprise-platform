@@ -1,9 +1,13 @@
 /**
- * SVEGIP session compatibility adapter — the "minimum safe integration
- * strategy" for authenticating Data Vault API requests during the
- * transitional state where apps/svegip still owns login (see PR brief
- * item 8; full write-up in docs/architecture/data-vault-foundation.md
- * "SVEGIP/Identity transitional authentication boundary").
+ * SVEGIP session compatibility adapter — a reusable Identity capability
+ * (verify an externally-issued SVEGIP session, resolve it to nothing more
+ * than a verified email) that any consuming platform-service can depend
+ * on during the transitional state where apps/svegip still owns login.
+ * Data Vault is the current consumer (see docs/architecture/
+ * data-vault-foundation.md "SVEGIP/Identity transitional authentication
+ * boundary" and platform-services/data-vault/src/api/middleware/
+ * dataVaultActor.ts) — this module itself has no Data-Vault-specific
+ * knowledge, and Identity does not depend on Data Vault to use it.
  *
  * What this does and does not trust:
  *  - It cryptographically verifies the exact same signed cookie apps/
@@ -17,17 +21,30 @@
  *    authorization state, not this platform's, and trusting them would
  *    recreate "two unrelated sources of authority" for the same
  *    decision. Once this returns a verified email, all authorization
- *    for the request is decided solely by this service's own RBAC
- *    tables (rbacService.ts, entity_access_grants, permissions) via a
- *    corresponding `users` row looked up by that email — see
- *    src/api/middleware/dataVaultActor.ts.
+ *    for the request must be decided solely by the consuming service's
+ *    own RBAC tables via a corresponding `users` row looked up by that
+ *    email — never from this cookie again.
  *  - apps/svegip's own login/session issuance/password storage are not
  *    read, written, or modified by any code here.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { SecretsProvider } from "../../../../packages/security/src/SecretsProvider.ts";
 
 const COOKIE_NAME = "svegip_session";
 export const SVEGIP_BRIDGE_SECRET_ENV_VAR = "SVEGIP_SESSION_SECRET";
+
+/**
+ * Resolves the shared bridge secret through the SecretsProvider
+ * abstraction (never a direct process.env read outside src/config/
+ * envSecretsProvider.ts), or null if unset. Unlike loadMfaEncryptionKey,
+ * this never throws on a missing value — the bridge is optional
+ * (consuming services must decide whether to enable it), so "not
+ * configured" is a normal, valid outcome, not a startup failure.
+ */
+export async function loadSvegipBridgeSecret(secrets: SecretsProvider): Promise<string | null> {
+  const value = await secrets.getSecret(SVEGIP_BRIDGE_SECRET_ENV_VAR);
+  return value && value.length > 0 ? value : null;
+}
 
 function fromBase64Url(value: string): Buffer {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/");

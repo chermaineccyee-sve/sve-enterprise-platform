@@ -21,7 +21,6 @@ import type {
   SecurityAuditEvent,
 } from "../../domain/entities.ts";
 import type { PasswordHash } from "../../crypto/password.ts";
-import type { DataVaultRecord, DataVaultRecordVersion } from "../../domain/dataVault.ts";
 
 export interface InMemoryStore {
   groups: Group[];
@@ -39,9 +38,6 @@ export interface InMemoryStore {
   recoveryCodes: MfaRecoveryCode[];
   attempts: AuthenticationAttempt[];
   auditEvents: SecurityAuditEvent[];
-  dataVaultRecords: DataVaultRecord[];
-  dataVaultRecordVersions: DataVaultRecordVersion[];
-  dataVaultRecordSeq: number;
 }
 
 export function createInMemoryStore(): InMemoryStore {
@@ -91,8 +87,5 @@ export function createInMemoryStore(): InMemoryStore {
     recoveryCodes: [],
     attempts: [],
     auditEvents: [],
-    dataVaultRecords: [],
-    dataVaultRecordVersions: [],
-    dataVaultRecordSeq: 0,
   };
 }

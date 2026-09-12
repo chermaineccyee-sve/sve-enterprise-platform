@@ -1,29 +1,37 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+// Two separate in-memory stores, deliberately: Identity's own (rbac/
+// organisation/audit — imported from platform-services/identity, the
+// contracts this package depends on) and Data Vault's own (its records
+// only) — see src/repositories/memory/inMemoryStore.ts's header comment
+// on why these are not merged into one shared store.
+import { createInMemoryStore as createIdentityInMemoryStore } from "../../../identity/src/repositories/memory/inMemoryStore.ts";
+import { createInMemoryRbacRepository } from "../../../identity/src/repositories/memory/inMemoryRbacRepository.ts";
+import { createInMemoryOrganisationRepository } from "../../../identity/src/repositories/memory/inMemoryOrganisationRepository.ts";
+import { createInMemoryAuditRepository } from "../../../identity/src/repositories/memory/inMemoryAuditRepository.ts";
+import { createRbacService } from "../../../identity/src/services/rbacService.ts";
+import { createAuditService } from "../../../identity/src/services/auditService.ts";
+import { ForbiddenError } from "../../../identity/src/domain/errors.ts";
 import { createInMemoryStore } from "../../src/repositories/memory/inMemoryStore.ts";
-import { createInMemoryRbacRepository } from "../../src/repositories/memory/inMemoryRbacRepository.ts";
-import { createInMemoryOrganisationRepository } from "../../src/repositories/memory/inMemoryOrganisationRepository.ts";
 import { createInMemoryDataVaultRepository } from "../../src/repositories/memory/inMemoryDataVaultRepository.ts";
-import { createInMemoryAuditRepository } from "../../src/repositories/memory/inMemoryAuditRepository.ts";
-import { createRbacService } from "../../src/services/rbacService.ts";
-import { createAuditService } from "../../src/services/auditService.ts";
 import { createDataVaultService, PERMISSIONS } from "../../src/services/dataVaultService.ts";
-import { NotFoundError, ForbiddenError, ValidationError } from "../../src/domain/errors.ts";
+import { NotFoundError, ValidationError } from "../../src/domain/errors.ts";
 
 const ADMIN = randomUUID(); // fictional "granted by" bootstrap actor id, matches rbac.test.ts's convention
 
 async function setup() {
+  const identityStore = createIdentityInMemoryStore();
   const store = createInMemoryStore();
-  const rbacRepo = createInMemoryRbacRepository(store);
-  const organisation = createInMemoryOrganisationRepository(store);
+  const rbacRepo = createInMemoryRbacRepository(identityStore);
+  const organisation = createInMemoryOrganisationRepository(identityStore);
+  const auditRepo = createInMemoryAuditRepository(identityStore);
   const dataVaultRepo = createInMemoryDataVaultRepository(store);
-  const auditRepo = createInMemoryAuditRepository(store);
   const rbac = createRbacService({ rbac: rbacRepo, organisation });
   const audit = createAuditService({ audit: auditRepo });
   const dataVault = createDataVaultService({ dataVault: dataVaultRepo, rbac, organisation, audit });
-  const [sg, my, skl] = store.legalEntities;
-  return { store, rbacRepo, organisation, dataVault, rbac, sg: sg!, my: my!, skl: skl! };
+  const [sg, my, skl] = identityStore.legalEntities;
+  return { store, identityStore, rbacRepo, organisation, dataVault, rbac, sg: sg!, my: my!, skl: skl! };
 }
 
 async function grantRole(
@@ -286,7 +294,7 @@ test("archiving without archive permission is denied", async () => {
 });
 
 test("audit events are created for create/view(sensitive)/update/archive, and never contain full record content", async () => {
-  const { dataVault, rbacRepo, store, my } = await setup();
+  const { dataVault, rbacRepo, identityStore, my } = await setup();
   const userId = randomUUID();
   await grantRole(
     rbacRepo,
@@ -304,19 +312,19 @@ test("audit events are created for create/view(sensitive)/update/archive, and ne
   await dataVault.updateRecord(actor(userId), record.id, { topic: "Updated secret detail" });
   await dataVault.archiveRecord(actor(userId), record.id);
 
-  const actions = store.auditEvents.map((e) => e.action);
+  const actions = identityStore.auditEvents.map((e) => e.action);
   assert.ok(actions.includes("data_vault.record.created"));
   assert.ok(actions.includes("data_vault.record.viewed"));
   assert.ok(actions.includes("data_vault.record.updated"));
   assert.ok(actions.includes("data_vault.record.archived"));
 
-  const serialized = JSON.stringify(store.auditEvents);
+  const serialized = JSON.stringify(identityStore.auditEvents);
   assert.ok(!serialized.includes("Secret client strategy detail"), "audit log must never contain full record content");
   assert.ok(!serialized.includes("Updated secret detail"), "audit log must never contain full record content");
 });
 
 test("a denied direct-access attempt is itself audited as an access denial", async () => {
-  const { dataVault, rbacRepo, store, sg } = await setup();
+  const { dataVault, rbacRepo, identityStore, sg } = await setup();
   const creatorId = randomUUID();
   await grantRole(rbacRepo, creatorId, [{ key: PERMISSIONS.CREATE, maxClassification: "CONFIDENTIAL" }], { scopeType: "legal_entity", legalEntityId: sg.id });
   const record = await dataVault.createRecord(actor(creatorId), baseInput(sg.id));
@@ -324,7 +332,7 @@ test("a denied direct-access attempt is itself audited as an access denial", asy
   const strangerId = randomUUID();
   await assert.rejects(() => dataVault.getRecord(actor(strangerId), record.id), NotFoundError);
 
-  const denial = store.auditEvents.find((e) => e.action === "data_vault.access.denied" && e.resourceId === record.id);
+  const denial = identityStore.auditEvents.find((e) => e.action === "data_vault.access.denied" && e.resourceId === record.id);
   assert.ok(denial, "the denied access attempt must be audited");
   assert.equal(denial!.actorUserId, strangerId);
 });

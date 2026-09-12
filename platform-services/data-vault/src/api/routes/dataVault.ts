@@ -5,19 +5,25 @@
  * these responses use.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Container } from "../../container.ts";
-import { sendSuccess, sendError, readJsonBody } from "../middleware/envelope.ts";
+import type { DataVaultContainer } from "../../composition/container.ts";
+import { sendSuccess, sendError, readJsonBody } from "../../../../identity/src/api/middleware/envelope.ts";
 import { requireDataVaultActor } from "../middleware/dataVaultActor.ts";
-import { clientIp } from "../middleware/authContext.ts";
-import { SessionInvalidError, IdentityNotProvisionedError, AccountDisabledError, NotFoundError, ForbiddenError, ValidationError } from "../../domain/errors.ts";
+import { SessionInvalidError, IdentityNotProvisionedError, AccountDisabledError, ForbiddenError } from "../../../../identity/src/domain/errors.ts";
+import { NotFoundError, ValidationError, CsrfOriginRejectedError } from "../../domain/errors.ts";
 import type { DataClassification } from "../../../../../packages/types/src/entity-context.ts";
 import type { DataVaultStatus, DataVaultRecord, CreateDataVaultRecordInput, UpdateDataVaultRecordInput } from "../../domain/dataVault.ts";
 
 interface RouteContext {
   req: IncomingMessage;
   res: ServerResponse;
-  container: Container;
+  container: DataVaultContainer;
   correlationId: string;
+}
+
+function clientIp(req: IncomingMessage): string | null {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.length > 0) return forwarded.split(",")[0]!.trim();
+  return req.socket.remoteAddress ?? null;
 }
 
 function respondError(res: ServerResponse, correlationId: string, error: unknown): void {
@@ -25,6 +31,7 @@ function respondError(res: ServerResponse, correlationId: string, error: unknown
   if (error instanceof IdentityNotProvisionedError) {
     return sendError(res, 403, "IDENTITY_NOT_PROVISIONED", error.message, correlationId);
   }
+  if (error instanceof CsrfOriginRejectedError) return sendError(res, 403, "CSRF_ORIGIN_REJECTED", error.message, correlationId);
   if (error instanceof AccountDisabledError) return sendError(res, 403, "ACCOUNT_DISABLED", "Account is disabled.", correlationId);
   if (error instanceof NotFoundError) return sendError(res, 404, "NOT_FOUND", "Data Vault record not found.", correlationId);
   if (error instanceof ForbiddenError) return sendError(res, 403, "FORBIDDEN", "Not authorised for this action.", correlationId);

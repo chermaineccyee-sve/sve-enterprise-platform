@@ -1,15 +1,22 @@
 /**
  * Data Vault domain service — the first real business-data consumer of
- * rbacService.ts's authorize() (see PR brief item 7). Every read and write
- * independently re-derives ALLOW/DENY from the caller's userId, the
- * target record's legal entity and classification, and the caller's own
- * role/entity-access grants in this service's own database — never from
- * anything the client claims about itself. See docs/architecture/
- * data-vault-foundation.md "RBAC/entity/classification enforcement".
+ * platform-services/identity's rbacService.authorize() (PR brief item 7).
+ * Every read and write independently re-derives ALLOW/DENY from the
+ * caller's userId, the target record's legal entity and classification,
+ * and the caller's own role/entity-access grants in Identity's own
+ * database — never from anything the client claims about itself.
+ *
+ * Dependency direction: this file (Data Vault) depends on Identity's
+ * RbacService/AuditService/OrganisationRepository *contracts* — imported
+ * from platform-services/identity's source tree, never copied or
+ * reimplemented here. platform-services/identity has no corresponding
+ * dependency on this package. See docs/architecture/
+ * data-vault-foundation.md "Module ownership and dependency direction".
  */
-import type { DataVaultRepository, OrganisationRepository } from "../repositories/types.ts";
-import type { RbacService } from "./rbacService.ts";
-import type { AuditService } from "./auditService.ts";
+import type { DataVaultRepository } from "../repositories/types.ts";
+import type { OrganisationRepository } from "../../../identity/src/repositories/types.ts";
+import type { RbacService } from "../../../identity/src/services/rbacService.ts";
+import type { AuditService } from "../../../identity/src/services/auditService.ts";
 import type {
   DataVaultRecord,
   CreateDataVaultRecordInput,
@@ -17,7 +24,8 @@ import type {
   DataVaultRecordFilter,
 } from "../domain/dataVault.ts";
 import type { DataClassification } from "../../../../packages/types/src/entity-context.ts";
-import { NotFoundError, ForbiddenError, ValidationError } from "../domain/errors.ts";
+import { ForbiddenError } from "../../../identity/src/domain/errors.ts";
+import { NotFoundError, ValidationError } from "../domain/errors.ts";
 
 export const PERMISSIONS = {
   READ: "data_vault.records.read",
