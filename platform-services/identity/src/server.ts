@@ -1,8 +1,9 @@
 /**
  * Local development entrypoint only: `npm run dev`. Not deployed anywhere
  * by this PR, and does not repoint or replace apps/svegip's Netlify
- * deployment. Requires DATABASE_URL and PORT (defaults to 4001, distinct
- * from apps/svegip's own dev ports) in the environment.
+ * deployment. Requires DATABASE_URL, SVE_IDENTITY_MFA_ENCRYPTION_KEY, and
+ * PORT (defaults to 4001, distinct from apps/svegip's own dev ports) in the
+ * environment.
  */
 import { createPgDatabaseProvider } from "./repositories/postgres/pgDatabaseProvider.ts";
 import { createContainer } from "./container.ts";
@@ -15,7 +16,8 @@ if (!connectionString) {
 }
 
 const db = createPgDatabaseProvider(connectionString);
-const container = createContainer(db);
+
+const container = await createContainer(db);
 const server = createHttpServer(container);
 const port = Number(process.env.PORT ?? 4001);
 

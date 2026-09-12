@@ -6,19 +6,23 @@ interface MethodRow {
   id: string;
   user_id: string;
   method_type: "totp";
-  secret_encrypted: string;
+  secret_ciphertext: string;
+  secret_iv: string;
+  secret_auth_tag: string;
+  secret_key_id: string;
   status: MfaMethodStatus;
   created_at: string;
   activated_at: string | null;
   disabled_at: string | null;
   disabled_by: string | null;
 }
-const METHOD_COLUMNS = "id, user_id, method_type, secret_encrypted, status, created_at, activated_at, disabled_at, disabled_by";
+const METHOD_COLUMNS =
+  "id, user_id, method_type, secret_ciphertext, secret_iv, secret_auth_tag, secret_key_id, status, created_at, activated_at, disabled_at, disabled_by";
 const mapMethod = (r: MethodRow): MfaMethod => ({
   id: r.id,
   userId: r.user_id,
   methodType: r.method_type,
-  secretEncrypted: r.secret_encrypted,
+  secret: { ciphertext: r.secret_ciphertext, iv: r.secret_iv, authTag: r.secret_auth_tag, keyId: r.secret_key_id },
   status: r.status,
   createdAt: r.created_at,
   activatedAt: r.activated_at,
@@ -47,8 +51,9 @@ export function createPgMfaRepository(db: DatabaseProvider): MfaRepository {
   return {
     async createMethod(input): Promise<MfaMethod> {
       const result = await db.query<MethodRow>(
-        `INSERT INTO mfa_methods(user_id, secret_encrypted) VALUES ($1, $2) RETURNING ${METHOD_COLUMNS}`,
-        [input.userId, input.secretEncrypted],
+        `INSERT INTO mfa_methods(user_id, secret_ciphertext, secret_iv, secret_auth_tag, secret_key_id)
+         VALUES ($1, $2, $3, $4, $5) RETURNING ${METHOD_COLUMNS}`,
+        [input.userId, input.secret.ciphertext, input.secret.iv, input.secret.authTag, input.secret.keyId],
       );
       return mapMethod(result.rows[0]!);
     },

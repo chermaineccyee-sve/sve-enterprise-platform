@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { createInMemoryStore } from "../../src/repositories/memory/inMemoryStore.ts";
 import { createInMemoryUserRepository } from "../../src/repositories/memory/inMemoryUserRepository.ts";
 import { createInMemoryAttemptRepository } from "../../src/repositories/memory/inMemoryAttemptRepository.ts";
@@ -23,7 +23,7 @@ async function setup() {
   const users = createInMemoryUserRepository(store);
   const attempts = createInMemoryAttemptRepository(store);
   const mfaRepo = createInMemoryMfaRepository(store);
-  const mfa = createMfaService({ mfa: mfaRepo });
+  const mfa = createMfaService({ mfa: mfaRepo, encryptionKey: randomBytes(32) });
   const rateLimiter = createRateLimiter({ attempts });
   const auth = createAuthService({ users, attempts, mfa, rateLimiter });
 
@@ -84,22 +84,49 @@ test("with MFA enrolled, login returns a challenge instead of an authenticated s
   const { auth, mfa, user } = await setup();
   const enrolment = await mfa.beginEnrolment({ userId: user.id, accountEmail: FICTIONAL_EMAIL });
   const code = generateTotp(base32Decode(enrolment.secretBase32));
-  await mfa.completeEnrolment({ userId: user.id, methodId: enrolment.methodId, code, secretBase32: enrolment.secretBase32 });
+  await mfa.completeEnrolment({ userId: user.id, methodId: enrolment.methodId, code });
 
   const result = await auth.login({ email: FICTIONAL_EMAIL, password: FICTIONAL_PASSWORD });
   assert.equal(result.outcome, "mfa_challenge");
   assert.ok(result.challengeId);
 });
 
-test("resolveChallenge returns the userId once, then consumes it", async () => {
+test("repeated legitimate password -> MFA-challenge flows do NOT trigger brute-force throttling", async () => {
+  const { auth, mfa, user } = await setup();
+  const enrolment = await mfa.beginEnrolment({ userId: user.id, accountEmail: FICTIONAL_EMAIL });
+  const enrolCode = generateTotp(base32Decode(enrolment.secretBase32));
+  await mfa.completeEnrolment({ userId: user.id, methodId: enrolment.methodId, code: enrolCode });
+
+  // The correct password, entered many times in a row (e.g. a user who
+  // hasn't completed the MFA step yet and keeps re-submitting the login
+  // form), must never itself trip the throttle — only genuine failures
+  // (wrong password, wrong MFA code, etc.) may do that.
+  for (let i = 0; i < 20; i++) {
+    const result = await auth.login({ email: FICTIONAL_EMAIL, password: FICTIONAL_PASSWORD });
+    assert.equal(result.outcome, "mfa_challenge", `attempt ${i} should still require MFA, not be throttled`);
+  }
+});
+
+test("peekChallenge returns the userId without consuming it, so a mistyped code can be retried", async () => {
   const { auth, mfa, user } = await setup();
   const enrolment = await mfa.beginEnrolment({ userId: user.id, accountEmail: FICTIONAL_EMAIL });
   const code = generateTotp(base32Decode(enrolment.secretBase32));
-  await mfa.completeEnrolment({ userId: user.id, methodId: enrolment.methodId, code, secretBase32: enrolment.secretBase32 });
+  await mfa.completeEnrolment({ userId: user.id, methodId: enrolment.methodId, code });
 
   const result = await auth.login({ email: FICTIONAL_EMAIL, password: FICTIONAL_PASSWORD });
-  const resolvedUserId = auth.resolveChallenge(result.challengeId!);
-  assert.equal(resolvedUserId, user.id);
-  // Consumed — resolving the same challengeId again fails.
-  assert.equal(auth.resolveChallenge(result.challengeId!), null);
+  assert.equal(auth.peekChallenge(result.challengeId!), user.id);
+  // Not consumed — peeking again still works (e.g. after a wrong-code retry).
+  assert.equal(auth.peekChallenge(result.challengeId!), user.id);
+});
+
+test("consumeChallenge invalidates the challenge so it cannot be reused for a second session", async () => {
+  const { auth, mfa, user } = await setup();
+  const enrolment = await mfa.beginEnrolment({ userId: user.id, accountEmail: FICTIONAL_EMAIL });
+  const code = generateTotp(base32Decode(enrolment.secretBase32));
+  await mfa.completeEnrolment({ userId: user.id, methodId: enrolment.methodId, code });
+
+  const result = await auth.login({ email: FICTIONAL_EMAIL, password: FICTIONAL_PASSWORD });
+  assert.equal(auth.peekChallenge(result.challengeId!), user.id);
+  auth.consumeChallenge(result.challengeId!);
+  assert.equal(auth.peekChallenge(result.challengeId!), null);
 });

@@ -32,18 +32,20 @@ export async function handleBeginEnrolment(ctx: RouteContext): Promise<void> {
 }
 
 export async function handleVerifyEnrolment(ctx: RouteContext): Promise<void> {
-  let body: { methodId?: string; code?: string; secretBase32?: string };
+  let body: { methodId?: string; code?: string };
   try {
     body = await readJsonBody(ctx.req);
   } catch {
     return sendError(ctx.res, 400, "INVALID_REQUEST", "Invalid request body.", ctx.correlationId);
   }
-  if (!body.methodId || !body.code || !body.secretBase32) {
-    return sendError(ctx.res, 400, "INVALID_REQUEST", "methodId, code and secretBase32 are required.", ctx.correlationId);
+  if (!body.methodId || !body.code) {
+    return sendError(ctx.res, 400, "INVALID_REQUEST", "methodId and code are required.", ctx.correlationId);
   }
   try {
     const session = await requireSession(ctx.req, ctx.container);
-    await ctx.container.mfa.completeEnrolment({ userId: session.userId, methodId: body.methodId, code: body.code, secretBase32: body.secretBase32 });
+    // completeEnrolment decrypts the stored secret internally — the client
+    // is never asked to echo its own copy back for verification.
+    await ctx.container.mfa.completeEnrolment({ userId: session.userId, methodId: body.methodId, code: body.code });
     const codes = await ctx.container.mfa.generateRecoveryCodes(session.userId);
     const user = await ctx.container.users.findById(session.userId);
     await ctx.container.audit.record({ actorUserId: session.userId, actorEmail: user?.email ?? null, action: "mfa.enrolment_verified", resourceType: "mfa_methods", resourceId: body.methodId, sourceIp: clientIp(ctx.req) });

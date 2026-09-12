@@ -46,8 +46,17 @@ export function createRateLimiter(deps: { attempts: AttemptRepository }) {
       });
     },
 
-    async recordSuccess(input: { email: string; ip?: string; userAgent?: string }): Promise<void> {
-      await deps.attempts.record({ email: input.email, succeeded: true, reason: "success", ip: input.ip, userAgent: input.userAgent });
+    /**
+     * Records a non-failure attempt — reason defaults to "success" (fully
+     * authenticated) but a caller may pass "mfa_required" for the case
+     * where the primary factor (password) was correct and a challenge was
+     * issued: that is not a completed login, but it is also genuinely not
+     * a failure, and must never contribute to brute-force throttling.
+     * countRecentFailures only counts succeeded=false rows, so any reason
+     * passed here is structurally excluded from the failure count.
+     */
+    async recordSuccess(input: { email: string; ip?: string; userAgent?: string; reason?: AuthenticationAttemptReason }): Promise<void> {
+      await deps.attempts.record({ email: input.email, succeeded: true, reason: input.reason ?? "success", ip: input.ip, userAgent: input.userAgent });
     },
   };
 }

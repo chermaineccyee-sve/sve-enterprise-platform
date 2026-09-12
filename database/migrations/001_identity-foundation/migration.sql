@@ -210,16 +210,20 @@ CREATE INDEX IF NOT EXISTS sessions_active_idx ON sessions(user_id) WHERE revoke
 -- MFA
 -- ============================================================
 
--- secret_encrypted holds the base32 TOTP secret. This foundation stores it
--- as a plain column value (never logged, never returned by any API after
--- enrolment completes) — production deployment should apply column-level
--- encryption via a SecretsProvider/KMS-backed mechanism; see
--- docs/architecture/identity-foundation.md "Remaining risks".
+-- The TOTP secret is stored as AES-256-GCM ciphertext, never plaintext —
+-- see src/crypto/mfaSecretCipher.ts for the encrypt/decrypt implementation
+-- and docs/architecture/identity-foundation.md "MFA secret encryption at
+-- rest". secret_key_id identifies which key encrypted a given row, for a
+-- future key-rotation mechanism (not implemented in this foundation — a
+-- single active key is used throughout).
 CREATE TABLE IF NOT EXISTS mfa_methods (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id),
   method_type TEXT NOT NULL DEFAULT 'totp' CHECK (method_type IN ('totp')),
-  secret_encrypted TEXT NOT NULL,
+  secret_ciphertext TEXT NOT NULL,
+  secret_iv TEXT NOT NULL,
+  secret_auth_tag TEXT NOT NULL,
+  secret_key_id TEXT NOT NULL DEFAULT 'v1',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','active','disabled')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   activated_at TIMESTAMPTZ,

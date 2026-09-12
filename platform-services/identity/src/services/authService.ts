@@ -89,7 +89,13 @@ export function createAuthService(deps: {
       if (mfaMethod && mfaMethod.status === "active") {
         const challengeId = randomUUID();
         pendingChallenges.set(challengeId, { userId: user.id, expiresAt: Date.now() + 5 * 60 * 1000 });
-        await deps.rateLimiter.recordFailure({ email, ip: input.ip, userAgent: input.userAgent, reason: "mfa_required" });
+        // The password was correct — this is not a failure and must not
+        // count toward brute-force throttling. recordSuccess (succeeded=
+        // true) with reason "mfa_required" records it for audit/attempt-log
+        // purposes without contributing to countRecentFailures, which only
+        // ever counts succeeded=false rows. See "Rate-limit semantics" in
+        // docs/architecture/identity-foundation.md.
+        await deps.rateLimiter.recordSuccess({ email, ip: input.ip, userAgent: input.userAgent, reason: "mfa_required" });
         return { outcome: "mfa_challenge", userId: user.id, challengeId };
       }
 
@@ -97,13 +103,26 @@ export function createAuthService(deps: {
       return { outcome: "authenticated", userId: user.id };
     },
 
-    /** Resolves a pending MFA challenge to a userId, or null if unknown/expired. Consumes the challenge. */
-    resolveChallenge(challengeId: string): string | null {
+    /**
+     * Looks up a pending MFA challenge WITHOUT consuming it, so a wrong code
+     * can be retried against the same challenge (bounded by its own 5-minute
+     * expiry and by rate limiting at the call site) rather than forcing a
+     * fresh password login on every mistyped code. Expired entries are
+     * cleaned up and treated as not found. Returns null if unknown/expired.
+     */
+    peekChallenge(challengeId: string): string | null {
       const pending = pendingChallenges.get(challengeId);
       if (!pending) return null;
-      pendingChallenges.delete(challengeId);
-      if (pending.expiresAt < Date.now()) return null;
+      if (pending.expiresAt < Date.now()) {
+        pendingChallenges.delete(challengeId);
+        return null;
+      }
       return pending.userId;
+    },
+
+    /** Consumes a challenge — call only after successful verification, so it cannot be replayed for a second session. */
+    consumeChallenge(challengeId: string): void {
+      pendingChallenges.delete(challengeId);
     },
   };
 }

@@ -7,6 +7,7 @@
  * container's shape, never on Postgres or `pg` directly.
  */
 import type { DatabaseProvider } from "../../../packages/shared/src/DatabaseProvider.ts";
+import type { SecretsProvider } from "../../../packages/security/src/SecretsProvider.ts";
 import { createPgUserRepository } from "./repositories/postgres/pgUserRepository.ts";
 import { createPgOrganisationRepository } from "./repositories/postgres/pgOrganisationRepository.ts";
 import { createPgRbacRepository } from "./repositories/postgres/pgRbacRepository.ts";
@@ -20,6 +21,8 @@ import { createRbacService, type RbacService } from "./services/rbacService.ts";
 import { createMfaService, type MfaService } from "./services/mfaService.ts";
 import { createRateLimiter, type RateLimiter } from "./services/rateLimiter.ts";
 import { createAuditService, type AuditService } from "./services/auditService.ts";
+import { createEnvSecretsProvider } from "./config/envSecretsProvider.ts";
+import { loadMfaEncryptionKey } from "./crypto/mfaSecretCipher.ts";
 import type { UserRepository, OrganisationRepository } from "./repositories/types.ts";
 
 export interface Container {
@@ -33,7 +36,18 @@ export interface Container {
   audit: AuditService;
 }
 
-export function createContainer(db: DatabaseProvider): Container {
+/**
+ * Async because loading/validating the MFA encryption key is async (it goes
+ * through the SecretsProvider abstraction, not a direct synchronous
+ * process.env read) — see src/crypto/mfaSecretCipher.ts. Defaults to
+ * createEnvSecretsProvider() (local/private-server); pass a different
+ * SecretsProvider (e.g. an AWS Secrets Manager-backed one, or a fixed test
+ * key) to override.
+ */
+export async function createContainer(db: DatabaseProvider, opts?: { secrets?: SecretsProvider }): Promise<Container> {
+  const secrets = opts?.secrets ?? createEnvSecretsProvider();
+  const mfaEncryptionKey = await loadMfaEncryptionKey(secrets);
+
   const users = createPgUserRepository(db);
   const organisation = createPgOrganisationRepository(db);
   const rbacRepo = createPgRbacRepository(db);
@@ -42,7 +56,7 @@ export function createContainer(db: DatabaseProvider): Container {
   const attemptRepo = createPgAttemptRepository(db);
   const auditRepo = createPgAuditRepository(db);
 
-  const mfa = createMfaService({ mfa: mfaRepo });
+  const mfa = createMfaService({ mfa: mfaRepo, encryptionKey: mfaEncryptionKey });
   const rateLimiter = createRateLimiter({ attempts: attemptRepo });
   const sessions = createSessionService({ sessions: sessionRepo });
   const rbac = createRbacService({ rbac: rbacRepo, organisation });

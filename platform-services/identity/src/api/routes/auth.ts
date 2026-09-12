@@ -116,7 +116,11 @@ export async function handleMfaVerify(ctx: RouteContext): Promise<void> {
   if (!body.challengeId || !body.code) {
     return sendError(ctx.res, 400, "INVALID_REQUEST", "challengeId and code are required.", ctx.correlationId);
   }
-  const userId = ctx.container.auth.resolveChallenge(body.challengeId);
+  // Not consumed here — a wrong code must be retryable against the same
+  // challenge (bounded by its own expiry and by throttling below), not
+  // force the user back to re-entering their password on every mistype.
+  // Consumed explicitly, below, only on successful verification.
+  const userId = ctx.container.auth.peekChallenge(body.challengeId);
   if (!userId) return sendError(ctx.res, 401, "CHALLENGE_INVALID", "Challenge is invalid or has expired.", ctx.correlationId);
 
   // Defense-in-depth: re-check the account is still active. authService.login
@@ -129,16 +133,32 @@ export async function handleMfaVerify(ctx: RouteContext): Promise<void> {
     return sendError(ctx.res, 401, "CHALLENGE_INVALID", "Challenge is invalid or has expired.", ctx.correlationId);
   }
 
+  // The MFA step has its own brute-force surface (guessing a 6-digit code
+  // or a recovery code) distinct from the password step — throttled the
+  // same way, keyed on the account's email. See "Rate-limit semantics" in
+  // docs/architecture/identity-foundation.md.
+  const ip = clientIp(ctx.req) ?? undefined;
+  const userAgent = (ctx.req.headers["user-agent"] as string) ?? undefined;
+  const backoff = await ctx.container.rateLimiter.checkThrottle({ email: user.email, ip });
+  if (backoff > 0) {
+    await ctx.container.rateLimiter.recordFailure({ email: user.email, ip, userAgent, reason: "throttled" });
+    ctx.res.setHeader("Retry-After", String(backoff));
+    return sendError(ctx.res, 429, "AUTH_THROTTLED", "Too many attempts.", ctx.correlationId);
+  }
+
   const method = await ctx.container.mfa.getActiveOrPendingMethod(userId);
   if (!method || method.status !== "active") {
     return sendError(ctx.res, 401, "CHALLENGE_INVALID", "Challenge is invalid or has expired.", ctx.correlationId);
   }
-  const valid = await ctx.container.mfa.verifyChallenge({ secretBase32: method.secretEncrypted, code: body.code });
+  const valid = await ctx.container.mfa.verifyChallenge({ userId, code: body.code });
   if (!valid) {
-    await ctx.container.audit.record({ actorUserId: userId, actorEmail: user?.email ?? null, action: "mfa.challenge_failed", resourceType: "mfa_methods", resourceId: method.id, sourceIp: clientIp(ctx.req) });
+    await ctx.container.rateLimiter.recordFailure({ email: user.email, ip, userAgent, reason: "mfa_failed" });
+    await ctx.container.audit.record({ actorUserId: userId, actorEmail: user.email, action: "mfa.challenge_failed", resourceType: "mfa_methods", resourceId: method.id, sourceIp: clientIp(ctx.req) });
     return sendError(ctx.res, 401, "MFA_INVALID", "Invalid verification code.", ctx.correlationId);
   }
-  await ctx.container.audit.record({ actorUserId: userId, actorEmail: user?.email ?? null, action: "mfa.challenge_verified", resourceType: "mfa_methods", resourceId: method.id, sourceIp: clientIp(ctx.req) });
+  ctx.container.auth.consumeChallenge(body.challengeId);
+  await ctx.container.rateLimiter.recordSuccess({ email: user.email, ip, userAgent });
+  await ctx.container.audit.record({ actorUserId: userId, actorEmail: user.email, action: "mfa.challenge_verified", resourceType: "mfa_methods", resourceId: method.id, sourceIp: clientIp(ctx.req) });
   await establishSession(ctx, userId, true);
 }
 
@@ -152,7 +172,8 @@ export async function handleMfaRecovery(ctx: RouteContext): Promise<void> {
   if (!body.challengeId || !body.code) {
     return sendError(ctx.res, 400, "INVALID_REQUEST", "challengeId and code are required.", ctx.correlationId);
   }
-  const userId = ctx.container.auth.resolveChallenge(body.challengeId);
+  // Not consumed here — see the identical comment in handleMfaVerify above.
+  const userId = ctx.container.auth.peekChallenge(body.challengeId);
   if (!userId) return sendError(ctx.res, 401, "CHALLENGE_INVALID", "Challenge is invalid or has expired.", ctx.correlationId);
 
   // Defense-in-depth: see the identical check in handleMfaVerify above.
@@ -161,15 +182,27 @@ export async function handleMfaRecovery(ctx: RouteContext): Promise<void> {
     return sendError(ctx.res, 401, "CHALLENGE_INVALID", "Challenge is invalid or has expired.", ctx.correlationId);
   }
 
+  const ip = clientIp(ctx.req) ?? undefined;
+  const userAgent = (ctx.req.headers["user-agent"] as string) ?? undefined;
+  const backoff = await ctx.container.rateLimiter.checkThrottle({ email: user.email, ip });
+  if (backoff > 0) {
+    await ctx.container.rateLimiter.recordFailure({ email: user.email, ip, userAgent, reason: "throttled" });
+    ctx.res.setHeader("Retry-After", String(backoff));
+    return sendError(ctx.res, 429, "AUTH_THROTTLED", "Too many attempts.", ctx.correlationId);
+  }
+
   try {
     await ctx.container.mfa.consumeRecoveryCode({ userId, code: body.code });
   } catch (error) {
     if (error instanceof RecoveryCodeInvalidError) {
+      await ctx.container.rateLimiter.recordFailure({ email: user.email, ip, userAgent, reason: "recovery_code_invalid" });
       return sendError(ctx.res, 401, "RECOVERY_CODE_INVALID", "Recovery code is invalid or already used.", ctx.correlationId);
     }
     throw error;
   }
-  await ctx.container.audit.record({ actorUserId: userId, actorEmail: user?.email ?? null, action: "mfa.recovery_code_used", resourceType: "mfa_recovery_codes", sourceIp: clientIp(ctx.req) });
+  ctx.container.auth.consumeChallenge(body.challengeId);
+  await ctx.container.rateLimiter.recordSuccess({ email: user.email, ip, userAgent });
+  await ctx.container.audit.record({ actorUserId: userId, actorEmail: user.email, action: "mfa.recovery_code_used", resourceType: "mfa_recovery_codes", sourceIp: clientIp(ctx.req) });
   await establishSession(ctx, userId, true);
 }
 

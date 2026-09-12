@@ -10,7 +10,7 @@ export function createInMemoryMfaRepository(store: InMemoryStore): MfaRepository
         id: randomUUID(),
         userId: input.userId,
         methodType: "totp",
-        secretEncrypted: input.secretEncrypted,
+        secret: input.secret,
         status: "pending",
         createdAt: new Date().toISOString(),
         activatedAt: null,

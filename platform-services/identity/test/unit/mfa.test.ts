@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { createInMemoryStore } from "../../src/repositories/memory/inMemoryStore.ts";
 import { createInMemoryMfaRepository } from "../../src/repositories/memory/inMemoryMfaRepository.ts";
 import { createMfaService } from "../../src/services/mfaService.ts";
@@ -11,7 +11,7 @@ import { MfaAlreadyActiveError, MfaVerificationError, RecoveryCodeInvalidError }
 function setup() {
   const store = createInMemoryStore();
   const mfa = createInMemoryMfaRepository(store);
-  return { store, mfa, service: createMfaService({ mfa }) };
+  return { store, mfa, service: createMfaService({ mfa, encryptionKey: randomBytes(32) }) };
 }
 
 test("enrolment requires successful verification before activation", async () => {
@@ -24,7 +24,7 @@ test("enrolment requires successful verification before activation", async () =>
 
   const secret = base32Decode(enrolment.secretBase32);
   const validCode = generateTotp(secret);
-  await service.completeEnrolment({ userId, methodId: enrolment.methodId, code: validCode, secretBase32: enrolment.secretBase32 });
+  await service.completeEnrolment({ userId, methodId: enrolment.methodId, code: validCode });
 
   const methodAfter = await mfa.findActiveOrPendingByUser(userId);
   assert.equal(methodAfter?.status, "active");
@@ -36,7 +36,7 @@ test("an invalid code during enrolment verification is rejected and the method s
   const enrolment = await service.beginEnrolment({ userId, accountEmail: "fictional.user@example.test" });
 
   await assert.rejects(
-    () => service.completeEnrolment({ userId, methodId: enrolment.methodId, code: "000000", secretBase32: enrolment.secretBase32 }),
+    () => service.completeEnrolment({ userId, methodId: enrolment.methodId, code: "000000" }),
     MfaVerificationError,
   );
   const method = await mfa.findActiveOrPendingByUser(userId);
@@ -50,15 +50,42 @@ test("cannot begin a second enrolment while one is already active/pending", asyn
   await assert.rejects(() => service.beginEnrolment({ userId, accountEmail: "fictional.user@example.test" }), MfaAlreadyActiveError);
 });
 
-test("verifyChallenge accepts a valid TOTP code and rejects an invalid one", async () => {
+test("verifyChallenge accepts a valid TOTP code and rejects an invalid one, decrypting the stored secret internally", async () => {
   const { service } = setup();
   const userId = randomUUID();
   const enrolment = await service.beginEnrolment({ userId, accountEmail: "fictional.user@example.test" });
   const secret = base32Decode(enrolment.secretBase32);
   const validCode = generateTotp(secret);
+  const enrolCode = generateTotp(secret);
+  await service.completeEnrolment({ userId, methodId: enrolment.methodId, code: enrolCode });
 
-  assert.equal(await service.verifyChallenge({ secretBase32: enrolment.secretBase32, code: validCode }), true);
-  assert.equal(await service.verifyChallenge({ secretBase32: enrolment.secretBase32, code: "000000" }), false);
+  assert.equal(await service.verifyChallenge({ userId, code: validCode }), true);
+  assert.equal(await service.verifyChallenge({ userId, code: "000000" === validCode ? "111111" : "000000" }), false);
+});
+
+test("verifyChallenge rejects a code for a method that has not been activated yet", async () => {
+  const { service } = setup();
+  const userId = randomUUID();
+  const enrolment = await service.beginEnrolment({ userId, accountEmail: "fictional.user@example.test" });
+  const validCode = generateTotp(base32Decode(enrolment.secretBase32));
+  // Not yet completed/activated — verifyChallenge only accepts active methods.
+  assert.equal(await service.verifyChallenge({ userId, code: validCode }), false);
+});
+
+test("the stored MFA secret is never the plaintext TOTP secret (encrypted at rest)", async () => {
+  const { service, mfa } = setup();
+  const userId = randomUUID();
+  const enrolment = await service.beginEnrolment({ userId, accountEmail: "fictional.user@example.test" });
+
+  const stored = await mfa.findActiveOrPendingByUser(userId);
+  assert.ok(stored);
+  assert.notEqual(stored!.secret.ciphertext, enrolment.secretBase32);
+  // Not merely re-encoded either — decoding the stored ciphertext as UTF-8
+  // must not yield the plaintext secret.
+  assert.notEqual(Buffer.from(stored!.secret.ciphertext, "base64").toString("utf8"), enrolment.secretBase32);
+  assert.ok(stored!.secret.iv);
+  assert.ok(stored!.secret.authTag);
+  assert.ok(stored!.secret.keyId);
 });
 
 test("recovery codes are single-use", async () => {

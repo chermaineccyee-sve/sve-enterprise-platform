@@ -7,6 +7,7 @@
  * "Why plain .ts files, no build step".
  */
 import type { DataClassification } from "../../../../packages/types/src/entity-context.ts";
+import type { EncryptedTotpSecret } from "../crypto/mfaSecretCipher.ts";
 
 export type AccountType = "employee" | "contractor" | "external" | "service";
 export type AccountStatus = "active" | "disabled";
@@ -113,7 +114,8 @@ export interface MfaMethod {
   id: string;
   userId: string;
   methodType: MfaMethodType;
-  secretEncrypted: string;
+  /** AES-256-GCM ciphertext (see src/crypto/mfaSecretCipher.ts) — genuinely encrypted, never the plaintext TOTP secret. */
+  secret: EncryptedTotpSecret;
   status: MfaMethodStatus;
   createdAt: string;
   activatedAt: string | null;
@@ -134,8 +136,10 @@ export type AuthenticationAttemptReason =
   | "invalid_password"
   | "unknown_account"
   | "throttled"
+  /** Primary factor (password) succeeded and a challenge was issued — succeeded=true, never counted as a failure. See "Rate-limit semantics" in identity-foundation.md. */
   | "mfa_required"
   | "mfa_failed"
+  | "recovery_code_invalid"
   | "account_disabled"
   | "success";
 

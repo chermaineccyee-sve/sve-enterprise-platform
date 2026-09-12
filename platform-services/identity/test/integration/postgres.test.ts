@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { withTestDb, getTestDatabaseUrl } from "./testDb.ts";
 import { createPgUserRepository } from "../../src/repositories/postgres/pgUserRepository.ts";
 import { createPgOrganisationRepository } from "../../src/repositories/postgres/pgOrganisationRepository.ts";
@@ -12,6 +12,8 @@ import { createPgAuditRepository } from "../../src/repositories/postgres/pgAudit
 import { createRbacService } from "../../src/services/rbacService.ts";
 import { createSessionService } from "../../src/services/sessionService.ts";
 import { hashPassword, verifyPassword } from "../../src/crypto/password.ts";
+import { encryptTotpSecret, decryptTotpSecret } from "../../src/crypto/mfaSecretCipher.ts";
+import { generateTotpSecret } from "../../src/crypto/totp.ts";
 
 const skip: boolean | string = getTestDatabaseUrl()
   ? false
@@ -151,6 +153,35 @@ test("MFA repository: recovery code replacement is transactional and atomic", { 
     await mfa.replaceRecoveryCodes({ userId: user.id, generationId: randomUUID(), codeHashes: ["hash4"] });
     assert.equal(await mfa.findUnusedRecoveryCodeByHash(user.id, "hash1"), null);
     assert.ok(await mfa.findUnusedRecoveryCodeByHash(user.id, "hash4"));
+  });
+});
+
+test("MFA repository: stored TOTP secret is encrypted, not plaintext, and round-trips through real Postgres", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const users = createPgUserRepository(db);
+    const mfa = createPgMfaRepository(db);
+    const user = await users.createUser({ email: "mfa-encryption.test@example.test", accountType: "employee" });
+
+    const key = randomBytes(32);
+    const { base32 } = generateTotpSecret();
+    const encrypted = encryptTotpSecret(base32, key);
+    const method = await mfa.createMethod({ userId: user.id, secret: encrypted });
+
+    const stored = await mfa.findActiveOrPendingByUser(user.id);
+    assert.ok(stored);
+    assert.equal(stored!.id, method.id);
+    // The row round-trips through real Postgres columns (secret_ciphertext/
+    // secret_iv/secret_auth_tag/secret_key_id) intact...
+    assert.equal(stored!.secret.ciphertext, encrypted.ciphertext);
+    assert.equal(stored!.secret.iv, encrypted.iv);
+    assert.equal(stored!.secret.authTag, encrypted.authTag);
+    // ...and what's actually stored in the database is never the plaintext.
+    assert.notEqual(stored!.secret.ciphertext, base32);
+    // It decrypts back to the original secret with the right key...
+    assert.equal(decryptTotpSecret(stored!.secret, key), base32);
+    // ...and is rejected with the wrong key or a tampered tag, even after a
+    // real round trip through Postgres (not just in-process).
+    assert.throws(() => decryptTotpSecret(stored!.secret, randomBytes(32)));
   });
 });
 

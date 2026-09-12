@@ -24,6 +24,7 @@ import type {
   SecurityAuditEvent,
 } from "../domain/entities.ts";
 import type { PasswordHash } from "../crypto/password.ts";
+import type { EncryptedTotpSecret } from "../crypto/mfaSecretCipher.ts";
 
 export interface UserRepository {
   createUser(input: { email: string; accountType: AccountType }): Promise<User>;
@@ -86,7 +87,7 @@ export interface SessionRepository {
 }
 
 export interface MfaRepository {
-  createMethod(input: { userId: string; secretEncrypted: string }): Promise<MfaMethod>;
+  createMethod(input: { userId: string; secret: EncryptedTotpSecret }): Promise<MfaMethod>;
   findActiveOrPendingByUser(userId: string): Promise<MfaMethod | null>;
   activateMethod(id: string): Promise<void>;
   disableMethod(id: string, disabledBy: string): Promise<void>;
