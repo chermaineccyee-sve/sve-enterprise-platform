@@ -6,7 +6,7 @@
  * and inserts a new one. See docs/architecture/organisation-employee-
  * master.md "Effective-dated records".
  */
-import type { EmployeeRepository, EmploymentAssignmentRepository, OrgStructureRepository } from "../repositories/types.ts";
+import type { EmployeeRepository, EmploymentAssignmentRepository, OrgStructureRepository, EmploymentAssignmentTransaction } from "../repositories/types.ts";
 import type { RbacService } from "../../../identity/src/services/rbacService.ts";
 import type { AuditService } from "../../../identity/src/services/auditService.ts";
 import type { OrganisationRepository } from "../../../identity/src/repositories/types.ts";
@@ -45,6 +45,7 @@ export function createEmploymentAssignmentService(deps: {
   organisation: OrganisationRepository;
   rbac: RbacService;
   audit: AuditService;
+  transactions: EmploymentAssignmentTransaction;
 }) {
   /**
    * Walks the reports-to-assignment chain starting at `startAssignmentId`,
@@ -52,11 +53,18 @@ export function createEmploymentAssignmentService(deps: {
    * `employeeId` is ever encountered — i.e. the employee would end up
    * (directly or transitively) reporting to themselves. Rejects both
    * self-reporting (immediate parent = self) and multi-hop cycles.
+   *
+   * Takes `assignments` as a parameter (rather than closing over `deps.
+   * assignments`) so a reporting-edge-introducing call can run this check
+   * against the SAME lock-held transaction connection used for the
+   * subsequent write — see EmploymentAssignmentTransaction and docs/
+   * architecture/organisation-employee-master.md "Reporting-cycle
+   * concurrency safety" for why that matters.
    */
-  async function reportingChainReachesEmployee(startAssignmentId: string, employeeId: string): Promise<boolean> {
+  async function reportingChainReachesEmployee(assignments: EmploymentAssignmentRepository, startAssignmentId: string, employeeId: string): Promise<boolean> {
     let currentId: string | null = startAssignmentId;
     for (let hop = 0; hop < MAX_REPORTING_CHAIN_DEPTH && currentId; hop++) {
-      const current: EmploymentAssignment | null = await deps.assignments.findById(currentId);
+      const current: EmploymentAssignment | null = await assignments.findById(currentId);
       if (!current) return false;
       if (current.employeeId === employeeId) return true;
       currentId = current.reportsToAssignmentId;
@@ -105,19 +113,34 @@ export function createEmploymentAssignmentService(deps: {
           recordClassification: ceiling,
         });
         if (!manageReporting.allowed) throw new ForbiddenError(PERMISSIONS.MANAGE_REPORTING);
-
-        const reportsTo = await deps.assignments.findById(input.reportsToAssignmentId);
-        if (!reportsTo) throw new ValidationError("reportsToAssignmentId does not refer to a known employment assignment.");
-        if (reportsTo.employeeId === employeeId) throw new ValidationError("An employee cannot report to their own assignment (self-reporting).");
-        const cycle = await reportingChainReachesEmployee(input.reportsToAssignmentId, employeeId);
-        if (cycle) throw new ValidationError("This reporting assignment would create a circular reporting relationship.");
       }
 
-      if (existingPrimary) {
-        await deps.assignments.closeAssignment(existingPrimary.id, { effectiveTo: addDays(input.effectiveFrom, -1), updatedBy: actor.userId });
-      }
+      // The cycle check + close-existing + insert-new happen inside one
+      // transaction. Only when input.reportsToAssignmentId is set (a new
+      // reporting edge is being introduced) is the transaction-scoped
+      // advisory lock also taken first, serializing this against every
+      // other concurrent edge-introducing call — see
+      // EmploymentAssignmentTransaction and docs/architecture/
+      // organisation-employee-master.md "Reporting-cycle concurrency
+      // safety". Re-reading reportsTo/existingPrimary here (rather than
+      // reusing the pre-lock `existingPrimary` above) means a caller that
+      // was blocked on the lock sees the graph exactly as it stands after
+      // every earlier-queued edge-introducing call has committed.
+      const created = await deps.transactions.run({ lock: Boolean(input.reportsToAssignmentId) }, async ({ assignments: txAssignments }) => {
+        if (input.reportsToAssignmentId) {
+          const reportsTo = await txAssignments.findById(input.reportsToAssignmentId);
+          if (!reportsTo) throw new ValidationError("reportsToAssignmentId does not refer to a known employment assignment.");
+          if (reportsTo.employeeId === employeeId) throw new ValidationError("An employee cannot report to their own assignment (self-reporting).");
+          const cycle = await reportingChainReachesEmployee(txAssignments, input.reportsToAssignmentId, employeeId);
+          if (cycle) throw new ValidationError("This reporting assignment would create a circular reporting relationship.");
+        }
 
-      const created = await deps.assignments.create({ ...input, effectiveFrom: input.effectiveFrom ?? input.startDate, employeeId, createdBy: actor.userId });
+        const currentPrimary = input.isPrimary === false ? null : await txAssignments.findCurrentPrimary(employeeId);
+        if (currentPrimary) {
+          await txAssignments.closeAssignment(currentPrimary.id, { effectiveTo: addDays(input.effectiveFrom ?? input.startDate, -1), updatedBy: actor.userId });
+        }
+        return txAssignments.create({ ...input, effectiveFrom: input.effectiveFrom ?? input.startDate, employeeId, createdBy: actor.userId });
+      });
       await deps.employees.setStatus(employeeId, input.status, actor.userId);
 
       const changeType = !existingPrimary

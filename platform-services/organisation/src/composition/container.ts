@@ -25,6 +25,8 @@ import type { UserRepository, OrganisationRepository } from "../../../identity/s
 import { createPgOrgStructureRepository } from "../repositories/postgres/pgOrgStructureRepository.ts";
 import { createPgEmployeeRepository } from "../repositories/postgres/pgEmployeeRepository.ts";
 import { createPgEmploymentAssignmentRepository } from "../repositories/postgres/pgEmploymentAssignmentRepository.ts";
+import { createPgEmployeeCreationTransaction } from "../repositories/postgres/pgEmployeeCreationTransaction.ts";
+import { createPgEmploymentAssignmentTransaction } from "../repositories/postgres/pgEmploymentAssignmentTransaction.ts";
 import { createEmployeeService, type EmployeeService } from "../services/employeeService.ts";
 import { createEmploymentAssignmentService, type EmploymentAssignmentService } from "../services/employmentAssignmentService.ts";
 import { createOrganisationStructureService, type OrganisationStructureService } from "../services/organisationStructureService.ts";
@@ -49,13 +51,15 @@ export async function createOrganisationContainer(db: DatabaseProvider): Promise
   const orgStructureRepo = createPgOrgStructureRepository(db);
   const employeeRepo = createPgEmployeeRepository(db);
   const assignmentRepo = createPgEmploymentAssignmentRepository(db);
+  const employeeCreation = createPgEmployeeCreationTransaction(db);
+  const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
 
   const sessions = createSessionService({ sessions: sessionRepo });
   const rbac = createRbacService({ rbac: rbacRepo, organisation });
   const audit = createAuditService({ audit: auditRepo });
 
-  const employees = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit });
-  const assignments = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit });
+  const employees = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
+  const assignments = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
   const orgStructure = createOrganisationStructureService({ orgStructure: orgStructureRepo, organisation, rbac, audit });
 
   return { users, organisation, sessions, rbac, audit, employees, assignments, orgStructure };

@@ -12,7 +12,7 @@
  * never copied or reimplemented here. platform-services/identity has no
  * corresponding dependency on this package.
  */
-import type { EmployeeRepository, EmploymentAssignmentRepository, OrgStructureRepository } from "../repositories/types.ts";
+import type { EmployeeRepository, EmploymentAssignmentRepository, OrgStructureRepository, EmployeeCreationTransaction } from "../repositories/types.ts";
 import type { RbacService } from "../../../identity/src/services/rbacService.ts";
 import type { AuditService } from "../../../identity/src/services/auditService.ts";
 import type { OrganisationRepository, UserRepository } from "../../../identity/src/repositories/types.ts";
@@ -69,6 +69,7 @@ export function createEmployeeService(deps: {
   users: UserRepository;
   rbac: RbacService;
   audit: AuditService;
+  employeeCreation: EmployeeCreationTransaction;
 }) {
   async function findActiveEmployeeIdForUser(userId: string): Promise<string | null> {
     const link = await deps.users.findActiveLinkByUserId(userId);
@@ -123,36 +124,49 @@ export function createEmployeeService(deps: {
       if (!access.allowed) throw new ForbiddenError(PERMISSIONS.CREATE);
 
       const seq = await deps.employees.nextEmployeeNumberSeq();
-      const employee = await deps.employees.create({
-        legalName: input.legalName,
-        preferredName: input.preferredName ?? null,
-        workEmail: input.workEmail ?? null,
-        personalEmail: input.personalEmail ?? null,
-        employmentCountry: input.employmentCountry,
-        employeeNumber: formatEmployeeNumber(seq),
-        createdBy: actor.userId,
-      });
 
-      const assignment = await deps.assignments.create({
-        employeeId: employee.id,
-        legalEntityId: input.initialAssignment.legalEntityId,
-        businessUnitId: input.initialAssignment.businessUnitId ?? null,
-        departmentId: input.initialAssignment.departmentId ?? null,
-        positionId: input.initialAssignment.positionId ?? null,
-        employmentType: input.initialAssignment.employmentType,
-        status,
-        isPrimary: true,
-        startDate: input.initialAssignment.startDate,
-        confirmationDate: input.initialAssignment.confirmationDate ?? null,
-        probationEndDate: input.initialAssignment.probationEndDate ?? null,
-        effectiveFrom: input.initialAssignment.effectiveFrom ?? input.initialAssignment.startDate,
-        workLocation: input.initialAssignment.workLocation ?? null,
-        workArrangement: input.initialAssignment.workArrangement ?? null,
-        reportsToAssignmentId: input.initialAssignment.reportsToAssignmentId ?? null,
-        changeReason: input.initialAssignment.changeReason ?? "Initial hire",
-        createdBy: actor.userId,
+      // Employee + its required initial assignment + the status sync are
+      // one atomic unit — see docs/architecture/organisation-employee-
+      // master.md "Transactional employee creation". If assignment
+      // creation fails (e.g. an invalid positionId/departmentId, or any
+      // other constraint violation), the whole transaction rolls back and
+      // no employee row is left behind — never a delete-afterward
+      // compensation. Only once this resolves successfully is anything
+      // audited (see below), so a rollback never gets falsely recorded as
+      // a completed creation.
+      const { employee, assignment } = await deps.employeeCreation.run(async (repos) => {
+        const employee = await repos.employees.create({
+          legalName: input.legalName,
+          preferredName: input.preferredName ?? null,
+          workEmail: input.workEmail ?? null,
+          personalEmail: input.personalEmail ?? null,
+          employmentCountry: input.employmentCountry,
+          employeeNumber: formatEmployeeNumber(seq),
+          createdBy: actor.userId,
+        });
+
+        const assignment = await repos.assignments.create({
+          employeeId: employee.id,
+          legalEntityId: input.initialAssignment.legalEntityId,
+          businessUnitId: input.initialAssignment.businessUnitId ?? null,
+          departmentId: input.initialAssignment.departmentId ?? null,
+          positionId: input.initialAssignment.positionId ?? null,
+          employmentType: input.initialAssignment.employmentType,
+          status,
+          isPrimary: true,
+          startDate: input.initialAssignment.startDate,
+          confirmationDate: input.initialAssignment.confirmationDate ?? null,
+          probationEndDate: input.initialAssignment.probationEndDate ?? null,
+          effectiveFrom: input.initialAssignment.effectiveFrom ?? input.initialAssignment.startDate,
+          workLocation: input.initialAssignment.workLocation ?? null,
+          workArrangement: input.initialAssignment.workArrangement ?? null,
+          reportsToAssignmentId: input.initialAssignment.reportsToAssignmentId ?? null,
+          changeReason: input.initialAssignment.changeReason ?? "Initial hire",
+          createdBy: actor.userId,
+        });
+        const updated = await repos.employees.setStatus(employee.id, status, actor.userId);
+        return { employee: updated, assignment };
       });
-      const updated = await deps.employees.setStatus(employee.id, status, actor.userId);
 
       await deps.audit.record({
         actorUserId: actor.userId,
@@ -165,7 +179,7 @@ export function createEmployeeService(deps: {
         sourceIp: actor.ip,
         sourceUserAgent: actor.userAgent,
       });
-      return updated;
+      return employee;
     },
 
     async getEmployee(actor: ActorContext, id: string): Promise<EmployeeView> {

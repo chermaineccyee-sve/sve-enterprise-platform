@@ -560,16 +560,157 @@ still pass through this layer's own RBAC/classification/masking rules
 Identity's `rbacService.authorize()` rather than trusting anything about a
 caller directly. Depending on a layer is not a grant of that layer's data.
 
-## 16. Remaining risks / open questions
+## 16. Transactional employee creation (PR #6 review correction)
 
-- **Employee creation is two non-transactional writes** (the `employees`
-  row, then the initial `employment_assignments` row) — a mid-operation
-  failure between them could leave an employee with no assignment. Chosen
-  deliberately so the RBAC check on create has a concrete `legalEntityId`
-  target (an employee cannot be authorized for creation without knowing
-  which entity's assignment it will hold); acceptable at this foundation
-  stage, but a future iteration should wrap both in a single database
-  transaction.
+**Correction context:** the original version of this PR performed employee
+creation as two independent, non-transactional writes (the `employees` row,
+then the initial `employment_assignments` row), documented as an accepted
+risk. Review correctly rejected this for authoritative Employee Master
+data — a mid-operation failure between the two writes could leave an
+orphan employee with no assignment, and "delete the employee afterward as
+compensation" is not an acceptable substitute for atomicity. This has been
+corrected.
+
+**Design:** `EmployeeCreationTransaction` (`src/repositories/types.ts`) is
+a small port with one method, `run(fn)`, that the real Postgres
+implementation (`src/repositories/postgres/pgEmployeeCreationTransaction.ts`)
+backs with a single call to `DatabaseProvider.transaction()` — the same
+`BEGIN`/`COMMIT`/`ROLLBACK`-per-connection primitive already used elsewhere
+in this codebase (e.g. `platform-services/identity/src/repositories/
+postgres/pgMfaRepository.ts`'s `replaceRecoveryCodes()`), not a new
+mechanism. Inside that one transaction, it constructs `employees`/
+`assignments` repository instances scoped to the *same* connection
+(`createPgEmployeeRepository(tx)`, `createPgEmploymentAssignmentRepository(tx)`)
+and hands them to the caller:
+
+```
+BEGIN
+  employee = employees.create(...)               -- INSERT INTO employees
+  assignment = assignments.create(...)            -- INSERT INTO employment_assignments
+  employee = employees.setStatus(employee.id, status, ...)  -- required related persistence
+COMMIT
+-- any thrown error at any step -> ROLLBACK, ordinary db.transaction() behaviour
+```
+
+`employeeService.createEmployee()` (`src/services/employeeService.ts`) now
+performs exactly these three writes inside `deps.employeeCreation.run(...)`;
+nothing outside that callback touches either table. The audit call
+(`employee_master.employee.created`) happens strictly *after* `run()`
+resolves successfully — so a thrown error inside the transaction, which
+rolls back both the employee and assignment rows, is never followed by an
+audit record claiming the creation completed. There is no
+delete-afterward compensation logic anywhere in this path; the only
+recovery from a failed initial assignment is the transaction's own
+rollback.
+
+The domain-layer/service code stays free of raw transaction mechanics: the
+service calls `deps.employeeCreation.run(fn)`, not
+`BEGIN`/`COMMIT`/`pg`-specific APIs — the same repository-ownership
+boundary already used throughout this package. The in-memory implementation
+(`src/repositories/memory/inMemoryEmployeeCreationTransaction.ts`) simply
+invokes `fn` against the existing repositories; in-memory unit tests
+exercise the RBAC/domain logic, not Postgres rollback behaviour, which is
+covered separately below by real-Postgres tests.
+
+`nextEmployeeNumberSeq()` (§8) is deliberately called *before* entering the
+transaction — Postgres sequence advances are never transactional (this is
+true of any `SEQUENCE`, including Data Vault's own record-code sequence),
+so a rolled-back creation permanently consumes that sequence value. This is
+an accepted, well-understood gap (a numbering gap, never a collision) and
+is not something a transaction wrapper around the sequence draw could
+prevent even if attempted.
+
+**Verified** (`test/integration/postgres.test.ts`, real Postgres):
+successful creation commits both the employee row and its initial
+assignment together; a forced initial-assignment failure (an
+`initialAssignment.positionId` that does not exist, violating the
+`employment_assignments.position_id` foreign key) leaves neither the
+employee nor any assignment row persisted; a duplicate `work_email`
+(`employees.work_email`'s `UNIQUE` constraint) on a second create leaves no
+partial second employee row; and a forced rollback is never followed by an
+`employee_master.employee.created` audit event.
+
+## 17. Reporting-cycle concurrency safety (PR #6 review correction)
+
+**Correction context:** review asked whether two simultaneous reporting
+changes could independently pass the existing service-layer cycle check
+(§6.3) and jointly commit a cycle, and to introduce minimum-appropriate
+Postgres concurrency control if so.
+
+**Analysis.** `employment_assignments.reports_to_assignment_id` is set
+exactly once, at row-creation time (`INSERT`), and is **never subsequently
+updated** by any code path in this PR — `closeAssignment()` only ever
+touches `effective_to`/`end_date`/`status`. The column is also a real
+foreign key (`REFERENCES employment_assignments(id)`), so a value can only
+ever be a row that *already exists* at insert time. Together these two
+facts mean every edge in this graph points strictly "backward" to a row
+created earlier — the graph induced by these pointers, restricted to any
+prefix of the creation order, is therefore a DAG by construction. A cycle
+would require some row's edge to point "forward" to a row that does not
+yet exist at its own insertion time, which is impossible to submit (there
+is no id to supply). This was checked exhaustively against several
+concurrent-adversarial configurations — including two employees each
+targeting the other's pre-existing, never-mutated primary assignment at
+the same instant — and in every configuration the two new rows end up
+pointing at two *different*, already-frozen historical/unrelated targets
+that have no outgoing edge of their own; neither new row is ever a cycle
+participant, regardless of commit order. **Conclusion: under the current
+data model, two purely concurrent `createAssignment()` calls cannot form a
+reporting cycle.** This is a structural property (write-once edges + a
+FK that must pre-exist), not merely something observed to be true in
+testing today — see `test/integration/postgres.test.ts`'s "Reporting-cycle
+concurrency" tests for the empirical confirmation, and the code comment at
+the top of `pgEmploymentAssignmentTransaction.ts` for the same argument
+next to the code it justifies.
+
+**Why a control was still added.** The structural guarantee above holds
+only as long as `reports_to_assignment_id` remains write-once. A plausible
+future feature — e.g. "reassign this assignment's manager in place without
+creating a new effective-dated row" — would break that invariant and
+reopen exactly the TOCTOU (time-of-check-to-time-of-use) race the review
+was concerned about: two concurrent updates could each read the graph
+before the other's write, each pass its own chain-walk check, and jointly
+commit a cycle. Rather than leave that latent trap for whoever adds such a
+feature later, `EmploymentAssignmentTransaction`
+(`src/repositories/postgres/pgEmploymentAssignmentTransaction.ts`) adds a
+`pg_advisory_xact_lock` on a single fixed key, taken inside a real
+transaction whenever `createAssignment()` is about to introduce a new
+`reportsToAssignmentId` edge:
+
+```
+BEGIN
+  IF introducing a new reporting edge:
+    SELECT pg_advisory_xact_lock(851102233)   -- blocks until any other holder commits/rolls back
+  re-read reportsTo + walk the chain (reportingChainReachesEmployee) -- sees every earlier holder's committed writes
+  re-read the current primary, close it if present
+  INSERT the new assignment row
+COMMIT   -- lock released automatically, no explicit unlock needed
+```
+
+A plain transition that sets no `reportsToAssignmentId` never contends for
+this lock (it cannot introduce an edge, so it cannot participate in a
+cycle) but still gets the transaction boundary, making its own
+close-then-insert atomic as a side benefit. One fixed key serializing the
+whole reporting hierarchy — rather than a per-employee or per-subtree key —
+is the minimum mechanism sufficient at this modular-monolith's current
+write volume; no graph-database engine, external lock service, or trigger
+framework was introduced.
+
+**Verified** (`test/integration/postgres.test.ts`, real Postgres, run
+repeatedly for stability — 5 internal iterations per run, across 5
+consecutive full test-suite runs, 25 total race attempts with zero
+failures): two simultaneous, mutually-adversarial `createAssignment()`
+calls (each targeting the other employee's pre-existing assignment) both
+succeed and the resulting graph for both employees is confirmed acyclic by
+walking every row's chain after commit; self-reporting remains rejected;
+the ordinary sequential two-hop cycle-detection path still works correctly
+through the now-transactional/locked code path; a valid, non-circular
+reporting change still succeeds; and effective-dated assignment history
+(the original row preserved, closed not deleted, after a rejected
+circular-reporting attempt touches nothing) remains intact.
+
+## 18. Remaining risks / open questions
+
 - **Employee number format is an explicit placeholder** (§8) — no real SVE
   numbering convention could be verified from the current codebase.
 - **List authorization runs in application code, per candidate row**, not
@@ -598,8 +739,23 @@ caller directly. Depending on a layer is not a grant of that layer's data.
   validation currently rejects a typo'd country/type value; a future
   iteration may want a lookup table without hard-coding today's two known
   jurisdictions.
+- **The reporting-hierarchy advisory lock (§17) is defense-in-depth, not a
+  fix for a currently-exploitable bug** — the analysis found no way to
+  commit a cycle via concurrent creates under the present write-once-edge
+  data model. It protects against a future feature that mutates an
+  existing row's `reports_to_assignment_id` in place, which does not exist
+  today. If no such feature is ever added, the lock remains inert overhead
+  (one `pg_advisory_xact_lock` call) rather than dead weight to remove.
+- **`reportsToAssignmentId` can reference a historical (closed) assignment
+  row** — nothing in `createAssignment()` requires the target to be a
+  currently-open (`effective_to IS NULL`) assignment. Noted during the
+  concurrency analysis (§17) as a related but distinct gap from the PR
+  brief's "inactive managers not silently assigned" concern; out of scope
+  for this correction (which was scoped to concurrency, not this
+  pre-existing validation gap) but worth a future iteration adding an
+  explicit "target must be currently open" check.
 
-## 17. Tests
+## 19. Tests
 
 **Organisation package** (`platform-services/organisation/`):
 - `test/unit/employeeService.test.ts` (20 tests, in-memory) — create/read/
@@ -618,7 +774,7 @@ caller directly. Depending on a layer is not a grant of that layer's data.
   closes the assignment with an end date, no successor row, and the
   assignment's own `status` updated to the terminal value; a secondary
   (non-primary) assignment coexists with the primary one.
-- `test/integration/postgres.test.ts` (9 real-Postgres tests) —
+- `test/integration/postgres.test.ts` (15 real-Postgres tests) —
   concurrency-safe employee-number sequence draws; the one-open-primary
   partial unique index enforced at the database level; a non-primary
   assignment coexisting with an open primary at the database level;
@@ -626,9 +782,18 @@ caller directly. Depending on a layer is not a grant of that layer's data.
   `employment_assignments`; an unknown `legal_entity_id` FK rejection; an
   invalid employment-status `CHECK` rejection; `user_employee_links`'
   one-active-link partial unique indexes with preserved unlinked history;
-  and a full end-to-end run proving a Group-wide, non-privileged
-  administrator cannot create an SK Lai & Partners employee while a
-  privileged one can.
+  a full end-to-end run proving a Group-wide, non-privileged administrator
+  cannot create an SK Lai & Partners employee while a privileged one can;
+  **four transactional-employee-creation tests** (§16) — a successful
+  creation commits both rows together, a forced initial-assignment failure
+  leaves neither row persisted, a duplicate `work_email` leaves no partial
+  second employee, and a rollback is never followed by a completed-creation
+  audit event; and **two reporting-cycle concurrency tests** (§17) — two
+  simultaneous, mutually-adversarial reporting changes both commit safely
+  with the resulting graph confirmed acyclic (run 5 internal iterations per
+  test execution), and self-reporting/ordinary multi-hop cycle
+  detection/valid changes/effective-dated history all remain correct
+  through the now-transactional, lock-aware code path.
 - `test/integration/http.test.ts` (14 real-HTTP tests) — unauthenticated/
   invalid/revoked-session denial; the legal-entities reference endpoint; a
   full hire→read→transfer→end-of-employment flow proving history is

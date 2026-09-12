@@ -13,6 +13,7 @@ import { createInMemoryStore } from "../../src/repositories/memory/inMemoryStore
 import { createInMemoryOrgStructureRepository } from "../../src/repositories/memory/inMemoryOrgStructureRepository.ts";
 import { createInMemoryEmployeeRepository } from "../../src/repositories/memory/inMemoryEmployeeRepository.ts";
 import { createInMemoryEmploymentAssignmentRepository } from "../../src/repositories/memory/inMemoryEmploymentAssignmentRepository.ts";
+import { createInMemoryEmployeeCreationTransaction } from "../../src/repositories/memory/inMemoryEmployeeCreationTransaction.ts";
 import { createEmployeeService, PERMISSIONS } from "../../src/services/employeeService.ts";
 import { NotFoundError, ValidationError } from "../../src/domain/errors.ts";
 
@@ -31,7 +32,8 @@ async function setup() {
 
   const rbac = createRbacService({ rbac: rbacRepo, organisation });
   const audit = createAuditService({ audit: auditRepo });
-  const employees = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure, organisation, users, rbac, audit });
+  const employeeCreation = createInMemoryEmployeeCreationTransaction({ employees: employeeRepo, assignments: assignmentRepo });
+  const employees = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure, organisation, users, rbac, audit, employeeCreation });
 
   const [sg, my, skl] = identityStore.legalEntities;
   return { identityStore, store, rbacRepo, organisation, users, employees, assignmentRepo, sg: sg!, my: my!, skl: skl! };

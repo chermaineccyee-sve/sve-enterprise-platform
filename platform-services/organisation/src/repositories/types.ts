@@ -51,3 +51,34 @@ export interface EmploymentAssignmentRepository {
   /** Who currently (or ever) holds a given position — used to resolve the position-structural manager. */
   findByPositionId(positionId: string, currentOnly?: boolean): Promise<EmploymentAssignment[]>;
 }
+
+/**
+ * Runs the employee row plus its required initial employment assignment (and
+ * the follow-on status sync) as one atomic unit — see docs/architecture/
+ * organisation-employee-master.md "Transactional employee creation". The
+ * real Postgres implementation wraps `fn` in a single database transaction:
+ * any error thrown inside `fn` rolls back every write, leaving neither the
+ * employee row nor the assignment row persisted — never a delete-afterward
+ * compensation. The in-memory implementation simply runs `fn` against the
+ * existing repositories, since in-memory tests have no partial-write/
+ * rollback concern to guard against.
+ */
+export interface EmployeeCreationTransaction {
+  run<T>(fn: (repos: { employees: EmployeeRepository; assignments: EmploymentAssignmentRepository }) => Promise<T>): Promise<T>;
+}
+
+/**
+ * Serializes writes that can introduce a new `reports_to_assignment_id`
+ * edge, so two concurrent reporting-relationship changes cannot each
+ * independently pass cycle validation and jointly commit a cycle — see the
+ * architecture doc "Reporting-cycle concurrency safety". `lock` is true only
+ * when the call is about to establish a new reporting edge (the real
+ * Postgres implementation then takes a transaction-scoped advisory lock
+ * before re-validating and writing); a plain transition with no
+ * `reportsToAssignmentId` still gets a transaction boundary (atomic
+ * close-then-insert) but never blocks on the advisory lock. The in-memory
+ * implementation ignores `lock` and simply runs `fn`.
+ */
+export interface EmploymentAssignmentTransaction {
+  run<T>(options: { lock: boolean }, fn: (repos: { assignments: EmploymentAssignmentRepository }) => Promise<T>): Promise<T>;
+}
