@@ -10,10 +10,10 @@ It currently contains one working application and architecture scaffolding (cont
 sve-enterprise-platform/
 ├── apps/
 │   └── svegip/            ← the existing SVE Group Internal Portal (current status: working, deployed)
-├── platform-services/     ← scaffolded service boundaries (README/contracts only, no implementation)
-│   ├── core/  identity/  organisation/  workflow/  documents/
-│   ├── notifications/  audit/  data-vault/  hrms/  payroll/
-│   └── iclaims/  accounting/
+├── platform-services/
+│   ├── identity/          ← IMPLEMENTED: the SVE Identity & Access Foundation (see below)
+│   ├── core/  organisation/  workflow/  documents/  notifications/
+│   └── audit/  data-vault/  hrms/  payroll/  iclaims/  accounting/  (scaffolded — README/contracts only)
 ├── packages/               ← shared contracts consumed by platform-services/* once implemented
 │   ├── types/     entity/API/audit-event shapes
 │   ├── security/  AuthProvider, SecretsProvider, RBAC contracts
@@ -31,9 +31,13 @@ sve-enterprise-platform/
 
 The existing SVEGIP application — a Netlify-hosted portal (static frontend + Netlify Functions + Postgres via Netlify DB) covering employee authentication, role-based portal navigation, group announcements/projects/policies/documents/meetings, a controlled document registry, a management decision tracker, and the SVE Data Vault module. It was imported into this repository with its full Git history via `git subtree` (see `docs/migration/2026-09-12-svegip-history-import.md`) and remains structurally unchanged and independently deployable from its own subdirectory.
 
-### `platform-services/` and `packages/` (scaffolded, not yet implemented)
+### `platform-services/identity/` (implemented)
 
-Future shared enterprise capabilities have their service boundaries, dependency rules, and provider contracts documented — see `docs/architecture/platform-architecture.md` and each module's own `README.md`. **No business logic is implemented in either directory** — this is architecture scaffolding, not a shipped capability. Escrow / source-code custody functionality is explicitly out of scope and not represented anywhere in this scaffolding.
+The SVE Identity & Access Foundation: canonical users/roles/permissions/entity-access, server-side sessions, scrypt password hashing, brute-force protection, standards-based TOTP MFA with hashed single-use recovery codes, and a security audit sink — see `docs/architecture/identity-foundation.md`. It runs **independently of and in parallel with** `apps/svegip`'s existing authentication; the two are not connected, and SVEGIP has not been migrated onto it. Real code, real PostgreSQL migrations (`database/migrations/`), and a real automated test suite (`platform-services/identity/test/`) — not scaffolding.
+
+### The rest of `platform-services/` and `packages/` (scaffolded, not yet implemented)
+
+Future shared enterprise capabilities have their service boundaries, dependency rules, and provider contracts documented — see `docs/architecture/platform-architecture.md` and each module's own `README.md`. **No business logic is implemented in these directories yet** — this is architecture scaffolding, not a shipped capability. Escrow / source-code custody functionality is explicitly out of scope and not represented anywhere in this repository.
 
 ## The original `svegip` repository
 
@@ -43,8 +47,8 @@ Future shared enterprise capabilities have their service boundaries, dependency 
 
 | Capability | Status |
 |---|---|
-| SVEGIP portal (auth, RBAC, portal content, document registry, decision tracker, Data Vault UI) | **Exists** — see `apps/svegip/` |
-| SVE Identity & Access (shared identity, MFA, sessions) | Planned — not started |
+| SVEGIP portal (auth, RBAC, portal content, document registry, decision tracker, Data Vault UI) | **Exists** — see `apps/svegip/`. Unmigrated; runs independently of the Identity foundation below. |
+| SVE Identity & Access Foundation (users, RBAC, entity access, sessions, TOTP MFA, recovery codes, audit) | **Implemented** — see `platform-services/identity/` and `docs/architecture/identity-foundation.md`. Not yet consumed by SVEGIP or any business module; step-up authentication is foundation-only, not wired to any module. |
 | HRMS (organisation, employee master, ESS/MSS, leave, onboarding) | Planned — not started |
 | Payroll / iClaims | Planned — not started |
 | SVE Accounting Pro | Planned — not started |

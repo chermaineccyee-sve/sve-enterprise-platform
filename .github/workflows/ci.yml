@@ -69,3 +69,55 @@ jobs:
             echo "checking $f"
             npx --yes esbuild@0.28.2 --loader=ts < "$f" > /dev/null
           done
+
+  validate-identity:
+    name: Validate platform-services/identity
+    runs-on: ubuntu-latest
+    # A real Postgres so the integration suite (session/RBAC/MFA/audit
+    # repositories, and a full HTTP login flow) runs against the actual
+    # schema, not only the in-memory fakes the unit suite also exercises.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sve_identity
+          POSTGRES_PASSWORD: sve_identity_ci_only
+          POSTGRES_DB: sve_identity_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sve_identity"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: platform-services/identity
+    env:
+      DATABASE_URL: postgresql://sve_identity:sve_identity_ci_only@localhost:5432/sve_identity_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: platform-services/identity/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Run migrations against the CI database
+        run: npm run migrate
+
+      # Real unit + integration tests (not syntax checks) — password
+      # hashing, RFC 4226/6238 TOTP vectors, session lifecycle, RBAC
+      # cross-entity/admin-segregation scenarios, recovery codes, rate
+      # limiting, audit redaction, and a full HTTP login flow — run with
+      # --test-concurrency=1 so the integration suite's shared test
+      # database isn't raced by multiple files truncating it at once.
+      - name: Run tests
+        run: npm test
