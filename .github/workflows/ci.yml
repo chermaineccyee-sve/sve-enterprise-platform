@@ -1,0 +1,48 @@
+name: CI
+
+# Minimal validation for pull requests. Scoped to apps/svegip today — extend
+# the matrix/working-directory here once platform-services/ exists, rather
+# than adding a second workflow file.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  validate-svegip:
+    name: Validate apps/svegip
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/svegip
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/svegip/package-lock.json
+
+      # Reproducible install from the committed lockfile — no floating versions.
+      - name: Install dependencies
+        run: npm ci
+
+      # Plain JavaScript entry points: fail the build on any syntax error.
+      - name: Syntax-check plain JS files
+        run: |
+          node --check app.js
+          node --check create-user.mjs
+
+      # netlify/functions and netlify/edge-functions are TypeScript (.mts) run
+      # directly by the Netlify runtime — there is no build step to type-check
+      # them against. esbuild's transform mode gives a real syntax check
+      # without requiring @netlify/* type stubs or a live database/session
+      # secret, so this step needs no production secrets.
+      - name: Syntax-check Netlify Functions (.mts)
+        run: |
+          set -e
+          for f in netlify/functions/*.mts netlify/edge-functions/*.mts; do
+            echo "checking $f"
+            npx --yes esbuild@0.28.2 --loader=ts < "$f" > /dev/null
+          done

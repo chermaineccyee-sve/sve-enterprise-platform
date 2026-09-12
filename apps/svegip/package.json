@@ -6,10 +6,10 @@
     "dev": "netlify dev"
   },
   "devDependencies": {
-    "@netlify/functions": "latest",
-    "@netlify/edge-functions": "latest"
+    "@netlify/edge-functions": "4.0.0",
+    "@netlify/functions": "6.0.0"
   },
   "dependencies": {
-    "@netlify/database": "latest"
+    "@netlify/database": "2.0.1"
   }
 }
