@@ -1,12 +1,52 @@
 # platform-services/data-vault
 
-**Status: scaffolding only — no implementation. Data Vault remediation is explicitly out of scope for this PR.**
+**Status: remediated (PR #5), implemented inside `platform-services/identity`.**
 
-Future home of a server-backed SVE Data Vault, intended to eventually replace `apps/svegip/data-vault/index.html`'s current architecture, which stores its actual confidential business content (`sveRecords` — matters, evidence, risks, tasks, deliverables) in **browser `localStorage`, not a database** — recorded as a CRITICAL finding in `SVEGIP_ENTERPRISE_ASSESSMENT.md` and confirmed still present and unresolved as of this PR. See `docs/architecture/data-vault-rebuild-assessment.md` for what was found on the preserved `reference/svegip-feature-data-vault-rebuild` branch and how it should (and should not) inform the eventual remediation.
+The CRITICAL finding this folder used to describe — `apps/svegip/data-vault/
+index.html` storing its actual confidential business content (`sveRecords` —
+evidence records) in browser `localStorage`, not a database — is fixed as of
+PR #5. See `docs/architecture/data-vault-foundation.md` for the full
+before/after write-up, the server-side record model, the API, and the
+RBAC/entity/classification enforcement model.
 
-This folder intentionally contains no code. Building it out is a dedicated future PR, not this one.
+## Why the implementation lives in `platform-services/identity`, not here
 
-**Depends on (planned):** `platform-services/identity`, `platform-services/organisation`, `platform-services/documents`, `platform-services/audit`.
+This folder was scaffolded (PR #3) as the eventual home of a standalone
+Data Vault service. When PR #5 came to build it, keeping it a genuinely
+separate service would have meant either:
+
+- duplicating session validation, RBAC authorization (`rbacService.ts`),
+  and audit redaction logic from `platform-services/identity` into a
+  second codebase (a real security risk — two implementations of the same
+  security-critical logic drift apart over time), or
+- calling back into `platform-services/identity` over HTTP for every
+  authorization decision, which this foundation phase has no need for yet
+  and would add real latency/complexity with no corresponding benefit at
+  current scale.
+
+Instead, PR #5 added the Data Vault domain model, repository, service, and
+`/api/v1/data-vault/*` routes directly inside `platform-services/identity`
+(`src/domain/dataVault.ts`, `src/services/dataVaultService.ts`,
+`src/api/routes/dataVault.ts`, etc.), reusing that service's existing
+session validation, `rbacService.authorize()`, and `auditService` in-process
+— the same pattern a "modular monolith" uses before a module earns its own
+deployment unit. This makes Data Vault the first real business-data
+consumer of the Identity/RBAC foundation (PR brief item 7), with zero
+duplicated security logic.
+
+**This folder is kept as the documented future extraction point.** If Data
+Vault's scale, deployment cadence, or team ownership later justifies a truly
+separate service, the code in `platform-services/identity/src/{domain,
+repositories,services,api/routes}` related to Data Vault can move here
+largely as-is — the repository/service boundary was kept clean specifically
+so that split remains low-risk. Extraction is not planned or scheduled by
+this PR.
+
+**Depends on:** `platform-services/identity`'s own session/RBAC/audit
+services and its Postgres schema (`legal_entities`, `users`,
+`entity_access_grants`, `permissions` from `001_identity-foundation`, plus
+`data_vault_records`/`data_vault_record_versions` from
+`002_data-vault-foundation`).
 **Must not depend on:** `hrms`/`payroll` internal schemas.
-**Planned API namespace:** `/api/v1/datavault`.
-**Typical data classification:** CONFIDENTIAL to PRIVILEGED.
+**API namespace:** `/api/v1/data-vault/*` (implemented).
+**Data classification range in use:** INTERNAL (default) through PRIVILEGED.

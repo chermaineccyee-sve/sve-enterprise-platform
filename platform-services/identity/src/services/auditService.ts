@@ -40,7 +40,14 @@ export type IdentitySecurityAction =
   | "rbac.entity_access_revoked"
   | "account.disabled"
   | "account.enabled"
-  | "credential.changed";
+  | "credential.changed"
+  | "data_vault.record.created"
+  | "data_vault.record.viewed"
+  | "data_vault.record.updated"
+  | "data_vault.record.classification_changed"
+  | "data_vault.record.entity_changed"
+  | "data_vault.record.archived"
+  | "data_vault.access.denied";
 
 export function createAuditService(deps: { audit: AuditRepository }) {
   return {

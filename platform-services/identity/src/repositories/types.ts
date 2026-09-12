@@ -25,6 +25,13 @@ import type {
 } from "../domain/entities.ts";
 import type { PasswordHash } from "../crypto/password.ts";
 import type { EncryptedTotpSecret } from "../crypto/mfaSecretCipher.ts";
+import type {
+  DataVaultRecord,
+  DataVaultRecordVersion,
+  CreateDataVaultRecordInput,
+  UpdateDataVaultRecordInput,
+  DataVaultRecordFilter,
+} from "../domain/dataVault.ts";
 
 export interface UserRepository {
   createUser(input: { email: string; accountType: AccountType }): Promise<User>;
@@ -113,4 +120,20 @@ export interface AttemptRepository {
 
 export interface AuditRepository {
   record(event: Omit<SecurityAuditEvent, "id" | "occurredAt">): Promise<SecurityAuditEvent>;
+}
+
+export interface DataVaultRepository {
+  create(input: CreateDataVaultRecordInput & { createdBy: string }): Promise<DataVaultRecord>;
+  findById(id: string): Promise<DataVaultRecord | null>;
+  list(filter: DataVaultRecordFilter): Promise<DataVaultRecord[]>;
+  update(id: string, input: UpdateDataVaultRecordInput & { updatedBy: string }): Promise<DataVaultRecord>;
+  archive(id: string, archivedBy: string): Promise<DataVaultRecord>;
+  addVersion(input: {
+    recordId: string;
+    version: number;
+    snapshot: Record<string, unknown>;
+    changeNote?: string | null;
+    changedBy: string;
+  }): Promise<DataVaultRecordVersion>;
+  listVersions(recordId: string): Promise<DataVaultRecordVersion[]>;
 }

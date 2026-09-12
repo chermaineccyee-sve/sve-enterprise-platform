@@ -1995,8 +1995,11 @@ body:not(:has(.page:target)) #dashboard{display:block!important}
 <div class="field full"><label>Indicator / Topic</label><input id="topic" placeholder="e.g. Licence requirement, GDP, salary benchmark"></div>
 <div class="field"><label>Source Name</label><input id="source" placeholder="Official issuer / publication"></div><div class="field"><label>Evidence Tier</label><select id="tier"><option>Tier 1</option><option>Tier 2</option><option>Tier 3</option><option>Tier 4</option><option>Tier 5</option></select></div>
 <div class="field"><label>Date Checked</label><input id="checked" type="date"></div><div class="field"><label>Confidence</label><select id="confidence"><option>High</option><option>Medium</option><option>Low</option></select></div>
+<div class="field"><label>Legal Entity</label><select id="legalEntity"><option value="">Loading legal entities…</option></select></div>
+<div class="field"><label>Classification</label><select id="classification"><option value="PUBLIC">Public</option><option value="INTERNAL" selected>Internal</option><option value="CONFIDENTIAL">Confidential</option><option value="RESTRICTED">Restricted</option><option value="PRIVILEGED">Privileged</option></select></div>
 <div class="field full"><label>Latest Figure / Extract</label><textarea id="extract"></textarea></div><div class="field full"><label>Limitation / Notes</label><textarea id="notes"></textarea></div>
-</div><div style="margin-top:16px;text-align:right"><button class="btn light" onclick="closeModal('recordModal')">Cancel</button> <button class="btn gold" onclick="saveRecord()">Save Evidence Record</button></div></div></div>
+<div id="recordFormError" class="notice" style="display:none;color:#b00020"></div>
+</div><div style="margin-top:16px;text-align:right"><button class="btn light" onclick="closeModal('recordModal')">Cancel</button> <button class="btn gold" id="recordSaveBtn" onclick="saveRecord()">Save Evidence Record</button></div></div></div>
 
 <div class="modal" id="packModal"><div class="modalbox"><span class="close" onclick="closeModal('packModal')">✕</span><h3>Create Report Data Pack</h3><div class="formgrid"><div class="field"><label>Client / Project</label><input placeholder="Client or workstream"></div><div class="field"><label>Report Type</label><select><option>RFA Report</option><option>Business Plan</option><option>Regulatory Note</option><option>Board Memo</option><option>Market Entry Insight Report</option></select></div><div class="field"><label>Jurisdiction</label><input placeholder="Country / regulatory zone"></div><div class="field"><label>Sector</label><input placeholder="Industry / business model"></div><div class="field full"><label>Client Objective / Decision to Support</label><textarea></textarea></div></div><div class="notice">The pack will require source tiering, key facts and assumptions, findings, RAG risk register, open questions, recommended next actions and reviewer section.</div><div style="text-align:right"><button class="btn light" onclick="closeModal('packModal')">Cancel</button> <button class="btn gold" onclick="closeModal('packModal');alert('Data Pack workspace created in prototype.')">Create Workspace</button></div></div></div>
 
@@ -2108,12 +2111,97 @@ body:not(:has(.page:target)) #dashboard{display:block!important}
 const titles={dashboard:'Strategy Intelligence Dashboard',vault:'SVE Data Vault',master:'Evidence Master Index',insights:'SVE Insight Notes',policyMonitor:'Policy Monitor',monitor:'News Monitor',projects:'Projects & Matters',clients:'Client Workspaces',intake:'Client Intake & RFA Readiness',tasks:'Tasks & Decisions',packs:'Report Data Packs',deliverables:'Deliverables Register',risk:'Risk & Escalation',review:'Review Queue',decisions:'Decision Register',documents:'Documents & Data Rooms',archive:'Archive / Superseded Data',admin:'Administration'};
 const vaults=[['Macro Economic Data','GDP, inflation, labour, trade, FDI, rates and currency'],['Jurisdiction Data','Country policy and business environment references'],['Regulatory & Licensing Data','Regulators, licence readiness and AML/CFT'],['Sector Intelligence','Funds, AI, training, property, security and infrastructure'],['Cost Benchmark Data','Setup, manpower, fees, office and technology costs'],['Client Data Room (Restricted)','Restricted client-specific documents and matter files'],['Policy Monitor','Official regulatory, licensing, policy and compliance developments'],['News Monitor','Regional business, market and strategic intelligence'],['SVE Insight Notes','Interpretation: what it says, why it matters, client impact'],['Report Data Packs','Evidence packs prepared for specific reports'],['Archive & Superseded Data','Older data and superseded source documents']];
 document.getElementById('vaultList').innerHTML=vaults.map(v=>`<div class="vault"><b>${v[0]}</b><span>${v[1]}</span></div>`).join('');
-let seed=[{id:'SVE-DV-MY-REG-0001',jur:'Malaysia',topic:'Regulatory perimeter',source:'Primary authority',tier:'Tier 1',date:'2026-09-05',conf:'High',status:'Report Ready'},{id:'SVE-DV-SG-MAC-0002',jur:'Singapore',topic:'Labour / macro benchmark',source:'Official statistics',tier:'Tier 1',date:'2026-09-04',conf:'High',status:'Report Ready'},{id:'SVE-DV-LAB-REG-0003',jur:'Labuan',topic:'Fund management licensing',source:'Regulatory guideline',tier:'Tier 1',date:'2026-09-03',conf:'High',status:'Requires Review'},{id:'SVE-DV-MY-SEC-0004',jur:'Malaysia',topic:'AI governance market signal',source:'Industry research',tier:'Tier 3',date:'2026-09-01',conf:'Medium',status:'Requires Review'},{id:'SVE-DV-ASE-POL-0005',jur:'ASEAN',topic:'Regional policy development',source:'Business media',tier:'Tier 4',date:'2026-08-30',conf:'Medium',status:'Monitoring'}];
-let data=JSON.parse(localStorage.getItem('sveRecords')||'null')||seed;
-function renderRecords(){let q=(document.getElementById('q')?.value||'').toLowerCase(),f=document.getElementById('tierFilter')?.value||'';let a=data.filter(r=>(!f||r.tier==f)&&JSON.stringify(r).toLowerCase().includes(q));document.getElementById('records').innerHTML=a.map(r=>`<tr onclick="openEvidence('${r.id}')" style="cursor:pointer"><td><b>${r.id}</b></td><td>${r.jur}</td><td>${r.topic}</td><td>${r.source}</td><td><span class="badge ${r.tier.replace('Tier ','t')}">${r.tier}</span></td><td>${r.date}</td><td>${r.conf}</td><td><span class="badge ${r.status=='Report Ready'?'ready':'review'}">${r.status}</span></td></tr>`).join('');document.getElementById('mRecords').textContent=24+(data.length-seed.length)}
-function openRecord(){document.getElementById('recordModal').classList.add('show');document.getElementById('checked').value=new Date().toISOString().slice(0,10)}
+/* SVE Data Vault — server-side persistence (PR #5).
+   Evidence records are no longer read from or written to localStorage
+   (the CRITICAL `sveRecords` finding). Every list/create call goes
+   through the Data Vault API (platform-services/identity's
+   /api/v1/data-vault/*), which independently authenticates the caller
+   (native session or the transitional SVEGIP cookie bridge) and applies
+   RBAC/entity/classification checks before returning or storing anything
+   — see docs/architecture/data-vault-foundation.md. `data` keeps the
+   same in-page field names (id/jur/topic/source/tier/date/conf/status)
+   the rest of this file's openEvidence()/renderCommand() already read,
+   normalised from the API's response shape, so nothing else on this
+   page needs to change. */
+const DATA_VAULT_API_BASE='/api/v1/data-vault';
+let data=[];
+let dataVaultLegalEntities=[];
+function escapeHtml(value){return String(value==null?'':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function tierBadgeClass(tier){return String(tier||'').replace('Tier ','t')}
+async function dataVaultFetch(path,options){
+ const res=await fetch(DATA_VAULT_API_BASE+path,Object.assign({credentials:'same-origin'},options,{headers:Object.assign({'content-type':'application/json'},options&&options.headers)}));
+ if(res.status===401){location.replace('/?next='+encodeURIComponent('/data-vault/')+'&sessionExpired=1');throw new Error('session-expired')}
+ let body=null;try{body=await res.json()}catch(e){}
+ if(!res.ok){const message=(body&&body.error&&body.error.message)||'The server could not complete this request.';const err=new Error(message);err.status=res.status;err.code=body&&body.error&&body.error.code;throw err}
+ return body&&body.data;
+}
+function mapDataVaultRecord(r){return {id:r.recordCode,_id:r.id,jur:r.jurisdiction,category:r.category,topic:r.topic,source:r.source,tier:r.tier,date:r.checkedDate||'',conf:r.confidence,status:r.status,classification:r.classification,legalEntityId:r.legalEntityId}}
+async function loadDataVaultLegalEntities(){
+ const sel=document.getElementById('legalEntity');
+ try{
+  const result=await dataVaultFetch('/legal-entities');
+  dataVaultLegalEntities=(result&&result.legalEntities)||[];
+  if(sel)sel.innerHTML=dataVaultLegalEntities.map(e=>`<option value="${escapeHtml(e.id)}">${escapeHtml(e.name)}</option>`).join('')||'<option value="">No legal entities available</option>';
+ }catch(e){
+  if(sel&&e.message!=='session-expired')sel.innerHTML='<option value="">Unable to load legal entities</option>';
+ }
+}
+async function renderRecords(){
+ let q=(document.getElementById('q')?.value||'').toLowerCase(),f=document.getElementById('tierFilter')?.value||'';
+ const box=document.getElementById('records');
+ if(box)box.innerHTML='<tr><td colspan="8" class="muted">Loading evidence records…</td></tr>';
+ try{
+  const params=new URLSearchParams();
+  if(f)params.set('tier',f);
+  if(q)params.set('search',q);
+  const result=await dataVaultFetch('/records'+(params.toString()?'?'+params.toString():''));
+  data=((result&&result.records)||[]).map(mapDataVaultRecord);
+  if(!box)return;
+  if(!data.length){box.innerHTML='<tr><td colspan="8" class="muted">No evidence records found.</td></tr>';}
+  else box.innerHTML=data.map(r=>`<tr onclick="openEvidence('${escapeHtml(r.id)}')" style="cursor:pointer"><td><b>${escapeHtml(r.id)}</b></td><td>${escapeHtml(r.jur)}</td><td>${escapeHtml(r.topic)}</td><td>${escapeHtml(r.source)}</td><td><span class="badge ${tierBadgeClass(r.tier)}">${escapeHtml(r.tier)}</span></td><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.conf)}</td><td><span class="badge ${r.status=='Report Ready'?'ready':'review'}">${escapeHtml(r.status)}</span></td></tr>`).join('');
+  const m=document.getElementById('mRecords');if(m)m.textContent=data.length;
+ }catch(e){
+  if(e.message==='session-expired')return;
+  if(box)box.innerHTML=`<tr><td colspan="8" class="notice">${e.status===403?'You are not authorised to view Data Vault evidence records.':'Unable to load evidence records from the server. Please try again.'}</td></tr>`;
+ }
+}
+function openRecord(){
+ document.getElementById('recordModal').classList.add('show');
+ document.getElementById('checked').value=new Date().toISOString().slice(0,10);
+ const errBox=document.getElementById('recordFormError');if(errBox){errBox.style.display='none';errBox.textContent=''}
+ if(!dataVaultLegalEntities.length)loadDataVaultLegalEntities();
+}
 function openPack(){document.getElementById('packModal').classList.add('show')}function closeModal(id){document.getElementById(id).classList.remove('show')}
-function saveRecord(){let jur=document.getElementById('jur').value,code=jur=='Malaysia'?'MY':jur=='Singapore'?'SG':jur=='Labuan'?'LAB':jur.slice(0,3).toUpperCase(),cat=document.getElementById('cat').value.slice(0,3).toUpperCase();let r={id:`SVE-DV-${code}-${cat}-${String(data.length+1).padStart(4,'0')}`,jur,topic:document.getElementById('topic').value||'Untitled evidence record',source:document.getElementById('source').value||'Source pending',tier:document.getElementById('tier').value,date:document.getElementById('checked').value,conf:document.getElementById('confidence').value,status:'Requires Review'};data.unshift(r);localStorage.setItem('sveRecords',JSON.stringify(data));renderRecords();closeModal('recordModal')}
+async function saveRecord(){
+ const errBox=document.getElementById('recordFormError'),btn=document.getElementById('recordSaveBtn');
+ const legalEntityId=document.getElementById('legalEntity')?.value||'';
+ const input={
+  legalEntityId,
+  jurisdiction:document.getElementById('jur').value,
+  category:document.getElementById('cat').value,
+  topic:document.getElementById('topic').value||'Untitled evidence record',
+  source:document.getElementById('source').value||'Source pending',
+  tier:document.getElementById('tier').value,
+  confidence:document.getElementById('confidence').value,
+  checkedDate:document.getElementById('checked').value||null,
+  classification:document.getElementById('classification')?.value||'INTERNAL'
+ };
+ if(!legalEntityId){if(errBox){errBox.textContent='Legal Entity is required.';errBox.style.display='block'}return}
+ if(btn){btn.disabled=true;btn.textContent='Saving…'}
+ if(errBox){errBox.style.display='none';errBox.textContent=''}
+ try{
+  await dataVaultFetch('/records',{method:'POST',body:JSON.stringify(input)});
+  closeModal('recordModal');
+  showToast('Evidence record saved.');
+  await renderRecords();
+ }catch(e){
+  if(e.message==='session-expired')return;
+  if(errBox){errBox.textContent=e.status===403?'You are not authorised to create an evidence record at this classification/entity.':(e.message||'Unable to save this record.');errBox.style.display='block'}
+ }finally{
+  if(btn){btn.disabled=false;btn.textContent='Save Evidence Record'}
+ }
+}
+loadDataVaultLegalEntities();
 renderRecords();
 
 function toggleMobileMenu(){
@@ -2236,11 +2324,11 @@ function openEvidence(id){
  'SG-AI-006':{id:'SG-AI-006',jur:'Singapore',topic:'AI governance environment',source:'Government source',tier:'Tier 1',date:'04 Sep 2026',conf:'Medium',status:'Draft'}
  };r=staticEvidence[id]} if(!r)return;
  document.getElementById('drawerTitle').textContent=r.id;
- document.getElementById('drawerBody').innerHTML=`<div class="notice"><b>${r.topic}</b><br>${r.jur} · ${r.tier} · ${r.conf} confidence</div>
- <div class="riskrow"><span>Source</span><b>${r.source}</b></div><div class="riskrow"><span>Date Checked</span><b>${r.date}</b></div>
- <div class="riskrow"><span>Status</span><span class="badge ${r.status==='Report Ready'?'ready':'review'}">${r.status}</span></div>
+ document.getElementById('drawerBody').innerHTML=`<div class="notice"><b>${escapeHtml(r.topic)}</b><br>${escapeHtml(r.jur)} · ${escapeHtml(r.tier)} · ${escapeHtml(r.conf)} confidence</div>
+ <div class="riskrow"><span>Source</span><b>${escapeHtml(r.source)}</b></div><div class="riskrow"><span>Date Checked</span><b>${escapeHtml(r.date)}</b></div>
+ <div class="riskrow"><span>Status</span><span class="badge ${r.status==='Report Ready'?'ready':'review'}">${escapeHtml(r.status)}</span></div>
  <h3 style="margin-top:22px">Actions</h3><div class="quickbar"><div class="quick" onclick="closeDrawer();openInsight()"><b>◆</b> Convert to Insight</div><div class="quick" onclick="showToast('Evidence attached to selected Data Pack.')"><b>▤</b> Add to Data Pack</div></div>
- <h3>Audit Trail</h3><div class="timeline"><div>Evidence record created</div><div>Source classified ${r.tier}</div><div>Last checked ${r.date}</div><div>${r.status}</div></div>`;
+ <h3>Audit Trail</h3><div class="timeline"><div>Evidence record created</div><div>Source classified ${escapeHtml(r.tier)}</div><div>Last checked ${escapeHtml(r.date)}</div><div>${escapeHtml(r.status)}</div></div>`;
  document.getElementById('detailDrawer').classList.add('show');
 }
 const commandItems=[
@@ -2260,7 +2348,7 @@ function renderCommand(){
  let routes=commandItems.filter(x=>!q||(x[0]+' '+x[1]).toLowerCase().includes(q)).slice(0,5).map(x=>({kind:'route',title:x[0],meta:x[1],target:x[2]}));
  let evidence=(typeof data!=='undefined'?data:[]).filter(r=>q&&((r.id||'')+' '+(r.jur||'')+' '+(r.topic||'')+' '+(r.source||'')+' '+(r.status||'')).toLowerCase().includes(q)).slice(0,5).map(r=>({kind:'evidence',title:r.id+' · '+r.topic,meta:(r.jur||'')+' · '+(r.status||''),target:r.id}));
  let results=routes.concat(evidence).slice(0,8), box=document.getElementById('cmdresults');
- box.innerHTML=results.length?results.map((x,i)=>`<div class="commandresult" data-cmd-index="${i}"><b>${x.title}</b><br><span style="color:var(--muted)">${x.meta}</span></div>`).join(''):`<div class="commandresult"><b>No authorised portal record found</b><br><span style="color:var(--muted)">Try a client, jurisdiction, topic or Data ID.</span></div>`;
+ box.innerHTML=results.length?results.map((x,i)=>`<div class="commandresult" data-cmd-index="${i}"><b>${escapeHtml(x.title)}</b><br><span style="color:var(--muted)">${escapeHtml(x.meta)}</span></div>`).join(''):`<div class="commandresult"><b>No authorised portal record found</b><br><span style="color:var(--muted)">Try a client, jurisdiction, topic or Data ID.</span></div>`;
  box.querySelectorAll('[data-cmd-index]').forEach(el=>el.onclick=function(){let x=results[Number(this.dataset.cmdIndex)];closeCommand();if(x.kind==='evidence')openEvidence(x.target);else goPage(x.target)});
 }
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCommand()}if(e.key==='Escape'){closeCommand();closeDrawer()}});
@@ -2437,26 +2525,24 @@ function sveWebSearch(){
   if(!q.trim()) return;
   window.open('https://www.google.com/search?q='+encodeURIComponent(q),'_blank','noopener');
 }
+/* PR #5: this panel previously persisted its rows to localStorage under
+   'sve_data_id_registry_v1' — removed. It never held real Data Vault
+   records to begin with (it only ever scraped literal "SVE-DATA-NNNNNN"
+   strings already present in this static page's own markup, e.g. the
+   Insight Note evidence-picker's hard-coded options), but keeping any
+   persisted-looking store here risked being mistaken for an authoritative
+   one. It is now purely derived fresh from the current page each time it
+   renders — nothing is written to browser storage. sveNextDataID (never
+   called anywhere in this page) was removed with it; if a future feature
+   needs to mint a real Data ID, it must come from the server, the same
+   way record codes now do (see saveRecord() above). */
 function sveLoadDataIDs(){
-  var key='sve_data_id_registry_v1';
-  var rows=[];
-  try{rows=JSON.parse(localStorage.getItem(key)||'[]')}catch(e){}
-  if(!rows.length){
-    var ids=[...document.body.innerText.matchAll(/SVE-DATA-\d{6}/g)].map(x=>x[0]);
-    ids=[...new Set(ids)].sort();
-    rows=ids.map(function(id,i){return {seq:i+1,id:id,issued:'Prototype',topic:'Existing prototype record',jurisdiction:'—',status:'Active'}});
-    try{localStorage.setItem(key,JSON.stringify(rows))}catch(e){}
-  }
+  var ids=[...document.body.innerText.matchAll(/SVE-DATA-\d{6}/g)].map(x=>x[0]);
+  ids=[...new Set(ids)].sort();
+  var rows=ids.map(function(id,i){return {seq:i+1,id:id,issued:'Prototype',topic:'Existing prototype record',jurisdiction:'—',status:'Active'}});
   var body=document.getElementById('dataIdAuditBody');
-  if(body) body.innerHTML=rows.map(function(r){return '<tr><td>'+r.seq+'</td><td><b>'+r.id+'</b></td><td>'+r.issued+'</td><td>'+r.topic+'</td><td>'+r.jurisdiction+'</td><td>'+r.status+'</td></tr>'}).join('');
+  if(body) body.innerHTML=rows.map(function(r){return '<tr><td>'+r.seq+'</td><td><b>'+escapeHtml(r.id)+'</b></td><td>'+escapeHtml(r.issued)+'</td><td>'+escapeHtml(r.topic)+'</td><td>'+escapeHtml(r.jurisdiction)+'</td><td>'+escapeHtml(r.status)+'</td></tr>'}).join('');
   return rows;
-}
-function sveNextDataID(meta){
-  var rows=sveLoadDataIDs(), seq=rows.length?Math.max.apply(null,rows.map(r=>r.seq))+1:1;
-  var id='SVE-DATA-'+String(seq).padStart(6,'0');
-  rows.push(Object.assign({seq:seq,id:id,issued:new Date().toISOString(),topic:'New record',jurisdiction:'—',status:'Active'},meta||{}));
-  try{localStorage.setItem('sve_data_id_registry_v1',JSON.stringify(rows))}catch(e){}
-  sveLoadDataIDs(); return id;
 }
 function exportDataIDAudit(){
   var rows=sveLoadDataIDs(), cols=['seq','id','issued','topic','jurisdiction','status'];

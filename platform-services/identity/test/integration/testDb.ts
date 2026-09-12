@@ -22,11 +22,13 @@ export async function withTestDb<T>(fn: (db: ReturnType<typeof createPgDatabaseP
     // legal_entities), truncate everything that tests actually create.
     await db.query(`
       TRUNCATE TABLE
+        data_vault_record_versions, data_vault_records,
         security_audit_events, authentication_attempts, mfa_recovery_codes, mfa_methods,
         sessions, entity_access_grants, user_role_assignments, role_permissions,
         permissions, roles, user_employee_links, user_credentials, users
       RESTART IDENTITY CASCADE
     `);
+    await db.query(`ALTER SEQUENCE data_vault_record_seq RESTART WITH 1`);
     return await fn(db);
   } finally {
     await db.close();

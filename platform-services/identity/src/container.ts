@@ -15,14 +15,17 @@ import { createPgSessionRepository } from "./repositories/postgres/pgSessionRepo
 import { createPgMfaRepository } from "./repositories/postgres/pgMfaRepository.ts";
 import { createPgAttemptRepository } from "./repositories/postgres/pgAttemptRepository.ts";
 import { createPgAuditRepository } from "./repositories/postgres/pgAuditRepository.ts";
+import { createPgDataVaultRepository } from "./repositories/postgres/pgDataVaultRepository.ts";
 import { createAuthService, type AuthService } from "./services/authService.ts";
 import { createSessionService, type SessionService } from "./services/sessionService.ts";
 import { createRbacService, type RbacService } from "./services/rbacService.ts";
 import { createMfaService, type MfaService } from "./services/mfaService.ts";
 import { createRateLimiter, type RateLimiter } from "./services/rateLimiter.ts";
 import { createAuditService, type AuditService } from "./services/auditService.ts";
+import { createDataVaultService, type DataVaultService } from "./services/dataVaultService.ts";
 import { createEnvSecretsProvider } from "./config/envSecretsProvider.ts";
 import { loadMfaEncryptionKey } from "./crypto/mfaSecretCipher.ts";
+import { SVEGIP_BRIDGE_SECRET_ENV_VAR } from "./services/svegipSessionBridge.ts";
 import type { UserRepository, OrganisationRepository } from "./repositories/types.ts";
 
 export interface Container {
@@ -34,6 +37,16 @@ export interface Container {
   mfa: MfaService;
   rateLimiter: RateLimiter;
   audit: AuditService;
+  dataVault: DataVaultService;
+  /**
+   * The shared secret for verifying apps/svegip's own signed session
+   * cookie (see src/services/svegipSessionBridge.ts). Optional: absent
+   * when this deployment doesn't need the transitional SVEGIP bridge
+   * (e.g. a pure native-Identity environment), in which case requests
+   * bearing only a svegip_session cookie are simply not authenticated —
+   * never a crash, never a silent fallback to trusting the cookie.
+   */
+  svegipBridgeSecret: string | null;
 }
 
 /**
@@ -55,6 +68,7 @@ export async function createContainer(db: DatabaseProvider, opts?: { secrets?: S
   const mfaRepo = createPgMfaRepository(db);
   const attemptRepo = createPgAttemptRepository(db);
   const auditRepo = createPgAuditRepository(db);
+  const dataVaultRepo = createPgDataVaultRepository(db);
 
   const mfa = createMfaService({ mfa: mfaRepo, encryptionKey: mfaEncryptionKey });
   const rateLimiter = createRateLimiter({ attempts: attemptRepo });
@@ -62,6 +76,8 @@ export async function createContainer(db: DatabaseProvider, opts?: { secrets?: S
   const rbac = createRbacService({ rbac: rbacRepo, organisation });
   const audit = createAuditService({ audit: auditRepo });
   const auth = createAuthService({ users, attempts: attemptRepo, mfa, rateLimiter });
+  const dataVault = createDataVaultService({ dataVault: dataVaultRepo, rbac, organisation, audit });
+  const svegipBridgeSecret = (await secrets.getSecret(SVEGIP_BRIDGE_SECRET_ENV_VAR)) ?? null;
 
-  return { users, organisation, auth, sessions, rbac, mfa, rateLimiter, audit };
+  return { users, organisation, auth, sessions, rbac, mfa, rateLimiter, audit, dataVault, svegipBridgeSecret };
 }

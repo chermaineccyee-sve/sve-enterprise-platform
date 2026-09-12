@@ -70,3 +70,33 @@ export class ForbiddenError extends Error {
     this.name = "ForbiddenError";
   }
 }
+
+export class NotFoundError extends Error {
+  constructor(resourceType: string) {
+    super(`${resourceType} not found.`);
+    this.name = "NotFoundError";
+  }
+}
+
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
+/**
+ * Thrown by the SVEGIP session bridge (src/services/svegipSessionBridge.ts,
+ * src/api/middleware/dataVaultActor.ts) when a request carries a validly
+ * signed SVEGIP session cookie but no corresponding row exists yet in this
+ * service's own `users` table. This is a deliberate default-deny, not an
+ * error: SVEGIP authenticating someone is never, by itself, sufficient to
+ * authorize them here — see docs/architecture/data-vault-foundation.md
+ * "SVEGIP/Identity transitional authentication boundary".
+ */
+export class IdentityNotProvisionedError extends Error {
+  constructor() {
+    super("This account is not yet provisioned in the SVE Identity service.");
+    this.name = "IdentityNotProvisionedError";
+  }
+}
