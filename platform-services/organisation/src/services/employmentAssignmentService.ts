@@ -72,6 +72,26 @@ export function createEmploymentAssignmentService(deps: {
     return false;
   }
 
+  /**
+   * Is `manager` live (open/current) at `atEffectiveDate` — the date the
+   * NEW reporting edge itself takes effect? Deliberately date-range
+   * containment (`effectiveFrom <= atEffectiveDate <= effectiveTo-or-open`)
+   * rather than a `NOW()`/wall-clock check, so a future-dated transition
+   * (e.g. a promotion effective next quarter) is validated against ITS OWN
+   * effective date, not today's — see docs/architecture/organisation-
+   * employee-master.md "Current manager assignment integrity". A row whose
+   * effective range does not cover that date — including any already-
+   * closed (historical) row — fails this check; this establishes only
+   * whether a NEW live edge may be created against `manager`, and never
+   * alters `manager`'s own stored fields (historical rows are never
+   * rewritten).
+   */
+  function isCurrentAt(manager: EmploymentAssignment, atEffectiveDate: string): boolean {
+    if (manager.effectiveFrom > atEffectiveDate) return false;
+    if (manager.effectiveTo !== null && manager.effectiveTo < atEffectiveDate) return false;
+    return true;
+  }
+
   return {
     /** Creates a new effective-dated assignment — a hire (no prior primary) or a transition (closes the prior primary first). */
     async createAssignment(actor: ActorContext, employeeId: string, input: CreateAssignmentInput): Promise<EmploymentAssignment> {
@@ -129,7 +149,16 @@ export function createEmploymentAssignmentService(deps: {
       const created = await deps.transactions.run({ lock: Boolean(input.reportsToAssignmentId) }, async ({ assignments: txAssignments }) => {
         if (input.reportsToAssignmentId) {
           const reportsTo = await txAssignments.findById(input.reportsToAssignmentId);
-          if (!reportsTo) throw new ValidationError("reportsToAssignmentId does not refer to a known employment assignment.");
+          // A nonexistent id and a real-but-historical (closed, or not yet
+          // effective) one are rejected with the SAME message — same
+          // IDOR-safe principle used for employee records elsewhere in
+          // this package: the caller must not be able to distinguish "no
+          // such assignment" from "that assignment exists but is no
+          // longer (or not yet) current" for an id they don't otherwise
+          // have visibility into.
+          if (!reportsTo || !isCurrentAt(reportsTo, input.effectiveFrom ?? input.startDate)) {
+            throw new ValidationError("reportsToAssignmentId does not refer to a current employment assignment.");
+          }
           if (reportsTo.employeeId === employeeId) throw new ValidationError("An employee cannot report to their own assignment (self-reporting).");
           const cycle = await reportingChainReachesEmployee(txAssignments, input.reportsToAssignmentId, employeeId);
           if (cycle) throw new ValidationError("This reporting assignment would create a circular reporting relationship.");

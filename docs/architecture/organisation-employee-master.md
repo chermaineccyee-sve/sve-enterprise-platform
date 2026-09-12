@@ -709,7 +709,104 @@ reporting change still succeeds; and effective-dated assignment history
 (the original row preserved, closed not deleted, after a rejected
 circular-reporting attempt touches nothing) remains intact.
 
-## 18. Remaining risks / open questions
+## 18. Current manager assignment integrity (PR #6 final review correction)
+
+**Correction context:** the reporting-cycle concurrency analysis (§17) had
+surfaced, as a noted-but-deferred gap, that `createAssignment()` never
+checked whether `reportsToAssignmentId` pointed at a *currently open*
+manager assignment — a caller could set a new assignment's live reporting
+edge against a manager's already-closed, historical row. Review correctly
+asked for this to be resolved as part of the foundation rather than carried
+forward as an accepted limitation.
+
+**Required behaviour, as implemented** (`employmentAssignmentService.
+createAssignment()`, inside the same transaction/lock scope used for the
+cycle check — §17): whenever `input.reportsToAssignmentId` is supplied,
+
+1. **The referenced manager assignment must exist.**
+2. **It must be current at the relevant effective date** — see below.
+3. **It must not be the employee's own assignment** (self-reporting,
+   unchanged from the original check).
+4. **It remains subject to the existing multi-hop cycle check**
+   (`reportingChainReachesEmployee`, unchanged).
+5. **Entity/permission rules are untouched** — the existing
+   `manage_assignment`/`manage_reporting` checks (§11) still run exactly as
+   before this correction.
+
+Checks 1 and 2 are combined into a single `ValidationError` ("... does not
+refer to a current employment assignment.") so a nonexistent id and a
+real-but-historical id are **indistinguishable to the caller** — the same
+IDOR-safe principle already used for employee records (§12): a caller must
+not learn, from the shape of the error alone, whether a UUID they don't
+otherwise have visibility into exists at all.
+
+**Effective-date semantics, assessed carefully rather than using wall-clock
+time:** "current" is evaluated against the *new* assignment's own
+`effectiveFrom` date — `manager.effectiveFrom <= newEffectiveFrom` AND
+(`manager.effectiveTo IS NULL` OR `manager.effectiveTo >= newEffectiveFrom`)
+— a plain date-range containment check (`isCurrentAt()` in
+`employmentAssignmentService.ts`), never `NOW()`/today's wall-clock date.
+This is deliberate: the model already supports future-dated transitions
+cleanly (a promotion effective next quarter is created today with a future
+`effectiveFrom`), and a manager assignment that is valid *as of that future
+date* must not be rejected merely because today's wall-clock date falls
+before it, nor should a manager assignment that will have already closed
+*by* that future date be silently accepted. No trigger-heavy temporal
+framework was introduced — this is a single, cheap, read-then-compare
+check alongside the checks already present, following exactly the
+"effective-dated read" pattern already used throughout this package
+(`findCurrentPrimary`, `listAssignments`).
+
+**Historical records are never rewritten.** This correction adds a
+read-only *validation* gate on the value chosen for a NEW row's
+`reports_to_assignment_id` at the moment that row is created — it changes
+nothing about how existing rows are stored or read. A historical assignment
+retains its own `reports_to_assignment_id` exactly as it was set when that
+row was created, permanently: historical assignment A may continue to show
+that it reported to historical assignment B during A's effective period,
+even long after both have closed and the employees involved have since
+been assigned to different managers. `closeAssignment()` (§6.2) already
+never touches this column, and this correction adds no code path that
+would.
+
+**A genuine bug this correction surfaced and fixed alongside it:** while
+building the real-Postgres tests for this check, `manager.effectiveFrom >
+atEffectiveDate`-style comparisons were silently always false against real
+Postgres (though correct in the in-memory unit tests) — `pg`'s default
+type parser returns a `DATE` column as a JS `Date` object, not the plain
+`'YYYY-MM-DD'` string every domain type in this codebase already declares
+for these fields (`Employee`/`EmploymentAssignment`'s `startDate`/
+`effectiveFrom`/`effectiveTo`/etc., and Data Vault's `checkedDate`). A
+`Date`-vs-string relational comparison silently coerces to `NaN` on both
+sides and is therefore always `false`, which made the new currency check
+an unconditional no-op against real data specifically (never caught by the
+in-memory unit suite, since the in-memory repository stores genuine JS
+strings). Fixed at its root, once, in
+`platform-services/identity/src/repositories/postgres/pgDatabaseProvider.ts`
+— the single file in the codebase that imports `pg` directly — by
+registering a pass-through type parser for the `date` OID (1082), making
+every `DATE` column's runtime value match its already-declared TypeScript
+type across all three packages (Identity, Data Vault, Organisation), not
+just this one check. Verified: Identity's and Data Vault's full suites
+remain green after this change (neither relied on the previous, incorrect
+`Date`-object behaviour), and it incidentally fixes a latent, previously
+untested defect in Data Vault's own `checkedDate` field (which would have
+serialized as a full ISO timestamp instead of a plain date over HTTP).
+
+**Verified** (`test/integration/postgres.test.ts`, real Postgres): a
+current employee reporting to a current manager assignment succeeds; a new
+current assignment referencing a manager's now-closed assignment is
+rejected; a nonexistent manager assignment id and a real-but-closed one
+produce byte-identical error messages; self-reporting remains rejected and
+ordinary multi-hop cycle detection remains working alongside the new
+check; a closed historical assignment retains its original manager
+reference unchanged after later transitions for either the manager or the
+report; and a transfer/promotion establishing a new current manager never
+rewrites the previous assignment's own reporting history. The
+reporting-cycle concurrency tests (§17) were re-run after this correction
+and remain stable (5 consecutive full-suite runs, zero failures).
+
+## 19. Remaining risks / open questions
 
 - **Employee number format is an explicit placeholder** (§8) — no real SVE
   numbering convention could be verified from the current codebase.
@@ -746,16 +843,7 @@ circular-reporting attempt touches nothing) remains intact.
   existing row's `reports_to_assignment_id` in place, which does not exist
   today. If no such feature is ever added, the lock remains inert overhead
   (one `pg_advisory_xact_lock` call) rather than dead weight to remove.
-- **`reportsToAssignmentId` can reference a historical (closed) assignment
-  row** — nothing in `createAssignment()` requires the target to be a
-  currently-open (`effective_to IS NULL`) assignment. Noted during the
-  concurrency analysis (§17) as a related but distinct gap from the PR
-  brief's "inactive managers not silently assigned" concern; out of scope
-  for this correction (which was scoped to concurrency, not this
-  pre-existing validation gap) but worth a future iteration adding an
-  explicit "target must be currently open" check.
-
-## 19. Tests
+## 20. Tests
 
 **Organisation package** (`platform-services/organisation/`):
 - `test/unit/employeeService.test.ts` (20 tests, in-memory) — create/read/
@@ -774,7 +862,7 @@ circular-reporting attempt touches nothing) remains intact.
   closes the assignment with an end date, no successor row, and the
   assignment's own `status` updated to the terminal value; a secondary
   (non-primary) assignment coexists with the primary one.
-- `test/integration/postgres.test.ts` (15 real-Postgres tests) —
+- `test/integration/postgres.test.ts` (21 real-Postgres tests) —
   concurrency-safe employee-number sequence draws; the one-open-primary
   partial unique index enforced at the database level; a non-primary
   assignment coexisting with an open primary at the database level;
@@ -788,12 +876,20 @@ circular-reporting attempt touches nothing) remains intact.
   creation commits both rows together, a forced initial-assignment failure
   leaves neither row persisted, a duplicate `work_email` leaves no partial
   second employee, and a rollback is never followed by a completed-creation
-  audit event; and **two reporting-cycle concurrency tests** (§17) — two
+  audit event; **two reporting-cycle concurrency tests** (§17) — two
   simultaneous, mutually-adversarial reporting changes both commit safely
   with the resulting graph confirmed acyclic (run 5 internal iterations per
   test execution), and self-reporting/ordinary multi-hop cycle
   detection/valid changes/effective-dated history all remain correct
-  through the now-transactional, lock-aware code path.
+  through the now-transactional, lock-aware code path; and **six current-
+  manager-assignment-integrity tests** (§18) — reporting to a current
+  manager assignment succeeds; reporting to a manager's closed assignment
+  is rejected; a nonexistent id and a real-but-closed id produce an
+  identical error; self-reporting and cycle detection remain correct
+  alongside the new check; a closed historical assignment retains its
+  original manager reference after later transitions for either party; and
+  a transfer/promotion establishing a new current manager never rewrites
+  the previous assignment's own reporting history.
 - `test/integration/http.test.ts` (14 real-HTTP tests) — unauthenticated/
   invalid/revoked-session denial; the legal-entities reference endpoint; a
   full hire→read→transfer→end-of-employment flow proving history is
@@ -807,13 +903,24 @@ circular-reporting attempt touches nothing) remains intact.
   login account; and organisation-structure write permission separate from
   read access.
 
-**Identity package** (`platform-services/identity/`): additive only
-(`UserEmployeeLink`, `UserRepository.linkEmployee`/`findActiveLinkByUserId`/
-`findActiveLinkByEmployeeId`/`unlinkEmployee`) — full suite (96/96) passes
-unchanged.
+**Identity package** (`platform-services/identity/`): the User↔Employee
+linkage capability (`UserEmployeeLink`, `UserRepository.linkEmployee`/
+`findActiveLinkByUserId`/`findActiveLinkByEmployeeId`/`unlinkEmployee`)
+remains the only *feature* addition. One further, narrowly-scoped
+correctness fix was made in `pgDatabaseProvider.ts` (§18) — registering a
+pass-through type parser for the `date` OID so `DATE` columns return the
+plain string every domain type already declares, rather than a `Date`
+object — needed to make the current-manager-assignment check work
+correctly against real Postgres at all. This is a one-line, single-file
+bug fix, not a new capability; it changes no existing behavior any test
+relied on (verified: 96/96 unaffected) and corrects a latent defect in
+Data Vault's own `checkedDate` field as a byproduct (§18).
 
-**Data Vault package** (`platform-services/data-vault/`): untouched by this
-PR — full suite (46/46) passes unchanged, confirming no regression.
+**Data Vault package** (`platform-services/data-vault/`): no source changes
+in this package. Its full suite (46/46) passes unchanged after Identity's
+date-parser fix, confirming that fix is a pure correctness improvement
+with no regression — including for the one field (`checkedDate`) it
+incidentally also corrects.
 
 All three packages' full suites were run against a real Postgres database
 (and a clean-install simulation — fresh test database, `npm ci`, typecheck,

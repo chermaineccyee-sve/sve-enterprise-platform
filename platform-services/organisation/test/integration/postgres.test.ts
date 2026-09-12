@@ -307,6 +307,17 @@ async function provisionFullHr(
   return user;
 }
 
+/** Grants an already-provisioned user MANAGE_ASSIGNMENT and MANAGE_REPORTING, group-scoped — used by the reporting-line/concurrency tests below. */
+async function grantReportingManagement(rbacRepo: ReturnType<typeof createPgRbacRepository>, userId: string, adminId: string) {
+  const role = await rbacRepo.createRole({ key: `role-${randomUUID()}`, name: "Reporting manager" });
+  for (const key of [PERMISSIONS.MANAGE_ASSIGNMENT, PERMISSIONS.MANAGE_REPORTING]) {
+    const existing = await rbacRepo.findPermissionByKey(key);
+    const permission = existing ?? (await rbacRepo.createPermission({ key, maxClassification: "CONFIDENTIAL" }));
+    await rbacRepo.grantPermissionToRole(role.id, permission.id);
+  }
+  await rbacRepo.assignRole({ userId, roleId: role.id, grantedBy: adminId });
+}
+
 test("Transactional employee creation: a successful creation commits both the employee row and its initial assignment together", { skip }, async () => {
   await withTestDb(async (db) => {
     const users = createPgUserRepository(db);
@@ -627,5 +638,296 @@ test("Reporting-cycle concurrency: self-reporting, ordinary multi-hop cycle dete
     assert.equal(historyAfter.length, 2, "a valid transition still creates history rather than overwriting");
     assert.ok(historyAfter.some((row) => row.id === a0.id && row.effectiveTo !== null), "the original row is preserved, closed, not deleted");
     assert.ok(historyAfter.some((row) => row.id === transitioned.id && row.effectiveTo === null));
+  });
+});
+
+// ============================================================
+// PR #6 final review correction: current manager assignment integrity
+// ============================================================
+// See docs/architecture/organisation-employee-master.md "Current manager
+// assignment integrity". A new/current employment assignment must not
+// establish its live reports_to_assignment_id against a closed/historical
+// manager assignment — reportsToAssignmentId must reference a manager
+// assignment whose effective range (effective_from..effective_to, or open)
+// covers the NEW assignment's own effectiveFrom date, never today's
+// wall-clock date. Historical rows are never rewritten or deleted; the
+// rule concerns only whether a NEW live edge may be created.
+
+async function setupReportingPair(
+  db: Parameters<typeof createPgUserRepository>[0],
+  organisation: ReturnType<typeof createPgOrganisationRepository>,
+  employeeService: ReturnType<typeof createEmployeeService>,
+  assignmentService: ReturnType<typeof createEmploymentAssignmentService>,
+  actor: { userId: string; email: string },
+  labelSuffix: string,
+) {
+  const entities = await organisation.listLegalEntities();
+  const my = entities.find((e) => e.key === "sve-international-my")!;
+  const manager = await employeeService.createEmployee(actor, {
+    legalName: `Fictional Manager Integrity Manager ${labelSuffix}`,
+    employmentCountry: "MY",
+    initialAssignment: { legalEntityId: my.id, employmentType: "full_time", startDate: "2026-01-01" },
+  });
+  const report = await employeeService.createEmployee(actor, {
+    legalName: `Fictional Manager Integrity Report ${labelSuffix}`,
+    employmentCountry: "MY",
+    initialAssignment: { legalEntityId: my.id, employmentType: "full_time", startDate: "2026-01-01" },
+  });
+  const managerAssignment = (await assignmentService.listAssignments(actor, manager.id))[0]!;
+  return { my, manager, report, managerAssignment };
+}
+
+test("Current manager assignment integrity: reporting to the manager's current (open) assignment succeeds", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const users = createPgUserRepository(db);
+    const organisation = createPgOrganisationRepository(db);
+    const rbacRepo = createPgRbacRepository(db);
+    const auditRepo = createPgAuditRepository(db);
+    const orgStructureRepo = createPgOrgStructureRepository(db);
+    const employeeRepo = createPgEmployeeRepository(db);
+    const assignmentRepo = createPgEmploymentAssignmentRepository(db);
+    const employeeCreation = createPgEmployeeCreationTransaction(db);
+    const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
+    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const audit = createAuditService({ audit: auditRepo });
+    const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+
+    const admin = await users.createUser({ email: "org.pg.mgrintegrity.current.admin@example.test", accountType: "employee" });
+    const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.current.hr@example.test", admin.id);
+    await grantReportingManagement(rbacRepo, hr.id, admin.id);
+    const actor = { userId: hr.id, email: hr.email };
+
+    const { my, report, managerAssignment } = await setupReportingPair(db, organisation, employeeService, assignmentService, actor, "Current");
+
+    const reportAssignment = await assignmentService.createAssignment(actor, report.id, {
+      legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-06-01", effectiveFrom: "2026-06-01", reportsToAssignmentId: managerAssignment.id,
+    });
+    assert.equal(reportAssignment.reportsToAssignmentId, managerAssignment.id);
+  });
+});
+
+test("Current manager assignment integrity: reporting to a manager's CLOSED (historical) assignment is rejected", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const users = createPgUserRepository(db);
+    const organisation = createPgOrganisationRepository(db);
+    const rbacRepo = createPgRbacRepository(db);
+    const auditRepo = createPgAuditRepository(db);
+    const orgStructureRepo = createPgOrgStructureRepository(db);
+    const employeeRepo = createPgEmployeeRepository(db);
+    const assignmentRepo = createPgEmploymentAssignmentRepository(db);
+    const employeeCreation = createPgEmployeeCreationTransaction(db);
+    const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
+    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const audit = createAuditService({ audit: auditRepo });
+    const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+
+    const admin = await users.createUser({ email: "org.pg.mgrintegrity.closed.admin@example.test", accountType: "employee" });
+    const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.closed.hr@example.test", admin.id);
+    await grantReportingManagement(rbacRepo, hr.id, admin.id);
+    const actor = { userId: hr.id, email: hr.email };
+
+    const { my, manager, report, managerAssignment } = await setupReportingPair(db, organisation, employeeService, assignmentService, actor, "Closed");
+
+    // Close the manager's original assignment by transitioning them to a new one (a real transfer) — the OLD row becomes historical.
+    await assignmentService.createAssignment(actor, manager.id, {
+      legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-07-01", effectiveFrom: "2026-07-01", changeReason: "Fictional promotion",
+    });
+
+    await assert.rejects(
+      () =>
+        assignmentService.createAssignment(actor, report.id, {
+          legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-08-01", effectiveFrom: "2026-08-01", reportsToAssignmentId: managerAssignment.id,
+        }),
+      /current employment assignment/,
+      "reporting to the manager's now-closed original assignment must be rejected",
+    );
+  });
+});
+
+test("Current manager assignment integrity: a nonexistent manager assignment id and a real-but-closed one are rejected with the identical error (no information leak)", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const users = createPgUserRepository(db);
+    const organisation = createPgOrganisationRepository(db);
+    const rbacRepo = createPgRbacRepository(db);
+    const auditRepo = createPgAuditRepository(db);
+    const orgStructureRepo = createPgOrgStructureRepository(db);
+    const employeeRepo = createPgEmployeeRepository(db);
+    const assignmentRepo = createPgEmploymentAssignmentRepository(db);
+    const employeeCreation = createPgEmployeeCreationTransaction(db);
+    const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
+    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const audit = createAuditService({ audit: auditRepo });
+    const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+
+    const admin = await users.createUser({ email: "org.pg.mgrintegrity.leak.admin@example.test", accountType: "employee" });
+    const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.leak.hr@example.test", admin.id);
+    await grantReportingManagement(rbacRepo, hr.id, admin.id);
+    const actor = { userId: hr.id, email: hr.email };
+
+    const { my, manager, report, managerAssignment } = await setupReportingPair(db, organisation, employeeService, assignmentService, actor, "Leak");
+    await assignmentService.createAssignment(actor, manager.id, {
+      legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-07-01", effectiveFrom: "2026-07-01",
+    });
+
+    let nonexistentMessage = "";
+    let closedMessage = "";
+    try {
+      await assignmentService.createAssignment(actor, report.id, {
+        legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-08-01", effectiveFrom: "2026-08-01", reportsToAssignmentId: randomUUID(),
+      });
+    } catch (error) {
+      nonexistentMessage = (error as Error).message;
+    }
+    try {
+      await assignmentService.createAssignment(actor, report.id, {
+        legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-08-01", effectiveFrom: "2026-08-01", reportsToAssignmentId: managerAssignment.id,
+      });
+    } catch (error) {
+      closedMessage = (error as Error).message;
+    }
+    assert.ok(nonexistentMessage, "a nonexistent reportsToAssignmentId must be rejected");
+    assert.ok(closedMessage, "a closed reportsToAssignmentId must be rejected");
+    assert.equal(nonexistentMessage, closedMessage, "a nonexistent id and a real-but-closed id must be indistinguishable to the caller");
+  });
+});
+
+test("Current manager assignment integrity: self-reporting and cycle protection remain intact alongside the new currency check", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const users = createPgUserRepository(db);
+    const organisation = createPgOrganisationRepository(db);
+    const rbacRepo = createPgRbacRepository(db);
+    const auditRepo = createPgAuditRepository(db);
+    const orgStructureRepo = createPgOrgStructureRepository(db);
+    const employeeRepo = createPgEmployeeRepository(db);
+    const assignmentRepo = createPgEmploymentAssignmentRepository(db);
+    const employeeCreation = createPgEmployeeCreationTransaction(db);
+    const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
+    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const audit = createAuditService({ audit: auditRepo });
+    const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+
+    const admin = await users.createUser({ email: "org.pg.mgrintegrity.cycle.admin@example.test", accountType: "employee" });
+    const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.cycle.hr@example.test", admin.id);
+    await grantReportingManagement(rbacRepo, hr.id, admin.id);
+    const actor = { userId: hr.id, email: hr.email };
+
+    const entities = await organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const employeeA = await employeeService.createEmployee(actor, { legalName: "Fictional Cycle Integrity A", employmentCountry: "MY", initialAssignment: { legalEntityId: my.id, employmentType: "full_time", startDate: "2026-01-01" } });
+    const employeeB = await employeeService.createEmployee(actor, { legalName: "Fictional Cycle Integrity B", employmentCountry: "MY", initialAssignment: { legalEntityId: my.id, employmentType: "full_time", startDate: "2026-01-01" } });
+    const a0 = (await assignmentService.listAssignments(actor, employeeA.id))[0]!;
+
+    // Self-reporting: A's own (current) assignment as its own reportsToAssignmentId.
+    await assert.rejects(
+      () => assignmentService.createAssignment(actor, employeeA.id, { legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-06-01", effectiveFrom: "2026-06-01", reportsToAssignmentId: a0.id }),
+      /self-reporting/,
+    );
+
+    // B reports to A's current assignment — valid.
+    const bReportsToA = await assignmentService.createAssignment(actor, employeeB.id, { legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-06-01", effectiveFrom: "2026-06-01", reportsToAssignmentId: a0.id });
+
+    // A -> B -> A: a two-hop cycle, referencing B's CURRENT assignment (not a closed one) — must still be caught by cycle detection, not accidentally pass because of the new currency check.
+    await assert.rejects(
+      () => assignmentService.createAssignment(actor, employeeA.id, { legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-07-01", effectiveFrom: "2026-07-01", reportsToAssignmentId: bReportsToA.id }),
+      /circular/,
+    );
+  });
+});
+
+test("Current manager assignment integrity: a closed historical assignment retains its own original manager reference unchanged", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const users = createPgUserRepository(db);
+    const organisation = createPgOrganisationRepository(db);
+    const rbacRepo = createPgRbacRepository(db);
+    const auditRepo = createPgAuditRepository(db);
+    const orgStructureRepo = createPgOrgStructureRepository(db);
+    const employeeRepo = createPgEmployeeRepository(db);
+    const assignmentRepo = createPgEmploymentAssignmentRepository(db);
+    const employeeCreation = createPgEmployeeCreationTransaction(db);
+    const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
+    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const audit = createAuditService({ audit: auditRepo });
+    const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+
+    const admin = await users.createUser({ email: "org.pg.mgrintegrity.history.admin@example.test", accountType: "employee" });
+    const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.history.hr@example.test", admin.id);
+    await grantReportingManagement(rbacRepo, hr.id, admin.id);
+    const actor = { userId: hr.id, email: hr.email };
+
+    const { my, manager, report, managerAssignment } = await setupReportingPair(db, organisation, employeeService, assignmentService, actor, "History");
+
+    // Report starts out reporting to the manager's original (then-current) assignment.
+    const reportOriginal = await assignmentService.createAssignment(actor, report.id, {
+      legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-06-01", effectiveFrom: "2026-06-01", reportsToAssignmentId: managerAssignment.id,
+    });
+
+    // The manager is later promoted/transferred — their OWN original assignment closes, but that historical row's reports_to_assignment_id (null here, the manager had none) and, more importantly, the REPORT's historical assignment referencing it, must remain untouched.
+    await assignmentService.createAssignment(actor, manager.id, {
+      legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-08-01", effectiveFrom: "2026-08-01", changeReason: "Fictional promotion",
+    });
+
+    // Now transition the report too (e.g. a routine department move unrelated to reporting) — this closes reportOriginal and creates a new row.
+    const reportNext = await assignmentService.createAssignment(actor, report.id, {
+      legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-09-01", effectiveFrom: "2026-09-01", changeReason: "Fictional department move", reportsToAssignmentId: null,
+    });
+
+    const closedReportRow = await db.query<{ reports_to_assignment_id: string | null; effective_to: string | null }>(
+      `SELECT reports_to_assignment_id, effective_to FROM employment_assignments WHERE id = $1`,
+      [reportOriginal.id],
+    );
+    assert.ok(closedReportRow.rows[0]!.effective_to !== null, "the report's original assignment must now be closed");
+    assert.equal(closedReportRow.rows[0]!.reports_to_assignment_id, managerAssignment.id, "the closed historical row must retain its original manager reference — historical reporting data is never rewritten or deleted");
+    assert.equal(reportNext.reportsToAssignmentId, null, "the new current assignment has its own, independently-set reporting value");
+  });
+});
+
+test("Current manager assignment integrity: a transfer/promotion can establish a new current manager without rewriting the previous assignment's reporting history", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const users = createPgUserRepository(db);
+    const organisation = createPgOrganisationRepository(db);
+    const rbacRepo = createPgRbacRepository(db);
+    const auditRepo = createPgAuditRepository(db);
+    const orgStructureRepo = createPgOrgStructureRepository(db);
+    const employeeRepo = createPgEmployeeRepository(db);
+    const assignmentRepo = createPgEmploymentAssignmentRepository(db);
+    const employeeCreation = createPgEmployeeCreationTransaction(db);
+    const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
+    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const audit = createAuditService({ audit: auditRepo });
+    const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
+    const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, rbac, audit, transactions: assignmentTransactions });
+
+    const admin = await users.createUser({ email: "org.pg.mgrintegrity.newmgr.admin@example.test", accountType: "employee" });
+    const hr = await provisionFullHr(db, rbacRepo, "org.pg.mgrintegrity.newmgr.hr@example.test", admin.id);
+    await grantReportingManagement(rbacRepo, hr.id, admin.id);
+    const actor = { userId: hr.id, email: hr.email };
+
+    const entities = await organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const oldManager = await employeeService.createEmployee(actor, { legalName: "Fictional New Manager Old Boss", employmentCountry: "MY", initialAssignment: { legalEntityId: my.id, employmentType: "full_time", startDate: "2026-01-01" } });
+    const newManager = await employeeService.createEmployee(actor, { legalName: "Fictional New Manager New Boss", employmentCountry: "MY", initialAssignment: { legalEntityId: my.id, employmentType: "full_time", startDate: "2026-01-01" } });
+    const report = await employeeService.createEmployee(actor, { legalName: "Fictional New Manager Report", employmentCountry: "MY", initialAssignment: { legalEntityId: my.id, employmentType: "full_time", startDate: "2026-01-01" } });
+    const oldManagerAssignment = (await assignmentService.listAssignments(actor, oldManager.id))[0]!;
+    const newManagerAssignment = (await assignmentService.listAssignments(actor, newManager.id))[0]!;
+
+    const reportOriginal = await assignmentService.createAssignment(actor, report.id, {
+      legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-06-01", effectiveFrom: "2026-06-01", reportsToAssignmentId: oldManagerAssignment.id,
+    });
+
+    // Promotion/transfer: the report's new current assignment reports to the NEW manager instead.
+    const reportPromoted = await assignmentService.createAssignment(actor, report.id, {
+      legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-09-01", effectiveFrom: "2026-09-01", changeReason: "Fictional promotion with new manager", reportsToAssignmentId: newManagerAssignment.id,
+    });
+    assert.equal(reportPromoted.reportsToAssignmentId, newManagerAssignment.id);
+
+    const history = await assignmentService.listAssignments(actor, report.id);
+    const closedOriginal = history.find((a) => a.id === reportOriginal.id)!;
+    assert.equal(closedOriginal.reportsToAssignmentId, oldManagerAssignment.id, "the previous assignment's reporting history must remain exactly as it was — never rewritten to point at the new manager");
+    assert.equal(closedOriginal.effectiveTo, "2026-08-31");
   });
 });
