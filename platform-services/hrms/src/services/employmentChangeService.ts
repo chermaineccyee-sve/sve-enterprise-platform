@@ -48,7 +48,12 @@ export function createEmploymentChangeService(deps: { lifecycle: LifecycleCaseSe
      * Organisation's own createAssignment() unmodified — this service
      * does not reinterpret or duplicate its validation.
      */
-    async completeChange(actor: ActorContext, caseId: string, assignmentInput: CreateAssignmentInput): Promise<{ case: HrLifecycleCase; assignment: EmploymentAssignment }> {
+    async completeChange(
+      actor: ActorContext,
+      caseId: string,
+      assignmentInput: CreateAssignmentInput,
+      executionContext?: { decisionActorUserId: string | null; initiatedBySystem: string | null },
+    ): Promise<{ case: HrLifecycleCase; assignment: EmploymentAssignment }> {
       const { case: updated, result: assignment } = await deps.lifecycle.completeCaseWithAuthoritativeWrite(
         actor,
         caseId,
@@ -62,6 +67,7 @@ export function createEmploymentChangeService(deps: { lifecycle: LifecycleCaseSe
         async (repos, lockedCase) => {
           await repos.events.append({ caseId, eventType: "employment_change_authorised", eventData: { changeType: lockedCase.caseSubtype }, recordedBy: actor.userId });
         },
+        executionContext,
       );
       return { case: updated, assignment };
     },

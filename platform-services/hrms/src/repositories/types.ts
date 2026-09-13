@@ -35,9 +35,29 @@ export interface LifecycleCaseRepository {
    */
   findByIdForUpdate(id: string): Promise<HrLifecycleCase | null>;
   list(filter: LifecycleCaseFilter): Promise<HrLifecycleCase[]>;
-  updateStatus(id: string, input: { status: LifecycleStatus; currentStage?: string | null; outcome?: string | null; effectiveDate?: string | null; resultingAssignmentId?: string | null; updatedBy: string }): Promise<HrLifecycleCase>;
+  updateStatus(
+    id: string,
+    input: {
+      status: LifecycleStatus;
+      currentStage?: string | null;
+      outcome?: string | null;
+      effectiveDate?: string | null;
+      resultingAssignmentId?: string | null;
+      /** Set once, at submitForApproval() time (PR #9) — never touched by any other transition. */
+      pendingCompletionInput?: Record<string, unknown> | null;
+      updatedBy: string;
+    },
+  ): Promise<HrLifecycleCase>;
   /** Draws the next value from hr_lifecycle_case_seq — never a row count or client-supplied value. */
   nextCaseNumberSeq(): Promise<number>;
+  /**
+   * Stamps the REFERENCE to the Workflow instance now approving this case
+   * (PR #9) — never a copy of Workflow's own status. Overwrites any prior
+   * value (a resubmission after rejection points this at the NEW
+   * instance). See docs/architecture/hrms-workflow-integration.md "HRMS
+   * <-> Workflow linkage".
+   */
+  linkWorkflowInstance(id: string, workflowInstanceId: string): Promise<HrLifecycleCase>;
 }
 
 export interface LifecycleEventRepository {

@@ -93,10 +93,10 @@ export function createTaskService(deps: {
         throw new ForbiddenError("Self-approval is not permitted for this step.");
       }
 
-      const result = await deps.transactions.run(async (repos) => {
+      const result = await deps.transactions.run(async (repos, tx) => {
         const transitioned = await repos.tasks.transitionStatus(taskId, "PENDING", { status: "COMPLETED", completedBy: actor.userId });
         if (!transitioned) throw new InvalidStateError("This task has already been decided or cancelled.");
-        const { instance: updatedInstance, resultingTransition } = await deps.engine.applyDecisionTransition(repos, instance, step, input.decision, actor.userId);
+        const { instance: updatedInstance, resultingTransition } = await deps.engine.applyDecisionTransition(repos, instance, step, input.decision, actor.userId, tx);
         const decision = await repos.decisions.create({ taskId, instanceId: instance.id, actorUserId: actor.userId, decision: input.decision, comment: input.comment ?? null, resultingTransition });
         await repos.events.append({ instanceId: instance.id, eventType: "decision_recorded", eventData: { taskId, decision: input.decision, actorUserId: actor.userId, resultingTransition }, notes: input.comment ?? null, recordedBy: actor.userId });
         void updatedInstance;
@@ -120,10 +120,10 @@ export function createTaskService(deps: {
       const step = await deps.steps.findById(task.stepId);
       if (!step) throw new NotFoundError("Workflow step");
 
-      const completed = await deps.transactions.run(async (repos) => {
+      const completed = await deps.transactions.run(async (repos, tx) => {
         const transitioned = await repos.tasks.transitionStatus(taskId, "PENDING", { status: "COMPLETED", completedBy: actor.userId });
         if (!transitioned) throw new InvalidStateError("This task has already been completed or cancelled.");
-        await deps.engine.applyTaskCompletion(repos, instance, step, actor.userId);
+        await deps.engine.applyTaskCompletion(repos, instance, step, actor.userId, tx);
         return transitioned;
       });
 

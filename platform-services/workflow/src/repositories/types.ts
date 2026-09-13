@@ -4,6 +4,7 @@
  * directly — mirrors Identity/Organisation/HRMS's own repository-pattern
  * convention.
  */
+import type { DatabaseProvider } from "../../../../packages/shared/src/DatabaseProvider.ts";
 import type {
   WorkflowDefinition,
   WorkflowDefinitionVersion,
@@ -192,14 +193,20 @@ export interface WorkflowTxRepos {
 
 /**
  * Runs a set of writes atomically — mirrors platform-services/hrms's
- * LifecycleTransaction exactly. Does not expose a raw DatabaseProvider
- * connection: no operation in this PR needs to bind another package's
- * repositories to this same transaction (no real cross-domain
- * SYSTEM_ACTION handler is registered yet — see docs "Cross-domain
- * transactions" for how a future one would gain that capability,
- * following platform-services/hrms's own
- * createEmploymentAssignmentServiceForTransaction precedent).
+ * LifecycleTransaction exactly, INCLUDING exposing the raw, transaction-
+ * scoped DatabaseProvider connection as `fn`'s second parameter (PR #9
+ * addition — the original PR #8 shape took only `repos`, since no real
+ * cross-domain SYSTEM_ACTION handler existed yet to bind to it). A
+ * registered handler that needs to call into another package's own
+ * transaction-scoped composition helper (e.g. HRMS's
+ * createLifecycleCaseServiceForTransaction, itself following
+ * Organisation's createEmploymentAssignmentServiceForTransaction
+ * precedent) receives this connection via SystemActionContext.tx — see
+ * docs/architecture/hrms-workflow-integration.md "Transaction boundary".
+ * The in-memory implementation has no real connection to expose; it
+ * passes a stub that throws if actually used (see
+ * inMemoryWorkflowTransaction.ts).
  */
 export interface WorkflowTransaction {
-  run<T>(fn: (repos: WorkflowTxRepos) => Promise<T>): Promise<T>;
+  run<T>(fn: (repos: WorkflowTxRepos, tx: DatabaseProvider) => Promise<T>): Promise<T>;
 }

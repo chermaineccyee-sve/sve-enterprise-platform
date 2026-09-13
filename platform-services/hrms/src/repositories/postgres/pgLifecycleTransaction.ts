@@ -36,3 +36,30 @@ export function createPgLifecycleTransaction(db: DatabaseProvider): LifecycleTra
     },
   };
 }
+
+/**
+ * Same behaviour as createPgLifecycleTransaction, for use when the caller
+ * has ALREADY opened the Postgres transaction `tx` belongs to (PR #9 —
+ * see platform-services/hrms/src/composition/transactionScope.ts and
+ * docs/architecture/hrms-workflow-integration.md "Transaction boundary").
+ * DatabaseProvider.transaction() does not support nesting, so this variant
+ * never calls `tx.transaction()` — it runs `fn` directly against `tx`,
+ * joining whatever outer transaction (a Workflow-triggered SYSTEM_ACTION
+ * handler's own) is already open. Mirrors platform-services/organisation's
+ * createPgEmploymentAssignmentTransactionScoped exactly.
+ */
+export function createPgLifecycleTransactionScoped(tx: DatabaseProvider): LifecycleTransaction {
+  return {
+    async run(fn) {
+      return fn(
+        {
+          cases: createPgLifecycleCaseRepository(tx),
+          events: createPgLifecycleEventRepository(tx),
+          milestones: createPgLifecycleMilestoneRepository(tx),
+          reviews: createPgProbationReviewRepository(tx),
+        },
+        tx,
+      );
+    },
+  };
+}

@@ -44,6 +44,24 @@ export interface HrLifecycleCase {
   intendedLastWorkingDate: string | null;
   /** Set once an employment_change/offboarding case invokes Organisation's authoritative assignment transition. */
   resultingAssignmentId: string | null;
+  /**
+   * A REFERENCE to the Workflow instance approving this case (PR #9) —
+   * never a copy of Workflow's own status/outcome, which is always read
+   * live via the integration port. NULL until submitForApproval()
+   * succeeds; overwritten on a later resubmission after rejection. See
+   * docs/architecture/hrms-workflow-integration.md "HRMS <-> Workflow
+   * linkage".
+   */
+  workflowInstanceId: string | null;
+  /**
+   * The employment-change assignment terms / offboarding separation terms
+   * this case's approval will apply, captured once at submitForApproval()
+   * time and consumed by the registered SYSTEM_ACTION handler once
+   * approved — see docs/architecture/hrms-workflow-integration.md
+   * "Employment Change" / "Offboarding". Never copied into Workflow's own
+   * payloads.
+   */
+  pendingCompletionInput: Record<string, unknown> | null;
   createdBy: string;
   updatedBy: string;
   createdAt: string;
@@ -67,7 +85,9 @@ export type LifecycleEventType =
   | "separation_effective"
   | "identity_deactivation_requested"
   | "case_completed"
-  | "case_cancelled";
+  | "case_cancelled"
+  | "approval_submitted"
+  | "approval_rejected";
 
 /**
  * Append-only business lifecycle history — never updated or deleted by

@@ -80,7 +80,12 @@ export function createOffboardingService(deps: { lifecycle: LifecycleCaseService
      * event — all as ONE shared Postgres transaction (see this file's
      * header). Never deletes or disables the Identity account itself.
      */
-    async completeOffboarding(actor: ActorContext, caseId: string, input: { endDate: string; status: "TERMINATED" | "RESIGNED"; changeReason?: string }): Promise<{ case: HrLifecycleCase; assignment: EmploymentAssignment }> {
+    async completeOffboarding(
+      actor: ActorContext,
+      caseId: string,
+      input: { endDate: string; status: "TERMINATED" | "RESIGNED"; changeReason?: string },
+      executionContext?: { decisionActorUserId: string | null; initiatedBySystem: string | null },
+    ): Promise<{ case: HrLifecycleCase; assignment: EmploymentAssignment }> {
       if (!input.endDate) throw new ValidationError("endDate is required.");
       const { case: updated, result: assignment } = await deps.lifecycle.completeCaseWithAuthoritativeWrite(
         actor,
@@ -97,6 +102,7 @@ export function createOffboardingService(deps: { lifecycle: LifecycleCaseService
           // mutation. See this file's header comment.
           await repos.events.append({ caseId, eventType: "identity_deactivation_requested", eventData: { employeeId: lockedCase.employeeId }, recordedBy: actor.userId });
         },
+        executionContext,
       );
       return { case: updated, assignment };
     },

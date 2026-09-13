@@ -515,6 +515,50 @@ attempt per activation, no automatic retry loop (avoiding the brief's
 explicitly-warned-against infinite-retry failure mode) — `attempts` is
 persisted so a future PR can add bounded retry without a schema change.
 
+## 22a. Review correction (PR #9): a handler failure now rolls back the WHOLE transaction
+
+As originally built (above), `executeSystemActionStep` caught a handler's
+thrown error, durably recorded `SYSTEM_ACTION_FAILURE` on the execution
+row AND the instance, and returned **normally** — letting the enclosing
+transaction commit. This was safe only because PR #8 registered no real
+handler: nothing in that transaction besides Workflow's own bookkeeping
+rows was ever at stake.
+
+PR #9's first real, transactional handler (HRMS's employment-change/
+offboarding completion, sharing the SAME Postgres transaction as the
+Workflow decision that triggers it — see docs/architecture/
+hrms-workflow-integration.md "Transaction boundary") exposed why this is
+unsafe in general: if a handler had already issued some of its own writes
+against the shared connection before failing, the old "catch, mark
+FAILED, commit anyway" behaviour would let those partial cross-package
+writes commit alongside a misleadingly-terminal Workflow state — exactly
+the "approve / COMMIT / call the business domain / it fails / pretend the
+operation is complete" hazard this engine exists to prevent.
+
+**Corrected behaviour**: a handler failure is no longer caught here. It
+propagates all the way out of the enclosing `WorkflowTransaction.run()`
+call, and the WHOLE transaction rolls back — the decision (or the
+instance's own creation, if the failing step was step 1), the task
+transition, the system-action execution row, and every write the handler
+itself made on `ctx.tx`. The task remains `PENDING` (or, for a step-1
+failure, no instance exists at all) — safely retryable by a new
+`decide()`/`completeTask()`/`startWorkflow()` call. The
+`SYSTEM_ACTION_FAILURE` failure category and its execution-row
+`FAILED`/`attempts`/`lastError` bookkeeping remain defined and are still
+reachable — but only for a handler that deliberately catches its OWN
+error, records that failure itself in ITS OWN separate transaction (never
+on the shared `ctx.tx`), and returns normally to signal "this will not
+succeed, stop retrying" rather than "retry the same decision". This
+engine makes no assumption about which of the two a given handler
+chooses; HRMS's own handler (PR #9) always chooses full rollback.
+
+Verified directly: `test/unit/instanceService.test.ts`'s two rewritten
+tests (a step-1 failure rejects `startWorkflow` with no instance created;
+a step-2 failure triggered by a decision rejects `decide()` with the
+attempt count unchanged) and a new real-Postgres test in
+`test/integration/postgres.test.ts` proving the full rollback — including
+a fixture handler's OWN write via `ctx.tx` — against a real database.
+
 ## 23. Workflow completion vs business completion
 
 **`Workflow COMPLETED` ≠ automatically `Business Record COMPLETED`.**
@@ -822,6 +866,15 @@ exposes them.
 
 ## 39. Tests
 
+> **PR #9 addendum**: the substantive test count is now **60**, not 58 —
+> see §22a. `test/unit/instanceService.test.ts`'s SYSTEM_ACTION-failure
+> test was rewritten (same file, same count) to assert the corrected
+> rejection-not-false-completion behaviour, and one new real-Postgres
+> test was added to `test/integration/postgres.test.ts` (6 → 7 tests in
+> that file) proving full-transaction rollback, including a fixture
+> handler's own write via `ctx.tx`. All other counts below are unchanged
+> from the PR #8 review correction.
+
 **Workflow package** (`platform-services/workflow/`) — 58 tests total
 (review correction added 8 net new tests: 9 new ROLE-routing tests
 replacing the original 2, plus 1 new real-Postgres ROLE concurrency
@@ -909,6 +962,16 @@ integration), and HRMS (44/44 — 20 unit + 24 integration) were all
 re-run again on a fresh CI-equivalent Postgres database, alongside
 Workflow's own revised 58/58 (46 unit + 12 integration) — all green,
 zero weakened tests.
+
+**PR #9 re-verification**: after the §22a failure-semantics correction
+(needed for HRMS's real SYSTEM_ACTION handler — see docs/architecture/
+hrms-workflow-integration.md), Workflow's own suite is 60/60 (47 unit + 13
+integration — instanceService.test.ts's rewritten test is still one test,
+net +1 there from splitting it into two narrower assertions of the
+corrected behaviour, and postgres.test.ts gained one new rollback test)
+— all green. See docs/architecture/hrms-workflow-integration.md §20 for
+the full five-package regression this PR re-ran, including HRMS's own
+new 69/69.
 
 ## 41. CI
 

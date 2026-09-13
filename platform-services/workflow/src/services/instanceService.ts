@@ -88,7 +88,7 @@ export function createInstanceService(deps: {
       const context = input.stepAssignments ? { ...(input.context ?? {}), stepAssignments: input.stepAssignments } : (input.context ?? null);
 
       try {
-        const created = await deps.transactions.run(async (repos) => {
+        const created = await deps.transactions.run(async (repos, tx) => {
           const instance = await repos.instances.create({
             definitionId: definition.id,
             versionId: published.id,
@@ -107,7 +107,7 @@ export function createInstanceService(deps: {
           const steps = await repos.steps.listByVersion(published.id);
           const firstStep = steps[0];
           if (!firstStep) throw new InvalidStateError("Published version has no steps — this should never happen (publish validation requires at least one).");
-          return deps.engine.activateStep(repos, instance, firstStep, actor.userId);
+          return deps.engine.activateStep(repos, instance, firstStep, actor.userId, tx);
         });
         await deps.audit.record({ actorUserId: actor.userId, actorEmail: actor.email, action: "workflow.instance.started", resourceType: "workflow_instance", resourceId: created.id, legalEntityId: input.legalEntityId, changeAfter: { definitionKey: input.definitionKey, status: created.status } });
         return created;

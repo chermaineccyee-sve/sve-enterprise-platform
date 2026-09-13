@@ -19,6 +19,8 @@ interface CaseRow {
   notice_date: string | null;
   intended_last_working_date: string | null;
   resulting_assignment_id: string | null;
+  workflow_instance_id: string | null;
+  pending_completion_input: Record<string, unknown> | null;
   created_by: string;
   updated_by: string;
   created_at: string;
@@ -28,7 +30,7 @@ interface CaseRow {
 }
 
 const CASE_COLUMNS =
-  "id, case_number, employee_id, legal_entity_id, lifecycle_type, case_subtype, status, current_stage, initiated_at, effective_date, hr_owner_user_id, outcome, reason_category, notice_date, intended_last_working_date, resulting_assignment_id, created_by, updated_by, created_at, updated_at, completed_at, cancelled_at";
+  "id, case_number, employee_id, legal_entity_id, lifecycle_type, case_subtype, status, current_stage, initiated_at, effective_date, hr_owner_user_id, outcome, reason_category, notice_date, intended_last_working_date, resulting_assignment_id, workflow_instance_id, pending_completion_input, created_by, updated_by, created_at, updated_at, completed_at, cancelled_at";
 
 function mapCase(r: CaseRow): HrLifecycleCase {
   return {
@@ -48,6 +50,8 @@ function mapCase(r: CaseRow): HrLifecycleCase {
     noticeDate: r.notice_date,
     intendedLastWorkingDate: r.intended_last_working_date,
     resultingAssignmentId: r.resulting_assignment_id,
+    workflowInstanceId: r.workflow_instance_id,
+    pendingCompletionInput: r.pending_completion_input,
     createdBy: r.created_by,
     updatedBy: r.updated_by,
     createdAt: r.created_at,
@@ -118,7 +122,15 @@ export function createPgLifecycleCaseRepository(db: DatabaseProvider): Lifecycle
     },
     async updateStatus(
       id: string,
-      input: { status: LifecycleStatus; currentStage?: string | null; outcome?: string | null; effectiveDate?: string | null; resultingAssignmentId?: string | null; updatedBy: string },
+      input: {
+        status: LifecycleStatus;
+        currentStage?: string | null;
+        outcome?: string | null;
+        effectiveDate?: string | null;
+        resultingAssignmentId?: string | null;
+        pendingCompletionInput?: Record<string, unknown> | null;
+        updatedBy: string;
+      },
     ): Promise<HrLifecycleCase> {
       const current = await db.query<CaseRow>(`SELECT ${CASE_COLUMNS} FROM hr_lifecycle_cases WHERE id = $1`, [id]);
       const existing = current.rows[0];
@@ -130,7 +142,8 @@ export function createPgLifecycleCaseRepository(db: DatabaseProvider): Lifecycle
            outcome = $4,
            effective_date = $5,
            resulting_assignment_id = $6,
-           updated_by = $7,
+           pending_completion_input = $7,
+           updated_by = $8,
            updated_at = NOW(),
            completed_at = CASE WHEN $2 = 'COMPLETED' THEN NOW() ELSE completed_at END,
            cancelled_at = CASE WHEN $2 = 'CANCELLED' THEN NOW() ELSE cancelled_at END
@@ -142,6 +155,7 @@ export function createPgLifecycleCaseRepository(db: DatabaseProvider): Lifecycle
           input.outcome === undefined ? existing.outcome : input.outcome,
           input.effectiveDate === undefined ? existing.effective_date : input.effectiveDate,
           input.resultingAssignmentId === undefined ? existing.resulting_assignment_id : input.resultingAssignmentId,
+          input.pendingCompletionInput === undefined ? existing.pending_completion_input : (input.pendingCompletionInput === null ? null : JSON.stringify(input.pendingCompletionInput)),
           input.updatedBy,
         ],
       );
@@ -150,6 +164,11 @@ export function createPgLifecycleCaseRepository(db: DatabaseProvider): Lifecycle
     async nextCaseNumberSeq(): Promise<number> {
       const result = await db.query<{ nextval: string }>(`SELECT nextval('hr_lifecycle_case_seq')`);
       return Number(result.rows[0]!.nextval);
+    },
+    async linkWorkflowInstance(id: string, workflowInstanceId: string): Promise<HrLifecycleCase> {
+      const result = await db.query<CaseRow>(`UPDATE hr_lifecycle_cases SET workflow_instance_id = $2 WHERE id = $1 RETURNING ${CASE_COLUMNS}`, [id, workflowInstanceId]);
+      if (!result.rows[0]) throw new Error("Lifecycle case not found.");
+      return mapCase(result.rows[0]);
     },
   };
 }

@@ -291,22 +291,30 @@ jobs:
           cache-dependency-path: |
             platform-services/identity/package-lock.json
             platform-services/organisation/package-lock.json
+            platform-services/workflow/package-lock.json
             platform-services/hrms/package-lock.json
 
-      # HRMS imports both platform-services/identity's Postgres
-      # repositories/session/RBAC/audit implementations AND
-      # platform-services/organisation's own composition root/services
-      # (for Employee Master data and authoritative assignment
-      # transitions) by source path — same documented cross-package-import
-      # boundary as Data Vault and Organisation before it (see
-      # platform-services/hrms/README.md). All three packages' own
-      # dependencies must be installed for HRMS's tests to resolve.
+      # HRMS imports platform-services/identity's Postgres repositories/
+      # session/RBAC/audit implementations, platform-services/organisation's
+      # own composition root/services (for Employee Master data and
+      # authoritative assignment transitions), AND — since PR #9 —
+      # platform-services/workflow's own composition root (for the
+      # employment-change/offboarding approval integration; see
+      # src/integrations/workflowIntegration.ts) by source path — same
+      # documented cross-package-import boundary as Data Vault and
+      # Organisation before it (see platform-services/hrms/README.md). All
+      # four packages' own dependencies must be installed for HRMS's tests
+      # to resolve.
       - name: Install platform-services/identity dependencies
         working-directory: platform-services/identity
         run: npm ci
 
       - name: Install platform-services/organisation dependencies (HRMS imports its Employee Master/assignment services)
         working-directory: platform-services/organisation
+        run: npm ci
+
+      - name: Install platform-services/workflow dependencies (HRMS imports its orchestration engine for approval routing)
+        working-directory: platform-services/workflow
         run: npm ci
 
       - name: Install platform-services/hrms dependencies
@@ -327,7 +335,10 @@ jobs:
       # Organisation assignment transitions, RBAC/entity/classification
       # enforcement (including SK Lai & Partners' privileged tier),
       # manager/self-service boundaries, mass-assignment and
-      # IDOR/existence-leak checks — against the real shared Postgres
+      # IDOR/existence-leak checks, and (PR #9) the full HRMS <-> Workflow
+      # approval integration — submission, ROLE-routed approval/rejection,
+      # rollback/idempotency/concurrency, and Identity's untouched-account
+      # invariant during offboarding — against the real shared Postgres
       # schema.
       - name: Run tests
         working-directory: platform-services/hrms

@@ -224,6 +224,59 @@ test("Workflow: two eligible ROLE candidates racing the same task — exactly on
   });
 });
 
+test("Workflow: a SYSTEM_ACTION handler failure rolls back the WHOLE transaction — the decision, the task transition, and any write the handler itself made — against real Postgres (PR #9 review correction)", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const c = buildContainer(db);
+    const admin = await c.users.createUser({ email: "workflow.pg.rollback.admin@example.test", accountType: "employee" });
+    await grantFullAccess(c, admin.id, admin.id);
+    const approver = await provisionFullAccess(c, "workflow.pg.rollback.approver@example.test", admin.id);
+    const entities = await c.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+
+    // A fictional "marker" row this handler writes via the SAME shared
+    // transaction connection before deliberately failing — proves the
+    // handler's own writes are undone too, not just Workflow's own rows.
+    await db.query(`CREATE TABLE IF NOT EXISTS test_pg_rollback_marker (id UUID PRIMARY KEY, instance_id UUID NOT NULL)`);
+
+    c.systemActions.register("test.pg.rollback.alwaysfails", async (ctx) => {
+      await ctx.tx.query(`INSERT INTO test_pg_rollback_marker (id, instance_id) VALUES ($1, $2)`, [randomUUID(), ctx.instance.id]);
+      throw new Error("fictional cross-domain completion failure");
+    });
+
+    const { version } = await c.definitions.createDefinition({ userId: admin.id, email: admin.email }, { key: "test.pg.rollback", name: "Rollback proof" });
+    await c.definitions.addStep({ userId: admin.id, email: admin.email }, version.id, { sequenceNumber: 1, stepType: "APPROVAL", name: "Approve", assignmentMode: "USER", permittedDecisions: ["APPROVE"] });
+    await c.definitions.addStep({ userId: admin.id, email: admin.email }, version.id, { sequenceNumber: 2, stepType: "SYSTEM_ACTION", name: "Complete", systemActionHandlerKey: "test.pg.rollback.alwaysfails" });
+    await c.definitions.publish({ userId: admin.id, email: admin.email }, version.id);
+
+    const instance = await c.instances.startWorkflow({ userId: admin.id, email: admin.email }, { definitionKey: "test.pg.rollback", subjectType: "test.fixture", subjectId: randomUUID(), legalEntityId: my.id, stepAssignments: { 1: { userId: approver.id } } });
+    const tasks = await c.tasks.listAssignedTasks({ userId: approver.id, email: approver.email }, { instanceId: instance.id });
+    const taskId = tasks[0]!.id;
+
+    await assert.rejects(() => c.tasks.decide({ userId: approver.id, email: approver.email }, taskId, { decision: "APPROVE" }), "a handler failure must reject decide() rather than silently completing the task");
+
+    const taskRow = await db.query<{ status: string }>(`SELECT status FROM workflow_tasks WHERE id = $1`, [taskId]);
+    assert.equal(taskRow.rows[0]!.status, "PENDING", "the task transition must roll back — never left COMPLETED when the transaction it belongs to failed");
+
+    const decisionRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM workflow_decisions WHERE task_id = $1`, [taskId]);
+    assert.equal(decisionRows.rows[0]!.count, "0", "no decision row may exist when the transaction it belongs to rolled back");
+
+    const instanceRow = await db.query<{ status: string; current_step_id: string }>(`SELECT status, current_step_id FROM workflow_instances WHERE id = $1`, [instance.id]);
+    assert.equal(instanceRow.rows[0]!.status, "ACTIVE", "the instance must remain ACTIVE at its prior step, unchanged, ready for a retried decision");
+
+    const executionRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM workflow_system_action_executions WHERE instance_id = $1`, [instance.id]);
+    assert.equal(executionRows.rows[0]!.count, "0", "no system_action_executions row may survive — its own INSERT was part of the same rolled-back transaction");
+
+    const markerRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM test_pg_rollback_marker WHERE instance_id = $1`, [instance.id]);
+    assert.equal(markerRows.rows[0]!.count, "0", "the handler's OWN write, made against the shared transaction connection, must also roll back — proving true single-transaction atomicity, not just Workflow's own tables");
+
+    // The rollback must leave the system genuinely retryable, not merely
+    // "unchanged in the database" — confirm the SAME task is still
+    // readable and PENDING via the service layer (not just a raw row).
+    const stillPending = await c.tasks.getTask({ userId: approver.id, email: approver.email }, taskId);
+    assert.equal(stillPending.status, "PENDING");
+  });
+});
+
 test("Workflow: a full definition-to-decision flow commits real rows across workflow_definitions/versions/steps/instances/tasks/decisions/events", { skip }, async () => {
   await withTestDb(async (db) => {
     const c = buildContainer(db);

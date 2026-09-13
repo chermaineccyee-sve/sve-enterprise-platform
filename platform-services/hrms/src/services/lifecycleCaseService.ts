@@ -304,6 +304,20 @@ export function createLifecycleCaseService(deps: {
         event: { type: LifecycleEventType; data?: Record<string, unknown> | null; notes?: string | null };
       },
       additionalWrites?: (repos: TxRepos, lockedCase: HrLifecycleCase, result: R) => Promise<void>,
+      /**
+       * PR #9 review correction: audit/history attribution distinct from
+       * `actor` (the EXECUTION PRINCIPAL whose authority this write runs
+       * under). `decisionActorUserId` is the Workflow decision's own
+       * actor_user_id — who APPROVED — never conflated with `actor`; null
+       * when this case completed without going through a Workflow decision
+       * (the direct HTTP completion routes). `initiatedBySystem` names
+       * which system/integration invoked this call (e.g.
+       * "workflow:hrms.employment_change"); null for a direct HTTP call.
+       * Recorded on the completion event and audit entry — never a copy of
+       * any sensitive case payload. See docs/architecture/
+       * hrms-workflow-integration.md "Execution principal revalidation".
+       */
+      executionContext?: { decisionActorUserId: string | null; initiatedBySystem: string | null },
     ): Promise<{ case: HrLifecycleCase; result: R }> {
       const hrCase = await deps.cases.findById(caseId);
       if (!hrCase) throw new NotFoundError("Lifecycle case");
@@ -315,6 +329,33 @@ export function createLifecycleCaseService(deps: {
       const legalEntity = await deps.organisation.findLegalEntityById(hrCase.legalEntityId);
       if (!legalEntity) throw new ValidationError("Case's legalEntityId does not refer to a known legal entity.");
       const ceiling = baseCeiling(legalEntity);
+
+      // PR #9 review correction ("Execution Principal & Authority
+      // Revalidation"): `actor` here is the EXECUTION PRINCIPAL — for the
+      // Workflow-triggered path this is the case's hrOwnerUserId, resolved
+      // fresh by workflowIntegration.ts's resolveHrOwnerActor on every
+      // handler invocation, never a value cached from case-submission
+      // time. Its authority must hold NOW, at the moment this authoritative
+      // write actually executes, not merely as of submission. Existence
+      // plus active-status is the one property no permission/entity-access
+      // check below already covers, so it is checked once, here, at the
+      // single authoritative boundary both completeChange and
+      // completeOffboarding (and the direct HTTP completion routes) pass
+      // through — never duplicated as a parallel check inside the
+      // integration adapter. Permission, legal-entity access and
+      // classification ceiling are covered by the checkAccess call
+      // immediately below and by Organisation's own createAssignment /
+      // endAssignment checks inside the transaction: both call
+      // rbac.authorize() fresh against `actor` every time, so a permission,
+      // entity-access grant or SKL privileged-tier requirement revoked
+      // between submission and approval is already caught live — see
+      // docs/architecture/hrms-workflow-integration.md "Execution
+      // principal revalidation" for the full proof.
+      const executingUser = await deps.users.findById(actor.userId);
+      if (!executingUser || executingUser.status !== "active") {
+        throw new ForbiddenError(`${permission.base} (execution principal no longer exists or is not active)`);
+      }
+
       const access = await checkAccess(deps.rbac, actor.userId, permission.base, permission.privileged, { legalEntityId: hrCase.legalEntityId, recordClassification: ceiling });
       if (!access.allowed) throw new ForbiddenError(permission.base);
 
@@ -339,7 +380,10 @@ export function createLifecycleCaseService(deps: {
           resultingAssignmentId: target.resultingAssignmentId,
           updatedBy: actor.userId,
         });
-        await repos.events.append({ caseId, eventType: event.type, eventData: event.data ?? null, notes: event.notes ?? null, recordedBy: actor.userId });
+        const eventData = executionContext
+          ? { ...(event.data ?? {}), decisionActorUserId: executionContext.decisionActorUserId, initiatedBySystem: executionContext.initiatedBySystem }
+          : (event.data ?? null);
+        await repos.events.append({ caseId, eventType: event.type, eventData, notes: event.notes ?? null, recordedBy: actor.userId });
         if (additionalWrites) await additionalWrites(repos, locked, result);
         return { updated, result };
       });
@@ -352,7 +396,18 @@ export function createLifecycleCaseService(deps: {
         resourceId: caseId,
         legalEntityId: hrCase.legalEntityId,
         changeBefore: { status: hrCase.status },
-        changeAfter: { status: updated.status, outcome: updated.outcome },
+        // `actorUserId` above is the EXECUTION PRINCIPAL whose authority
+        // this write ran under. `executionPrincipalUserId` restates it
+        // explicitly (never to be confused with `decisionActorUserId`, the
+        // Workflow approver) so a reader of this audit entry alone cannot
+        // misattribute the mutation to whoever approved it.
+        changeAfter: {
+          status: updated.status,
+          outcome: updated.outcome,
+          executionPrincipalUserId: actor.userId,
+          decisionActorUserId: executionContext?.decisionActorUserId ?? null,
+          initiatedBySystem: executionContext?.initiatedBySystem ?? null,
+        },
         sourceIp: actor.ip,
         sourceUserAgent: actor.userAgent,
       });
