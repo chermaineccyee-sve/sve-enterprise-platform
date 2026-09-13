@@ -17,7 +17,7 @@ import { createInMemoryEmployeeCreationTransaction } from "../../src/repositorie
 import { createInMemoryEmploymentAssignmentTransaction } from "../../src/repositories/memory/inMemoryEmploymentAssignmentTransaction.ts";
 import { createEmployeeService, PERMISSIONS } from "../../src/services/employeeService.ts";
 import { createEmploymentAssignmentService } from "../../src/services/employmentAssignmentService.ts";
-import { ValidationError } from "../../src/domain/errors.ts";
+import { ValidationError, NotFoundError } from "../../src/domain/errors.ts";
 
 const ADMIN = randomUUID();
 
@@ -500,4 +500,32 @@ test("a privileged actor with SK Lai & Partners access does see the manager name
 
   const view = await employees.getEmployee(actor(privilegedHr), report.id);
   assert.equal(view.managerDisplay?.name, "SK Lai Partner");
+});
+
+// PR #12 final security verification: the Employee Profile's Employment
+// and History tabs are only ever rendered when getEmployee's
+// canReadRestricted is true — but that is a FRONTEND convenience, not the
+// security boundary. The actual boundary is that listAssignments (backing
+// GET /employees/:id/assignments) performs its OWN independent
+// READ_RESTRICTED check, so calling the API directly — bypassing the
+// frontend's tab logic entirely — must still be denied.
+test("listAssignments independently denies a caller without READ_RESTRICTED — the History tab's data source is not merely hidden client-side", async () => {
+  const { employees, assignments, rbacRepo, my } = await setup();
+  const hrUser = randomUUID();
+  await grantRole(rbacRepo, hrUser, FULL_PERMS, { scopeType: "group" });
+  const employee = await employees.createEmployee(actor(hrUser), baseHire(my.id));
+
+  // Base directory access only — enough for getEmployee's canReadRestricted
+  // to correctly report false, but explicitly NOT employee_master.read.restricted.
+  const baseOnlyUser = randomUUID();
+  await grantRole(rbacRepo, baseOnlyUser, [{ key: PERMISSIONS.READ, maxClassification: "CONFIDENTIAL" }], { scopeType: "group" });
+
+  const view = await employees.getEmployee(actor(baseOnlyUser), employee.id);
+  assert.equal(view.canReadRestricted, false, "sanity check: this actor is exactly the one the frontend would hide Employment/History tabs from");
+
+  await assert.rejects(
+    () => assignments.listAssignments(actor(baseOnlyUser), employee.id),
+    NotFoundError,
+    "the assignment-history endpoint itself must reject this caller, independent of whatever the frontend chooses to render",
+  );
 });

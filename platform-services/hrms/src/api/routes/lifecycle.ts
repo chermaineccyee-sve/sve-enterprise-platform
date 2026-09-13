@@ -51,7 +51,12 @@ function serializeCaseRestricted(c: HrLifecycleCase) {
     reasonCategory: c.reasonCategory,
     noticeDate: c.noticeDate,
     intendedLastWorkingDate: c.intendedLastWorkingDate,
-    resultingAssignmentId: c.resultingAssignmentId,
+    // PR #12 security review: resultingAssignmentId is a raw Organisation
+    // employment_assignments row id — an internal identifier with no
+    // display purpose (never read by the frontend). It remains on the
+    // domain HrLifecycleCase for internal linkage (see
+    // completeCaseWithAuthoritativeWrite); this route simply never
+    // serializes it to a client.
     completedAt: c.completedAt,
     cancelledAt: c.cancelledAt,
   };

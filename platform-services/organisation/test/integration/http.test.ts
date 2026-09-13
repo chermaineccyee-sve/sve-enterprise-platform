@@ -515,3 +515,85 @@ test("PR #11: GET /api/v1/employees/me resolves the caller's own linked record w
     }
   });
 });
+
+test("PR #12 final security verification: the Employee Profile's Employment/History data is denied server-side to an unauthorised caller, and never carries a raw internal id, over real HTTP", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const { server, baseUrl, container } = await startServer(db);
+    try {
+      const entities = await container.organisation.listLegalEntities();
+      const my = entities.find((e) => e.key === "sve-international-my")!;
+      const admin = await container.users.createUser({ email: "org.http.secreview.admin@example.test", accountType: "service" });
+      const rbacRepo = createPgRbacRepository(db);
+      const { token: hrToken } = await provisionUser(container, rbacRepo, "org.http.secreview.hr@example.test", [...FULL_PERMS, "organisation.manage"], { scopeType: "group" }, admin.id);
+      const hrAuth = { authorization: `Bearer ${hrToken}` };
+
+      // A manager with a titled position, and a report who reports to them
+      // — the exact shape the Employee Profile's "Reports To" and History
+      // tabs render.
+      const deptRes = await fetch(`${baseUrl}/api/v1/organisation/departments`, { method: "POST", headers: { ...hrAuth, "content-type": "application/json" }, body: JSON.stringify({ legalEntityId: my.id, name: "Fictional Sec Review Dept", code: "SECREV" }) });
+      const dept = (await deptRes.json()).data.department;
+      const posRes = await fetch(`${baseUrl}/api/v1/organisation/positions`, { method: "POST", headers: { ...hrAuth, "content-type": "application/json" }, body: JSON.stringify({ departmentId: dept.id, title: "Fictional Chief Review Officer" }) });
+      const position = (await posRes.json()).data.position;
+
+      const managerRes = await fetch(`${baseUrl}/api/v1/employees`, { method: "POST", headers: { ...hrAuth, "content-type": "application/json" }, body: JSON.stringify(hireBody(my.id, { legalName: "Fictional Manager Person", initialAssignment: { legalEntityId: my.id, employmentType: "full_time", startDate: "2026-01-01", positionId: position.id } })) });
+      const manager = (await managerRes.json()).data.employee;
+      const managerAssignments = (await (await fetch(`${baseUrl}/api/v1/employees/${manager.id}/assignments`, { headers: hrAuth })).json()).data.assignments;
+      assert.equal(managerAssignments.length, 1);
+
+      // The manager's real assignment id is only obtainable from the
+      // Postgres row itself (never from an HTTP response) — fetched here
+      // purely so the assertions below can prove it does NOT appear
+      // anywhere in what the browser actually receives.
+      const managerAssignmentRow = await db.query<{ id: string }>("SELECT id FROM employment_assignments WHERE employee_id = $1", [manager.id]);
+      const managerAssignmentId = managerAssignmentRow.rows[0]!.id;
+
+      const reportRes = await fetch(`${baseUrl}/api/v1/employees`, { method: "POST", headers: { ...hrAuth, "content-type": "application/json" }, body: JSON.stringify(hireBody(my.id, { legalName: "Fictional Report Person" })) });
+      const report = (await reportRes.json()).data.employee;
+      await fetch(`${baseUrl}/api/v1/employees/${report.id}/assignments`, {
+        method: "POST",
+        headers: { ...hrAuth, "content-type": "application/json" },
+        body: JSON.stringify({ legalEntityId: my.id, employmentType: "full_time", status: "ACTIVE", startDate: "2026-02-01", effectiveFrom: "2026-02-01", reportsToAssignmentId: managerAssignmentId, changeReason: "Fictional reporting-line test" }),
+      });
+
+      // --- managerDisplay is a safe projection ---
+      const profileRes = await fetch(`${baseUrl}/api/v1/employees/${report.id}`, { headers: hrAuth });
+      const profileBody = await profileRes.json();
+      assert.equal(profileRes.status, 200, JSON.stringify(profileBody));
+      assert.deepEqual(profileBody.data.employee.restricted.managerDisplay, { name: "Fictional Manager Person", title: "Fictional Chief Review Officer" });
+      const profileSerialized = JSON.stringify(profileBody);
+      assert.ok(!profileSerialized.includes(managerAssignmentId), "the manager's raw assignment id must never appear in the Employee Profile response");
+      assert.ok(!profileSerialized.includes(manager.id), "the manager's raw employee id must never appear in the Employee Profile response");
+      assert.ok(!profileSerialized.includes("reportsToAssignmentId"), "reportsToAssignmentId must never be serialized to a client");
+
+      // --- the History tab's own data source carries no internal ids ---
+      const historyRes = await fetch(`${baseUrl}/api/v1/employees/${report.id}/assignments`, { headers: hrAuth });
+      const historyBody = await historyRes.json();
+      assert.equal(historyRes.status, 200);
+      const historySerialized = JSON.stringify(historyBody);
+      assert.ok(!historySerialized.includes(managerAssignmentId), "the assignment-history endpoint must never leak the manager's assignment id");
+      assert.ok(!historySerialized.includes("reportsToAssignmentId"), "the assignment-history endpoint must never serialize reportsToAssignmentId");
+      assert.ok(!historySerialized.includes(report.id), "the assignment-history endpoint must never echo the employee's own id back on each row");
+      for (const row of historyBody.data.assignments) {
+        assert.deepEqual(
+          Object.keys(row).sort(),
+          ["businessUnitId", "changeReason", "confirmationDate", "departmentId", "effectiveFrom", "effectiveTo", "employmentType", "endDate", "legalEntityId", "positionId", "probationEndDate", "startDate", "status", "workArrangement", "workLocation"].sort(),
+          "the assignment-history endpoint must return only display-relevant fields — no id, employeeId, createdBy, updatedBy, isPrimary, or reportsToAssignmentId",
+        );
+      }
+
+      // --- and that server-side denial, not client-side tab-hiding, is
+      // what actually protects this data ---
+      const stranger = randomUUID();
+      const strangerSession = await container.sessions.createSession({ userId: (await container.users.createUser({ email: "org.http.secreview.stranger@example.test", accountType: "employee" })).id, mfaVerified: true });
+      const strangerAuth = { authorization: `Bearer ${strangerSession.token}` };
+
+      const deniedProfileRes = await fetch(`${baseUrl}/api/v1/employees/${report.id}`, { headers: strangerAuth });
+      assert.equal(deniedProfileRes.status, 404, "an unauthorised caller must be denied the base record entirely, not shown a masked version");
+
+      const deniedHistoryRes = await fetch(`${baseUrl}/api/v1/employees/${report.id}/assignments`, { headers: strangerAuth });
+      assert.equal(deniedHistoryRes.status, 404, "the assignment-history endpoint must independently deny an unauthorised caller — the frontend's tab logic is never the only thing standing between this data and the browser");
+    } finally {
+      server.close();
+    }
+  });
+});

@@ -1063,7 +1063,10 @@ function renderHrmsEmployeeProfile(data){
  hrmsProfileDataCache=data;
  const e=data.employee,r=e.restricted,names=hrmsOrgFieldNames(data);
  const tabs=HRMS_PROFILE_TABS.filter(t=>r||(t.key!=="employment"&&t.key!=="history"));
- const header=`<div class="identity hrms-workspace-identity"><div><div class="eyebrow">EMPLOYEE PROFILE</div><h2>${esc(e.legalName)}</h2><p>${e.preferredName?esc(e.preferredName)+" · ":""}${esc(e.employeeNumber)}</p><p>${[names.position,names.department,names.legalEntity].filter(n=>n&&n!=="—").join(" · ")||"SVE Group"}</p></div>${r?hrmsStatusBadge(r.status):""}</div>`;
+ // The initials circle is a placeholder slot for a future employee
+ // photograph (see .identity img in styles.css) — same convention My SVE
+ // already uses for the employee's own avatar.
+ const header=`<div class="identity hrms-workspace-identity"><div class="employee-avatar hrms-avatar-lg">${initials(e.preferredName||e.legalName)}</div><div><div class="eyebrow">EMPLOYEE PROFILE</div><h2>${esc(e.legalName)}</h2><p>${e.preferredName?esc(e.preferredName)+" · ":""}${esc(e.employeeNumber)}</p><p>${[names.position,names.department,names.legalEntity].filter(n=>n&&n!=="—").join(" · ")||"SVE Group"}</p></div>${r?hrmsStatusBadge(r.status):""}</div>`;
  const tabNav=`<div class="tabs hrms-profile-tabs" role="tablist">${tabs.map(t=>`<button class="tab ${hrmsProfileTab===t.key?"active":""}" role="tab" aria-selected="${hrmsProfileTab===t.key}" onclick="hrmsSwitchProfileTab('${t.key}')">${esc(t.label)}</button>`).join("")}</div>`;
  const activeTab=tabs.some(t=>t.key===hrmsProfileTab)?hrmsProfileTab:"overview";
  const body={overview:hrmsProfileOverviewTab,employment:hrmsProfileEmploymentTab,organisation:hrmsProfileOrganisationTab,lifecycle:hrmsProfileLifecycleTab,history:hrmsProfileHistoryTab}[activeTab](data,names);
@@ -1116,16 +1119,20 @@ function hrmsProfileHistoryEvents(data){
    label:i===0?"Joined":(x.changeReason?esc(x.changeReason):"Assignment updated"),
    detail:x.effectiveTo?`Until ${fmtDate(x.effectiveTo)}`:"Current",
  }));
+ // detail is deliberately human-readable only — the underlying case
+ // number (e.g. "HR-000031") is an internal HR reference, not something
+ // shown to a general Employee Profile viewer; the label itself already
+ // names the process and its outcome.
  const lifecycleEvents=data.cases.filter(c=>c.restricted&&(c.restricted.completedAt||c.restricted.cancelledAt)).map(c=>({
    date:(c.restricted.completedAt||c.restricted.cancelledAt).slice(0,10),
    label:`${HRMS_LIFECYCLE_LABELS[c.lifecycleType]||esc(c.lifecycleType)} ${c.restricted.completedAt?"completed":"cancelled"}`,
-   detail:esc(c.caseNumber),
+   detail:null,
  }));
  return [...assignmentEvents,...lifecycleEvents].sort((x,y)=>x.date<y.date?1:-1);
 }
 function hrmsProfileHistoryTab(data){
  const events=hrmsProfileHistoryEvents(data);
- return `<div class="section"><div class="card"><div class="audit-timeline">${events.map(ev=>`<div class="audit-event"><div class="audit-dot"></div><div><strong>${ev.label}</strong><p>${fmtDate(ev.date)} · ${ev.detail}</p></div></div>`).join("")||hrmsEmptyPanel("No history recorded yet.")}</div></div></div>`;
+ return `<div class="section"><div class="card"><div class="audit-timeline">${events.map(ev=>`<div class="audit-event"><div class="audit-dot"></div><div><strong>${ev.label}</strong><p>${fmtDate(ev.date)}${ev.detail?" · "+ev.detail:""}</p></div></div>`).join("")||hrmsEmptyPanel("No history recorded yet.")}</div></div></div>`;
 }
 function hrmsEmployeeProfile(c){
  if(!hrmsSelectedEmployeeId){c.innerHTML=hrmsEmptyPanel("No employee selected. Return to the Employee Directory and select an employee.");return}

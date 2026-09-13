@@ -80,6 +80,41 @@ function serializeRestricted(employee: Employee, assignment: EmploymentAssignmen
   };
 }
 
+/**
+ * PR #12 security review: the assignment-history list (feeding the
+ * Employee Profile's History tab) was returning raw EmploymentAssignment
+ * domain objects — including this row's own id, employeeId,
+ * reportsToAssignmentId, and createdBy/updatedBy (Identity user ids) —
+ * straight over HTTP with no serializer at all. None of these are ever
+ * rendered or used by the frontend (see apps/svegip/app.js's
+ * hrmsProfileHistoryEvents, which reads only effectiveFrom/effectiveTo/
+ * changeReason). This mirrors serializeRestricted's own field set for a
+ * single current assignment, applied to every historical row: only
+ * display-relevant fields, never an internal identifier of any kind. The
+ * endpoint's access control (EmploymentAssignmentService.listAssignments'
+ * own READ_RESTRICTED check) is unchanged — this only narrows what a
+ * caller who already passed that check receives.
+ */
+function serializeAssignmentHistory(assignment: EmploymentAssignment) {
+  return {
+    legalEntityId: assignment.legalEntityId,
+    businessUnitId: assignment.businessUnitId,
+    departmentId: assignment.departmentId,
+    positionId: assignment.positionId,
+    employmentType: assignment.employmentType,
+    status: assignment.status,
+    startDate: assignment.startDate,
+    confirmationDate: assignment.confirmationDate,
+    probationEndDate: assignment.probationEndDate,
+    endDate: assignment.endDate,
+    effectiveFrom: assignment.effectiveFrom,
+    effectiveTo: assignment.effectiveTo,
+    workLocation: assignment.workLocation,
+    workArrangement: assignment.workArrangement,
+    changeReason: assignment.changeReason,
+  };
+}
+
 function serializeView(view: EmployeeView) {
   return {
     ...serializeDirectory(view.employee, view.currentAssignment),
@@ -186,7 +221,7 @@ export async function handleListAssignments(ctx: RouteContext, employeeId: strin
   try {
     const actor = await requireActor(ctx.req, ctx.container);
     const assignments = await ctx.container.assignments.listAssignments(toActorContext(actor, ctx.req), employeeId);
-    sendSuccess(ctx.res, 200, { assignments }, ctx.correlationId);
+    sendSuccess(ctx.res, 200, { assignments: assignments.map(serializeAssignmentHistory) }, ctx.correlationId);
   } catch (error) {
     respondError(ctx.res, ctx.correlationId, error);
   }

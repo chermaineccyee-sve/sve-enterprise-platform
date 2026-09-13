@@ -92,10 +92,16 @@ test("Employee Profile History: merges assignment history and completed lifecycl
   };
   const events = app.hrmsProfileHistoryEvents(data);
   assert.equal(events.length, 3);
-  assert.equal(events[0].date, "2024-04-15", "most recent event (probation completion) sorts first");
+  assert.equal(events[0].date, "2024-04-15", "most recent event (probation completion) sorts first — History is intentionally newest-first");
   assert.ok(events.some((e) => e.label === "Joined"), "the earliest assignment row is labelled Joined");
   assert.ok(events.some((e) => e.label.includes("Promotion to Senior Consultant")), "a later transition uses its own human-authored change reason");
   assert.ok(events.some((e) => /Probation.*completed/.test(e.label)), "a completed lifecycle case appears as a human-readable completion event");
+
+  const lifecycleEvent = events.find((e) => /Probation.*completed/.test(e.label));
+  assert.equal(lifecycleEvent.detail, null, "the internal HR case number (HR-000045) is never surfaced as the event's detail");
+
+  const html = app.hrmsProfileHistoryTab(data);
+  assert.ok(!html.includes("HR-000045"), "the History timeline must never display a raw internal case identifier");
 });
 
 test("My SVE: renders the employee's own manager and department without exposing HR-only admin fields, and never leaks a raw id", async () => {
@@ -113,4 +119,20 @@ test("My SVE: an unlinked account gets an honest 'not linked' message, not an er
   const app = loadApp();
   const html = app.renderMySve({ employee: null, tasks: [], ref: REF });
   assert.ok(/not linked/i.test(html));
+});
+
+test("Employee Profile: preserves an avatar slot with an initials fallback, ready for a future employee photograph", async () => {
+  const app = loadApp();
+  const data = { employee: fullEmployee(), assignments: [], cases: [], ref: REF };
+  const html = app.renderHrmsEmployeeProfile(data);
+  assert.ok(html.includes('class="employee-avatar hrms-avatar-lg"'), "the profile header keeps the same avatar slot My SVE uses");
+  assert.ok(html.includes(">J<") || /employee-avatar hrms-avatar-lg">[A-Z]{1,2}</.test(html), "the slot falls back to initials when no photograph is available");
+});
+
+test("Employee Profile: all five tabs are present in the rendered DOM regardless of viewport — mobile accessibility is a CSS scroll affordance, never a removed tab", async () => {
+  const app = loadApp();
+  const data = { employee: fullEmployee(), assignments: [], cases: [], ref: REF };
+  const html = app.renderHrmsEmployeeProfile(data);
+  const tabMatches = [...html.matchAll(/class="tab[^"]*"[^>]*onclick="hrmsSwitchProfileTab\('(\w+)'\)"/g)].map((m) => m[1]);
+  assert.deepEqual(tabMatches, ["overview", "employment", "organisation", "lifecycle", "history"], "all five tabs must always be rendered — narrow-viewport accessibility comes from the existing .tabs horizontal-scroll CSS, never from conditionally omitting a tab");
 });
