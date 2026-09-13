@@ -6,6 +6,7 @@
 import type { WorkflowInstanceRepository, WorkflowStepRepository, WorkflowTaskRepository, WorkflowTaskCandidateRepository, WorkflowTransaction } from "../repositories/types.ts";
 import type { RbacService } from "../../../identity/src/services/rbacService.ts";
 import type { AuditService } from "../../../identity/src/services/auditService.ts";
+import type { UserRepository } from "../../../identity/src/repositories/types.ts";
 import type { InstanceEngine } from "./instanceEngine.ts";
 import { ForbiddenError } from "../../../identity/src/domain/errors.ts";
 import { NotFoundError, ValidationError, InvalidStateError } from "../domain/errors.ts";
@@ -18,6 +19,7 @@ export function createTaskService(deps: {
   tasks: WorkflowTaskRepository;
   taskCandidates: WorkflowTaskCandidateRepository;
   rbac: RbacService;
+  users: UserRepository;
   audit: AuditService;
   transactions: WorkflowTransaction;
   engine: InstanceEngine;
@@ -38,6 +40,25 @@ export function createTaskService(deps: {
       return;
     }
     if (task.assignedUserId !== actor.userId) throw new ForbiddenError("This task is not assigned to you.");
+  }
+
+  /**
+   * PR #10 central active-account invariant: candidate/assignment
+   * membership is deliberately snapshotted and never re-checked live (see
+   * checkEligibility above) — but account STATUS is a different axis
+   * entirely, not a role/permission grant that can legitimately drift
+   * after activation. Identity's own rbacService.authorize() already
+   * denies a disabled actor everywhere it is called live, but Workflow's
+   * task-decision eligibility deliberately bypasses authorize() for
+   * candidate stability, so this is the one place that gap needs its own
+   * explicit check — added here, at the single authoritative point both
+   * decide() and completeTask() share, never scattered per-caller. See
+   * docs/architecture/identity-offboarding-revocation.md "Central
+   * active-account invariant".
+   */
+  async function requireActiveAccount(actor: ActorContext): Promise<void> {
+    const user = await deps.users.findById(actor.userId);
+    if (user && user.status !== "active") throw new ForbiddenError("actor account is not active");
   }
 
   return {
@@ -79,6 +100,7 @@ export function createTaskService(deps: {
       const instance = await deps.instances.findById(task.instanceId);
       if (!instance) throw new NotFoundError("Workflow task");
       await checkEligibility(actor, task);
+      await requireActiveAccount(actor);
 
       const step = await deps.steps.findById(task.stepId);
       if (!step) throw new NotFoundError("Workflow step");
@@ -116,6 +138,7 @@ export function createTaskService(deps: {
       const instance = await deps.instances.findById(task.instanceId);
       if (!instance) throw new NotFoundError("Workflow task");
       await checkEligibility(actor, task);
+      await requireActiveAccount(actor);
 
       const step = await deps.steps.findById(task.stepId);
       if (!step) throw new NotFoundError("Workflow step");

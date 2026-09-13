@@ -28,7 +28,7 @@ export class ThrottledError extends Error {
 }
 
 export class SessionInvalidError extends Error {
-  constructor(reason: "expired" | "revoked" | "not_found") {
+  constructor(reason: "expired" | "revoked" | "not_found" | "account_disabled") {
     super(`Session invalid: ${reason}`);
     this.name = "SessionInvalidError";
   }

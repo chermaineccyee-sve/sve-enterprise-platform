@@ -40,7 +40,7 @@ function buildContainer(db: Parameters<typeof createPgUserRepository>[0]) {
   const organisation = createPgOrganisationRepository(db);
   const rbacRepo = createPgRbacRepository(db);
   const auditRepo = createPgAuditRepository(db);
-  const rbac = createRbacService({ rbac: rbacRepo, organisation });
+  const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
   const audit = createAuditService({ audit: auditRepo });
   const actorResolution = createActorResolutionService({ rbac: rbacRepo, rbacService: rbac, users });
 
@@ -65,7 +65,7 @@ function buildContainer(db: Parameters<typeof createPgUserRepository>[0]) {
 
   const definitions = createDefinitionService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, rbac, audit, transactions, systemActions });
   const instances = createInstanceService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, instances: instanceRepo, tasks: taskRepo, events: eventRepo, organisation, users, rbac, audit, transactions, engine });
-  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, taskCandidates: taskCandidateRepo, rbac, audit, transactions, engine });
+  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, taskCandidates: taskCandidateRepo, rbac, users, audit, transactions, engine });
 
   return { users, organisation, rbacRepo, rbac, audit, employees, orgAssignments, actorResolution, taskCandidateRepo, definitions, instances, tasks, systemActions };
 }
@@ -307,6 +307,35 @@ test("Workflow: a full definition-to-decision flow commits real rows across work
 
     const eventRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM workflow_events WHERE instance_id = $1`, [instance.id]);
     assert.ok(Number(eventRows.rows[0]!.count) >= 4, "instance_started/step_activated/task_created/decision_recorded/step_completed/instance_completed events must all be recorded");
+  });
+});
+
+test("PR #10 central invariant: a Workflow approver whose Identity account has been disabled cannot decide a task, even though their role assignment/candidacy is untouched", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const c = buildContainer(db);
+    const admin = await c.users.createUser({ email: "workflow.pg.disabledapprover.admin@example.test", accountType: "employee" });
+    await grantFullAccess(c, admin.id, admin.id);
+    const approver = await provisionFullAccess(c, "workflow.pg.disabledapprover.approver@example.test", admin.id);
+    const entities = await c.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+
+    await publishSimpleApproval(c, { userId: admin.id, email: admin.email }, "test.pg.disabledapprover");
+    const instance = await c.instances.startWorkflow({ userId: admin.id, email: admin.email }, {
+      definitionKey: "test.pg.disabledapprover",
+      subjectType: "test.fixture",
+      subjectId: randomUUID(),
+      legalEntityId: my.id,
+      stepAssignments: { 1: { userId: approver.id } },
+    });
+    const tasks = await c.tasks.listAssignedTasks({ userId: approver.id, email: approver.email }, { instanceId: instance.id });
+    assert.equal(tasks.length, 1, "the approver remains a valid candidate — nothing about their role/candidacy has changed");
+
+    await c.users.setStatus(approver.id, "disabled");
+
+    await assert.rejects(() => c.tasks.decide({ userId: approver.id, email: approver.email }, tasks[0]!.id, { decision: "APPROVE" }));
+
+    const taskRow = await db.query<{ status: string }>(`SELECT status FROM workflow_tasks WHERE id = $1`, [tasks[0]!.id]);
+    assert.equal(taskRow.rows[0]!.status, "PENDING", "a disabled approver's decision must not commit — this is Identity's central authorize() invariant reaching Workflow, not a Workflow-specific patch");
   });
 });
 

@@ -64,5 +64,5 @@ export function createEmploymentChangeServiceForTransaction(tx: DatabaseProvider
 }
 
 export function createOffboardingServiceForTransaction(tx: DatabaseProvider, rbac: RbacService): OffboardingService {
-  return createOffboardingService({ lifecycle: createLifecycleCaseServiceForTransaction(tx, rbac) });
+  return createOffboardingService({ lifecycle: createLifecycleCaseServiceForTransaction(tx, rbac), users: createPgUserRepository(tx) });
 }

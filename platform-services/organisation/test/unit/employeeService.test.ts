@@ -30,7 +30,7 @@ async function setup() {
   const employeeRepo = createInMemoryEmployeeRepository(store);
   const assignmentRepo = createInMemoryEmploymentAssignmentRepository(store);
 
-  const rbac = createRbacService({ rbac: rbacRepo, organisation });
+  const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
   const audit = createAuditService({ audit: auditRepo });
   const employeeCreation = createInMemoryEmployeeCreationTransaction({ employees: employeeRepo, assignments: assignmentRepo });
   const employees = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure, organisation, users, rbac, audit, employeeCreation });

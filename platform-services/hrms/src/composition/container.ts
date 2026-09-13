@@ -16,6 +16,7 @@ import { createPgRbacRepository } from "../../../identity/src/repositories/postg
 import { createPgSessionRepository } from "../../../identity/src/repositories/postgres/pgSessionRepository.ts";
 import { createPgAuditRepository } from "../../../identity/src/repositories/postgres/pgAuditRepository.ts";
 import { createSessionService, type SessionService } from "../../../identity/src/services/sessionService.ts";
+import { createPgUserSecurityTransaction } from "../../../identity/src/repositories/postgres/pgUserSecurityTransaction.ts";
 import { createRbacService, type RbacService } from "../../../identity/src/services/rbacService.ts";
 import { createAuditService, type AuditService } from "../../../identity/src/services/auditService.ts";
 import type { UserRepository, OrganisationRepository } from "../../../identity/src/repositories/types.ts";
@@ -34,6 +35,7 @@ import { createEmploymentChangeService, type EmploymentChangeService } from "../
 import { createOffboardingService, type OffboardingService } from "../services/offboardingService.ts";
 import { createApprovalService, type ApprovalService } from "../services/approvalService.ts";
 import { createHrmsWorkflowIntegration } from "../integrations/workflowIntegration.ts";
+import { createIdentityDeactivationProcessor, type IdentityDeactivationProcessor } from "../integrations/identityDeactivationProcessor.ts";
 
 export interface HrmsContainer {
   users: UserRepository;
@@ -57,6 +59,12 @@ export interface HrmsContainer {
   employmentChange: EmploymentChangeService;
   offboarding: OffboardingService;
   approval: ApprovalService;
+  /**
+   * PR #10: the one HRMS-side capability that calls INTO Identity's
+   * accountSecurityService — see integrations/identityDeactivationProcessor.ts.
+   * Identity remains entirely unaware this container/table exists.
+   */
+  identityDeactivation: IdentityDeactivationProcessor;
 }
 
 export async function createHrmsContainer(db: DatabaseProvider): Promise<HrmsContainer> {
@@ -66,8 +74,8 @@ export async function createHrmsContainer(db: DatabaseProvider): Promise<HrmsCon
   const sessionRepo = createPgSessionRepository(db);
   const auditRepo = createPgAuditRepository(db);
 
-  const sessions = createSessionService({ sessions: sessionRepo });
-  const rbac = createRbacService({ rbac: rbacRepo, organisation });
+  const sessions = createSessionService({ sessions: sessionRepo, users, transactions: createPgUserSecurityTransaction(db) });
+  const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
   const audit = createAuditService({ audit: auditRepo });
 
   // Organisation is consumed as a whole container (its own services,
@@ -111,7 +119,7 @@ export async function createHrmsContainer(db: DatabaseProvider): Promise<HrmsCon
   const onboarding = createOnboardingService({ lifecycle });
   const probation = createProbationService({ lifecycle, cases: caseRepo, reviews: reviewRepo, organisation, rbac, audit });
   const employmentChange = createEmploymentChangeService({ lifecycle });
-  const offboarding = createOffboardingService({ lifecycle });
+  const offboarding = createOffboardingService({ lifecycle, users });
 
   // Registers the two SYSTEM_ACTION completion handlers into `workflow`'s
   // OWN registry and returns the narrow port approvalService depends on
@@ -120,5 +128,9 @@ export async function createHrmsContainer(db: DatabaseProvider): Promise<HrmsCon
   const workflowPort = createHrmsWorkflowIntegration({ workflow, rbac });
   const approval = createApprovalService({ cases: caseRepo, organisation, rbac, audit, transactions, lifecycle, workflow: workflowPort });
 
-  return { users, organisation, sessions, rbac, audit, orgContainer, workflow, lifecycle, onboarding, probation, employmentChange, offboarding, approval };
+  // PR #10: the ONE place HRMS -> Identity's accountSecurityService
+  // dependency edge exists — see integrations/identityDeactivationProcessor.ts.
+  const identityDeactivation = createIdentityDeactivationProcessor({ db, rbac });
+
+  return { users, organisation, sessions, rbac, audit, orgContainer, workflow, lifecycle, onboarding, probation, employmentChange, offboarding, approval, identityDeactivation };
 }

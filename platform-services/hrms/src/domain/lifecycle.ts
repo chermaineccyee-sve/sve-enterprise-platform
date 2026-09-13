@@ -106,6 +106,32 @@ export interface HrLifecycleEvent {
   recordedBy: string;
 }
 
+export type DeactivationRequestStatus = "REQUESTED" | "COMPLETED" | "FAILED";
+
+/**
+ * PR #10: a durable, HRMS-owned request driving controlled Identity
+ * account revocation after this case's offboarding completes. Created
+ * once, atomically, in the SAME transaction as the offboarding
+ * completion itself (never a second, separate write that could leave an
+ * `identity_deactivation_requested` event with no corresponding durable
+ * row) — see docs/architecture/identity-offboarding-revocation.md
+ * "Deactivation request lifecycle". Never mutated except by
+ * identityDeactivationProcessor.ts's own completed/failed transition.
+ */
+export interface HrIdentityDeactivationRequest {
+  id: string;
+  caseId: string;
+  employeeId: string;
+  targetUserId: string;
+  requestedBy: string;
+  reasonCategory: string;
+  status: DeactivationRequestStatus;
+  requestedAt: string;
+  completedAt: string | null;
+  failureReason: string | null;
+  attemptCount: number;
+}
+
 export type MilestoneStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "SKIPPED";
 
 /** Onboarding tasks and offboarding clearance items share this one shape. `reference` is metadata only — a future Document/acknowledgement-service record id, never a binary. */

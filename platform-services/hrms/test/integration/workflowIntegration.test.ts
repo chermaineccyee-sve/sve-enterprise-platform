@@ -129,7 +129,7 @@ test("Employment Change: full approval flow — approved decision creates exactl
   });
 });
 
-test("Offboarding: full approval flow — ends the Organisation assignment, completes the case, records identity_deactivation_requested exactly once, and never touches the Identity account", { skip }, async () => {
+test("Offboarding: full approval flow — ends the Organisation assignment, completes the case, records identity_deactivation_requested exactly once, does not itself touch the Identity account, and creates a processable PR #10 deactivation request", { skip }, async () => {
   await withTestDb(async (db) => {
     const container = await createHrmsContainer(db);
     const admin = await provisionAdmin(db, container, "workflow-integration.pg.ob.admin@example.test");
@@ -164,6 +164,26 @@ test("Offboarding: full approval flow — ends the Organisation assignment, comp
     const assignmentRow = await db.query<{ status: string; effective_to: string | null }>(`SELECT status, effective_to FROM employment_assignments WHERE employee_id = $1`, [employee.id]);
     assert.equal(assignmentRow.rows[0]!.status, "RESIGNED");
     assert.ok(assignmentRow.rows[0]!.effective_to, "Organisation's own assignment must be ended (effective_to set)");
+
+    // PR #10: offboarding completion via the FULL Workflow-approval path
+    // (the SYSTEM_ACTION handler's own transaction-scoped offboarding
+    // service, not a direct call) must ALSO create the durable
+    // deactivation request row, atomically alongside everything above —
+    // proving the tx-scoped composition path (createOffboardingServiceForTransaction)
+    // wires the same PR #10 logic as the direct-call path.
+    const requestRow = await db.query<{ status: string; target_user_id: string }>(`SELECT status, target_user_id FROM hr_identity_deactivation_requests WHERE case_id = $1`, [hrCase.id]);
+    assert.equal(requestRow.rows.length, 1);
+    assert.equal(requestRow.rows[0]!.status, "REQUESTED");
+    assert.equal(requestRow.rows[0]!.target_user_id, employeeUser.userId);
+
+    // And it is genuinely processable end-to-end from here.
+    const systemPrincipal = actor((await container.users.createUser({ email: "workflow-integration.pg.ob.system@example.test", accountType: "service" })).id, "workflow-integration.pg.ob.system@example.test");
+    await grantRole(db, systemPrincipal.userId, [{ key: "identity.security.manage_account", maxClassification: "INTERNAL" }], { scopeType: "group" }, admin.userId);
+    const processed = await container.identityDeactivation.processAllPending(systemPrincipal);
+    assert.equal(processed.length, 1);
+    assert.equal(processed[0]!.outcome, "completed");
+    const disabledNow = await container.users.findById(employeeUser.userId);
+    assert.equal(disabledNow!.status, "disabled", "processing the request must actually disable the account, completing the PR #10 chain end-to-end");
   });
 });
 

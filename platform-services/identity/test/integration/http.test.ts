@@ -8,6 +8,8 @@ import { createHttpServer } from "../../src/api/http.ts";
 import { hashPassword } from "../../src/crypto/password.ts";
 import { generateTotp } from "../../src/crypto/totp.ts";
 import { base32Decode } from "../../src/crypto/base32.ts";
+import { createPgRbacRepository } from "../../src/repositories/postgres/pgRbacRepository.ts";
+import { PERMISSIONS } from "../../src/services/accountSecurityService.ts";
 
 const skip: boolean | string = getTestDatabaseUrl()
   ? false
@@ -196,6 +198,93 @@ test("a disabled account cannot complete a pending MFA challenge, even with a va
         body: JSON.stringify({ challengeId, code: challengeCode }),
       });
       assert.equal(mfaVerifyRes.status, 401, "a disabled account must not be able to complete MFA and obtain a session");
+    } finally {
+      server.close();
+    }
+  });
+});
+
+test("PR #10: an MFA challenge issued while active, followed by a real accountSecurity.disableAccount() (not a raw setStatus), then a CORRECT TOTP code, is denied and creates no session", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const { server, baseUrl, container } = await startServer(db);
+    try {
+      const email = "http.pr10-mfa-disable.totp@example.test";
+      const password = "fictional-pr10-mfa-disable-password-1!";
+      const user = await container.users.createUser({ email, accountType: "employee" });
+      await container.users.setCredential(user.id, await hashPassword(password));
+      const enrolment = await container.mfa.beginEnrolment({ userId: user.id, accountEmail: email });
+      const enrolCode = generateTotp(base32Decode(enrolment.secretBase32));
+      await container.mfa.completeEnrolment({ userId: user.id, methodId: enrolment.methodId, code: enrolCode });
+
+      const loginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const { challengeId } = (await loginRes.json()).data as { challengeId: string };
+
+      // Disable through the REAL, PR #10 domain operation (not a raw
+      // repository setStatus call) — the operation an administrator or
+      // HRMS's own offboarding integration actually uses.
+      const admin = await container.users.createUser({ email: "http.pr10-mfa-disable.admin@example.test", accountType: "service" });
+      const rbacRepo = createPgRbacRepository(db);
+      const role = await rbacRepo.createRole({ key: "http-pr10-manage-account", name: "Manage Account" });
+      const permission = await rbacRepo.createPermission({ key: PERMISSIONS.MANAGE_ACCOUNT, maxClassification: "INTERNAL" });
+      await rbacRepo.grantPermissionToRole(role.id, permission.id);
+      await rbacRepo.assignRole({ userId: admin.id, roleId: role.id, grantedBy: admin.id });
+      const disableResult = await container.accountSecurity.disableAccount({ userId: admin.id, email: admin.email }, user.id, { reason: "test_offboarding" });
+      assert.equal(disableResult.user.status, "disabled");
+
+      // The TOTP code submitted below is genuinely correct for this method.
+      const correctCode = generateTotp(base32Decode(enrolment.secretBase32));
+      const mfaVerifyRes = await fetch(`${baseUrl}/api/v1/auth/mfa/verify`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challengeId, code: correctCode }),
+      });
+      assert.equal(mfaVerifyRes.status, 401, "a CORRECT code must still be denied once the account is disabled");
+      assert.equal((await container.sessions.listActiveSessions(user.id)).length, 0, "completing MFA on a disabled account must never create a session");
+    } finally {
+      server.close();
+    }
+  });
+});
+
+test("PR #10: a pending MFA challenge, then disableAccount(), then a CORRECT recovery code, is denied and creates no session", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const { server, baseUrl, container } = await startServer(db);
+    try {
+      const email = "http.pr10-mfa-disable.recovery@example.test";
+      const password = "fictional-pr10-mfa-disable-recovery-password-1!";
+      const user = await container.users.createUser({ email, accountType: "employee" });
+      await container.users.setCredential(user.id, await hashPassword(password));
+      const enrolment = await container.mfa.beginEnrolment({ userId: user.id, accountEmail: email });
+      const enrolCode = generateTotp(base32Decode(enrolment.secretBase32));
+      await container.mfa.completeEnrolment({ userId: user.id, methodId: enrolment.methodId, code: enrolCode });
+      const [recoveryCode] = await container.mfa.generateRecoveryCodes(user.id);
+
+      const loginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const { challengeId } = (await loginRes.json()).data as { challengeId: string };
+
+      const admin = await container.users.createUser({ email: "http.pr10-mfa-disable-recovery.admin@example.test", accountType: "service" });
+      const rbacRepo = createPgRbacRepository(db);
+      const role = await rbacRepo.createRole({ key: "http-pr10-manage-account-recovery", name: "Manage Account" });
+      const permission = await rbacRepo.createPermission({ key: PERMISSIONS.MANAGE_ACCOUNT, maxClassification: "INTERNAL" });
+      await rbacRepo.grantPermissionToRole(role.id, permission.id);
+      await rbacRepo.assignRole({ userId: admin.id, roleId: role.id, grantedBy: admin.id });
+      await container.accountSecurity.disableAccount({ userId: admin.id, email: admin.email }, user.id, { reason: "test_offboarding" });
+
+      const recoveryRes = await fetch(`${baseUrl}/api/v1/auth/mfa/recovery`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challengeId, code: recoveryCode }),
+      });
+      assert.equal(recoveryRes.status, 401, "a genuinely valid, unused recovery code must still be denied once the account is disabled");
+      assert.equal((await container.sessions.listActiveSessions(user.id)).length, 0, "a recovery-code completion on a disabled account must never create a session");
     } finally {
       server.close();
     }

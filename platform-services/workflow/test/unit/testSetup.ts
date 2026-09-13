@@ -50,7 +50,7 @@ export async function setup() {
   const organisation = createInMemoryOrganisationRepository(identityStore);
   const auditRepo = createInMemoryAuditRepository(identityStore);
   const users = createInMemoryUserRepository(identityStore);
-  const rbac = createRbacService({ rbac: rbacRepo, organisation });
+  const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
   const audit = createAuditService({ audit: auditRepo });
   const actorResolution = createActorResolutionService({ rbac: rbacRepo, rbacService: rbac, users });
 
@@ -80,7 +80,7 @@ export async function setup() {
 
   const definitions = createDefinitionService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, rbac, audit, transactions, systemActions });
   const instances = createInstanceService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, instances: instanceRepo, tasks: taskRepo, events: eventRepo, organisation, users, rbac, audit, transactions, engine });
-  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, taskCandidates: taskCandidateRepo, rbac, audit, transactions, engine });
+  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, taskCandidates: taskCandidateRepo, rbac, users, audit, transactions, engine });
   const escalations = createEscalationService({ tasks: taskRepo, instances: instanceRepo, users, orgAssignments, rbac, transactions });
 
   const [sg, my, skl] = identityStore.legalEntities;

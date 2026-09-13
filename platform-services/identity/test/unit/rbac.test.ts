@@ -4,16 +4,18 @@ import { randomUUID } from "node:crypto";
 import { createInMemoryStore } from "../../src/repositories/memory/inMemoryStore.ts";
 import { createInMemoryRbacRepository } from "../../src/repositories/memory/inMemoryRbacRepository.ts";
 import { createInMemoryOrganisationRepository } from "../../src/repositories/memory/inMemoryOrganisationRepository.ts";
+import { createInMemoryUserRepository } from "../../src/repositories/memory/inMemoryUserRepository.ts";
 import { createRbacService } from "../../src/services/rbacService.ts";
 
 async function setup() {
   const store = createInMemoryStore();
   const rbac = createInMemoryRbacRepository(store);
   const organisation = createInMemoryOrganisationRepository(store);
-  const rbacService = createRbacService({ rbac, organisation });
+  const users = createInMemoryUserRepository(store);
+  const rbacService = createRbacService({ rbac, organisation, users });
   const [sg, my, skl] = store.legalEntities;
   const admin = randomUUID(); // "granted by" placeholder — a fictional bootstrap actor id
-  return { store, rbac, organisation, rbacService, sg: sg!, my: my!, skl: skl!, admin };
+  return { store, rbac, organisation, users, rbacService, sg: sg!, my: my!, skl: skl!, admin };
 }
 
 test("no role assignment at all -> DENY (default-deny)", async () => {

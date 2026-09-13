@@ -9,6 +9,7 @@ import { createPgSessionRepository } from "../../src/repositories/postgres/pgSes
 import { createPgMfaRepository } from "../../src/repositories/postgres/pgMfaRepository.ts";
 import { createPgAttemptRepository } from "../../src/repositories/postgres/pgAttemptRepository.ts";
 import { createPgAuditRepository } from "../../src/repositories/postgres/pgAuditRepository.ts";
+import { createPgUserSecurityTransaction } from "../../src/repositories/postgres/pgUserSecurityTransaction.ts";
 import { createRbacService } from "../../src/services/rbacService.ts";
 import { createSessionService } from "../../src/services/sessionService.ts";
 import { hashPassword, verifyPassword } from "../../src/crypto/password.ts";
@@ -83,7 +84,7 @@ test("RBAC service enforces cross-entity denial against the real database (not j
     const users = createPgUserRepository(db);
     const organisation = createPgOrganisationRepository(db);
     const rbac = createPgRbacRepository(db);
-    const rbacService = createRbacService({ rbac, organisation });
+    const rbacService = createRbacService({ rbac, organisation, users });
 
     const admin = await users.createUser({ email: "rbac.admin@example.test", accountType: "service" });
     const employee = await users.createUser({ email: "rbac.employee@example.test", accountType: "employee" });
@@ -104,11 +105,33 @@ test("RBAC service enforces cross-entity denial against the real database (not j
   });
 });
 
+test("a role assignment or entity-access grant for a nonexistent user id is rejected by the real schema (FK-enforced) — proves authorize()'s not-found carve-out is unreachable in production (PR #10)", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const users = createPgUserRepository(db);
+    const organisation = createPgOrganisationRepository(db);
+    const rbac = createPgRbacRepository(db);
+    const admin = await users.createUser({ email: "fkproof.admin@example.test", accountType: "service" });
+    const role = await rbac.createRole({ key: "fk-proof-role", name: "FK Proof Role" });
+    const my = await organisation.findLegalEntityByKey("sve-international-my");
+    assert.ok(my);
+
+    // A fabricated, never-persisted userId — exactly the shape of actor
+    // this repository's own in-memory unit tests use throughout (see
+    // rbacService.ts's authorize() carve-out comment). In real Postgres,
+    // the attempt to grant it ANY authority fails outright, before
+    // authorize() would ever be reached with it — no such actor can exist
+    // in a live system.
+    const fabricatedUserId = randomUUID();
+    await assert.rejects(() => rbac.assignRole({ userId: fabricatedUserId, roleId: role.id, grantedBy: admin.id }));
+    await assert.rejects(() => rbac.grantEntityAccess({ userId: fabricatedUserId, scopeType: "legal_entity", legalEntityId: my!.id, grantedBy: admin.id }));
+  });
+});
+
 test("session repository: create, validate via real NOW()-based expiry, revoke", { skip }, async () => {
   await withTestDb(async (db) => {
     const users = createPgUserRepository(db);
     const sessions = createPgSessionRepository(db);
-    const sessionService = createSessionService({ sessions });
+    const sessionService = createSessionService({ sessions, users, transactions: createPgUserSecurityTransaction(db) });
     const user = await users.createUser({ email: "session.test@example.test", accountType: "employee" });
 
     const created = await sessionService.createSession({ userId: user.id, mfaVerified: true });
@@ -124,7 +147,7 @@ test("revokeAllSessionsForUser affects only that user's sessions, verified again
   await withTestDb(async (db) => {
     const users = createPgUserRepository(db);
     const sessions = createPgSessionRepository(db);
-    const sessionService = createSessionService({ sessions });
+    const sessionService = createSessionService({ sessions, users, transactions: createPgUserSecurityTransaction(db) });
     const userA = await users.createUser({ email: "revoke.a@example.test", accountType: "employee" });
     const userB = await users.createUser({ email: "revoke.b@example.test", accountType: "employee" });
 

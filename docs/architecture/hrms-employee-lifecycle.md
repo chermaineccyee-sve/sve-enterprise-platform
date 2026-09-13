@@ -296,22 +296,34 @@ not build.
    with HRMS's own case completion, the same as employment change (§8,
    §13).
 2. Updates the case's own lifecycle status/outcome/effective date.
-3. Records a `identity_deactivation_requested` **event** — a durable,
-   auditable request that a human administrator (or a future Workflow/
-   Approval service) should deactivate the departing employee's Identity
-   account.
+3. Records a `identity_deactivation_requested` **event**, and (PR #10,
+   when the employee has a currently-linked, active Identity user) a
+   durable `hr_identity_deactivation_requests` **row**, in the SAME
+   transaction as the case completion — the request event alone was never
+   sufficient to actually act on; see docs/architecture/
+   identity-offboarding-revocation.md "Deactivation request lifecycle".
 
-**It never calls any Identity mutation API, and never deletes anything.**
-No code path in this package, or invoked by it, can delete a `users` row —
-Identity's `UserRepository` interface exposes no delete method at all, so
-this is a structural guarantee, not merely an intentional omission.
-Verified directly: a real-Postgres/HTTP test links an Identity user to the
+**Completing offboarding itself never calls any Identity mutation API,
+and never deletes anything** — that remains structurally true after PR
+#10 too: no code path in this package can delete a `users` row (Identity's
+`UserRepository` interface exposes no delete method at all), and this
+transaction ends with a durable REQUEST, not a mutation. Verified
+directly: a real-Postgres/HTTP test links an Identity user to the
 departing employee, completes offboarding, and asserts that user's row
-still exists with `status: 'active'` afterward — completing offboarding
-never itself disables the account, only records that it should be
-reviewed. Full automated deactivation orchestration is left to a human
-administrator today, or a future Workflow/Approval service — this event is
-the safe, documented boundary such a service would consume.
+still exists with `status: 'active'` immediately afterward.
+
+**Actually revoking access is PR #10's job, deliberately a separate,
+later, independently-retryable step**: `platform-services/hrms/src/
+integrations/identityDeactivationProcessor.ts` consumes the durable
+request row and calls Identity's own `accountSecurityService.
+disableAccount()` — disabling the account, revoking every active
+session, and auditing, all atomically. See docs/architecture/
+identity-offboarding-revocation.md for the full design, transaction
+boundary, idempotency, and concurrency proof. This section's own
+"never calls any Identity mutation API" claim is about `completeOffboarding`
+specifically, not about this package as a whole — `identityDeactivationProcessor.ts`
+is now the one, explicit, later exception, isolated to a single file
+exactly like PR #9's own `workflowIntegration.ts`.
 
 ## 10. Malaysia/Singapore/SK Lai & Partners
 
@@ -691,8 +703,11 @@ added for that purpose.
   schema; `legal_entity_id`/jurisdiction context is the only thing this
   PR provides for a future payroll integration to consume.
 - **Identity account deactivation**: this PR requests it (§9) via an
-  event; it does not orchestrate it. A future Workflow/Approval service,
-  or a human administrator, performs the actual deactivation.
+  event; it does not orchestrate it. **Update (PR #10)**: the
+  orchestration this section once left to a future PR is now built —
+  see docs/architecture/identity-offboarding-revocation.md. HRMS's own
+  `completeOffboarding()`, documented above, is still unchanged: it only
+  ever records the request, never performs the deactivation itself.
 
 ## 21. Database
 

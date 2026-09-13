@@ -70,6 +70,13 @@ export function createPgUserRepository(db: DatabaseProvider): UserRepository {
       );
       return result.rows[0] ? mapUser(result.rows[0]) : null;
     },
+    async findByIdForUpdate(id: string): Promise<User | null> {
+      const result = await db.query<UserRow>(
+        `SELECT id, email, account_type, status, created_at, updated_at FROM users WHERE id = $1 FOR UPDATE`,
+        [id],
+      );
+      return result.rows[0] ? mapUser(result.rows[0]) : null;
+    },
     async setStatus(userId: string, status: "active" | "disabled"): Promise<void> {
       await db.query(`UPDATE users SET status = $2, updated_at = NOW() WHERE id = $1`, [userId, status]);
     },

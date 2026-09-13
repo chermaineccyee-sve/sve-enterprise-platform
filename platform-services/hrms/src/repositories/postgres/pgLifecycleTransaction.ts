@@ -18,6 +18,7 @@ import { createPgLifecycleCaseRepository } from "./pgLifecycleCaseRepository.ts"
 import { createPgLifecycleEventRepository } from "./pgLifecycleEventRepository.ts";
 import { createPgLifecycleMilestoneRepository } from "./pgLifecycleMilestoneRepository.ts";
 import { createPgProbationReviewRepository } from "./pgProbationReviewRepository.ts";
+import { createPgIdentityDeactivationRequestRepository } from "./pgIdentityDeactivationRequestRepository.ts";
 
 export function createPgLifecycleTransaction(db: DatabaseProvider): LifecycleTransaction {
   return {
@@ -29,6 +30,7 @@ export function createPgLifecycleTransaction(db: DatabaseProvider): LifecycleTra
             events: createPgLifecycleEventRepository(tx),
             milestones: createPgLifecycleMilestoneRepository(tx),
             reviews: createPgProbationReviewRepository(tx),
+            deactivationRequests: createPgIdentityDeactivationRequestRepository(tx),
           },
           tx,
         );
@@ -57,6 +59,7 @@ export function createPgLifecycleTransactionScoped(tx: DatabaseProvider): Lifecy
           events: createPgLifecycleEventRepository(tx),
           milestones: createPgLifecycleMilestoneRepository(tx),
           reviews: createPgProbationReviewRepository(tx),
+          deactivationRequests: createPgIdentityDeactivationRequestRepository(tx),
         },
         tx,
       );

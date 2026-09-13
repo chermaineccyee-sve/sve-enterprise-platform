@@ -25,11 +25,22 @@ import type {
 } from "../domain/entities.ts";
 import type { PasswordHash } from "../crypto/password.ts";
 import type { EncryptedTotpSecret } from "../crypto/mfaSecretCipher.ts";
+import type { DatabaseProvider } from "../../../../packages/shared/src/DatabaseProvider.ts";
 
 export interface UserRepository {
   createUser(input: { email: string; accountType: AccountType }): Promise<User>;
   findByEmail(email: string): Promise<User | null>;
   findById(id: string): Promise<User | null>;
+  /**
+   * Same as findById, but (on the real Postgres implementation) takes a
+   * row-level `SELECT ... FOR UPDATE` lock, held until the enclosing
+   * transaction commits or rolls back — see accountSecurityService.ts's
+   * disableAccount()/enableAccount(), which must serialize against a
+   * concurrent disable/enable of the SAME target user (PR #10). The
+   * in-memory implementation has no real concurrent transactions to guard
+   * against and behaves exactly like findById.
+   */
+  findByIdForUpdate(id: string): Promise<User | null>;
   setStatus(userId: string, status: "active" | "disabled"): Promise<void>;
   setCredential(userId: string, hash: PasswordHash): Promise<void>;
   getCredential(userId: string): Promise<PasswordHash | null>;
@@ -129,4 +140,19 @@ export interface AttemptRepository {
 
 export interface AuditRepository {
   record(event: Omit<SecurityAuditEvent, "id" | "occurredAt">): Promise<SecurityAuditEvent>;
+}
+
+/**
+ * PR #10 (identity-offboarding-revocation): the shared-transaction
+ * primitive for accountSecurityService — account status change + session
+ * revocation + security audit commit or roll back together (see
+ * docs/architecture/identity-offboarding-revocation.md "Transaction
+ * boundary"). `tx` is also exposed so an external caller (HRMS's
+ * deactivation-request processor) can bind its OWN transaction-scoped
+ * repositories to this exact connection, mirroring platform-services/
+ * hrms's WorkflowTransaction/SystemActionContext.tx pattern from PR #9 —
+ * never a second, nested DatabaseProvider.transaction() call.
+ */
+export interface UserSecurityTransaction {
+  run<T>(fn: (repos: { users: UserRepository; sessions: SessionRepository; audit: AuditRepository }, tx: DatabaseProvider) => Promise<T>): Promise<T>;
 }
