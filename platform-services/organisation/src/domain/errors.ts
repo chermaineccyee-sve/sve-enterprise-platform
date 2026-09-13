@@ -20,3 +20,19 @@ export class ValidationError extends Error {
     this.name = "ValidationError";
   }
 }
+
+/**
+ * Thrown by src/api/middleware/actor.ts when a state-changing (POST/PUT/
+ * PATCH/DELETE) request authenticated via the transitional SVEGIP
+ * session-cookie bridge does not carry a trusted Origin/Referer — mirrors
+ * platform-services/data-vault's own CsrfOriginRejectedError exactly (see
+ * that package's domain/errors.ts and docs/architecture/
+ * data-vault-foundation.md "CSRF/origin protection for the SVEGIP cookie
+ * bridge"). Never thrown for native bearer-session requests.
+ */
+export class CsrfOriginRejectedError extends Error {
+  constructor() {
+    super("This request's origin could not be verified as trusted.");
+    this.name = "CsrfOriginRejectedError";
+  }
+}

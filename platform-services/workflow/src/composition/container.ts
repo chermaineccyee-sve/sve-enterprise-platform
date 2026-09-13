@@ -13,8 +13,18 @@
  *
  * No real SYSTEM_ACTION handler is registered here — no business domain
  * is integrated by this PR (see domain/systemActionRegistry.ts's header).
+ *
+ * PR #11: the SVEGIP session-cookie bridge is now wired here, following
+ * Organisation's/HRMS's own wiring exactly (which itself mirrors Data
+ * Vault's already-accepted model) — apps/svegip's new My Tasks/Approvals
+ * area calls into this service's HTTP API via its own Netlify proxy
+ * function. See docs/architecture/hrms-application-shell.md.
  */
 import type { DatabaseProvider } from "../../../../packages/shared/src/DatabaseProvider.ts";
+import type { SecretsProvider } from "../../../../packages/security/src/SecretsProvider.ts";
+import { createEnvSecretsProvider } from "../../../identity/src/config/envSecretsProvider.ts";
+import { loadSvegipBridgeSecret } from "../../../identity/src/services/svegipSessionBridge.ts";
+import { loadTrustedOrigins } from "../config/trustedOrigins.ts";
 import { createPgUserRepository } from "../../../identity/src/repositories/postgres/pgUserRepository.ts";
 import { createPgOrganisationRepository } from "../../../identity/src/repositories/postgres/pgOrganisationRepository.ts";
 import { createPgRbacRepository } from "../../../identity/src/repositories/postgres/pgRbacRepository.ts";
@@ -56,9 +66,14 @@ export interface WorkflowContainer {
   instances: InstanceService;
   tasks: TaskService;
   escalations: EscalationService;
+  /** Null when the transitional SVEGIP bridge is not configured for this deployment — see identity/src/services/svegipSessionBridge.ts. */
+  svegipBridgeSecret: string | null;
+  /** Origins trusted for cookie-authenticated state-changing requests — see config/trustedOrigins.ts. */
+  trustedOrigins: Set<string>;
 }
 
-export async function createWorkflowContainer(db: DatabaseProvider): Promise<WorkflowContainer> {
+export async function createWorkflowContainer(db: DatabaseProvider, opts?: { secrets?: SecretsProvider }): Promise<WorkflowContainer> {
+  const secrets = opts?.secrets ?? createEnvSecretsProvider();
   const users = createPgUserRepository(db);
   const organisation = createPgOrganisationRepository(db);
   const rbacRepo = createPgRbacRepository(db);
@@ -94,5 +109,8 @@ export async function createWorkflowContainer(db: DatabaseProvider): Promise<Wor
   const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, taskCandidates: taskCandidateRepo, rbac, users, audit, transactions, engine });
   const escalations = createEscalationService({ tasks: taskRepo, instances: instanceRepo, users, orgAssignments: orgContainer.assignments, rbac, transactions });
 
-  return { users, organisation, sessions, rbac, audit, orgContainer, actorResolution, systemActions, engine, definitions, instances, tasks, escalations };
+  const svegipBridgeSecret = await loadSvegipBridgeSecret(secrets);
+  const trustedOrigins = loadTrustedOrigins();
+
+  return { users, organisation, sessions, rbac, audit, orgContainer, actorResolution, systemActions, engine, definitions, instances, tasks, escalations, svegipBridgeSecret, trustedOrigins };
 }
