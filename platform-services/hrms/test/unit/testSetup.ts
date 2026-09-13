@@ -28,6 +28,7 @@ import { createInMemoryLifecycleCaseRepository } from "../../src/repositories/me
 import { createInMemoryLifecycleEventRepository } from "../../src/repositories/memory/inMemoryLifecycleEventRepository.ts";
 import { createInMemoryLifecycleMilestoneRepository } from "../../src/repositories/memory/inMemoryLifecycleMilestoneRepository.ts";
 import { createInMemoryProbationReviewRepository } from "../../src/repositories/memory/inMemoryProbationReviewRepository.ts";
+import { createInMemoryIdentityDeactivationRequestRepository } from "../../src/repositories/memory/inMemoryIdentityDeactivationRequestRepository.ts";
 import { createInMemoryLifecycleTransaction } from "../../src/repositories/memory/inMemoryLifecycleTransaction.ts";
 import { createLifecycleCaseService } from "../../src/services/lifecycleCaseService.ts";
 import { createOnboardingService } from "../../src/services/onboardingService.ts";
@@ -43,7 +44,7 @@ export async function setup() {
   const organisation = createInMemoryOrganisationRepository(identityStore);
   const auditRepo = createInMemoryAuditRepository(identityStore);
   const users = createInMemoryUserRepository(identityStore);
-  const rbac = createRbacService({ rbac: rbacRepo, organisation });
+  const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
   const audit = createAuditService({ audit: auditRepo });
 
   const orgStore = createOrgInMemoryStore();
@@ -60,7 +61,8 @@ export async function setup() {
   const eventRepo = createInMemoryLifecycleEventRepository(hrmsStore);
   const milestoneRepo = createInMemoryLifecycleMilestoneRepository(hrmsStore);
   const reviewRepo = createInMemoryProbationReviewRepository(hrmsStore);
-  const transactions = createInMemoryLifecycleTransaction({ cases: caseRepo, events: eventRepo, milestones: milestoneRepo, reviews: reviewRepo });
+  const deactivationRequestRepo = createInMemoryIdentityDeactivationRequestRepository(hrmsStore);
+  const transactions = createInMemoryLifecycleTransaction({ cases: caseRepo, events: eventRepo, milestones: milestoneRepo, reviews: reviewRepo, deactivationRequests: deactivationRequestRepo });
 
   // In-memory has no real Postgres transaction to bind to — reuse the
   // shared in-memory Organisation service directly (see
@@ -69,10 +71,10 @@ export async function setup() {
   const onboarding = createOnboardingService({ lifecycle });
   const probation = createProbationService({ lifecycle, cases: caseRepo, reviews: reviewRepo, organisation, rbac, audit });
   const employmentChange = createEmploymentChangeService({ lifecycle });
-  const offboarding = createOffboardingService({ lifecycle });
+  const offboarding = createOffboardingService({ lifecycle, users });
 
   const [sg, my, skl] = identityStore.legalEntities;
-  return { identityStore, rbacRepo, organisation, users, employees, orgAssignments, lifecycle, onboarding, probation, employmentChange, offboarding, caseRepo, transactions, eventRepo, sg: sg!, my: my!, skl: skl! };
+  return { identityStore, rbacRepo, organisation, users, employees, orgAssignments, lifecycle, onboarding, probation, employmentChange, offboarding, caseRepo, transactions, eventRepo, deactivationRequestRepo, sg: sg!, my: my!, skl: skl! };
 }
 
 export async function grantRole(

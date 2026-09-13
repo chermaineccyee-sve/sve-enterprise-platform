@@ -10,6 +10,7 @@ import { createInMemoryStore as createIdentityInMemoryStore } from "../../../ide
 import { createInMemoryRbacRepository } from "../../../identity/src/repositories/memory/inMemoryRbacRepository.ts";
 import { createInMemoryOrganisationRepository } from "../../../identity/src/repositories/memory/inMemoryOrganisationRepository.ts";
 import { createInMemoryAuditRepository } from "../../../identity/src/repositories/memory/inMemoryAuditRepository.ts";
+import { createInMemoryUserRepository } from "../../../identity/src/repositories/memory/inMemoryUserRepository.ts";
 import { createRbacService } from "../../../identity/src/services/rbacService.ts";
 import { createAuditService } from "../../../identity/src/services/auditService.ts";
 import { ForbiddenError } from "../../../identity/src/domain/errors.ts";
@@ -26,8 +27,9 @@ async function setup() {
   const rbacRepo = createInMemoryRbacRepository(identityStore);
   const organisation = createInMemoryOrganisationRepository(identityStore);
   const auditRepo = createInMemoryAuditRepository(identityStore);
+  const users = createInMemoryUserRepository(identityStore);
   const dataVaultRepo = createInMemoryDataVaultRepository(store);
-  const rbac = createRbacService({ rbac: rbacRepo, organisation });
+  const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
   const audit = createAuditService({ audit: auditRepo });
   const dataVault = createDataVaultService({ dataVault: dataVaultRepo, rbac, organisation, audit });
   const [sg, my, skl] = identityStore.legalEntities;

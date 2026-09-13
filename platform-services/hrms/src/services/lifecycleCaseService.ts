@@ -8,7 +8,7 @@
  * hrms-employee-lifecycle.md "Lifecycle case model".
  */
 import type { DatabaseProvider } from "../../../../packages/shared/src/DatabaseProvider.ts";
-import type { LifecycleCaseRepository, LifecycleEventRepository, LifecycleMilestoneRepository, ProbationReviewRepository, LifecycleTransaction } from "../repositories/types.ts";
+import type { LifecycleCaseRepository, LifecycleEventRepository, LifecycleMilestoneRepository, ProbationReviewRepository, HrIdentityDeactivationRequestRepository, LifecycleTransaction } from "../repositories/types.ts";
 import type { RbacService } from "../../../identity/src/services/rbacService.ts";
 import type { AuditService } from "../../../identity/src/services/auditService.ts";
 import type { OrganisationRepository, UserRepository } from "../../../identity/src/repositories/types.ts";
@@ -31,6 +31,7 @@ export interface TxRepos {
   events: LifecycleEventRepository;
   milestones: LifecycleMilestoneRepository;
   reviews: ProbationReviewRepository;
+  deactivationRequests: HrIdentityDeactivationRequestRepository;
 }
 
 export function createLifecycleCaseService(deps: {

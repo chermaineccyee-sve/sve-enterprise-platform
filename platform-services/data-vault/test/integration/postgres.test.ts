@@ -156,7 +156,7 @@ test("Data Vault end-to-end through real Postgres: entity isolation, classificat
     const rbacRepo = createPgRbacRepository(db);
     const dataVaultRepo = createPgDataVaultRepository(db);
     const auditRepo = createPgAuditRepository(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const dataVault = createDataVaultService({ dataVault: dataVaultRepo, rbac, organisation, audit });
     const entities = await organisation.listLegalEntities();

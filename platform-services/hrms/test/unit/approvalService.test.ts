@@ -43,7 +43,7 @@ function createFakePort() {
 }
 
 async function buildApprovalDeps(deps: Awaited<ReturnType<typeof setup>>, fakePort: WorkflowSubmissionPort) {
-  const rbac = createRbacService({ rbac: deps.rbacRepo, organisation: deps.organisation });
+  const rbac = createRbacService({ rbac: deps.rbacRepo, organisation: deps.organisation, users: deps.users });
   const audit = createAuditService({ audit: createInMemoryAuditRepository(deps.identityStore) });
   return createApprovalService({
     cases: deps.caseRepo,

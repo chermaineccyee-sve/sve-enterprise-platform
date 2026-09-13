@@ -21,6 +21,7 @@ import { createPgRbacRepository } from "../../../identity/src/repositories/postg
 import { createPgSessionRepository } from "../../../identity/src/repositories/postgres/pgSessionRepository.ts";
 import { createPgAuditRepository } from "../../../identity/src/repositories/postgres/pgAuditRepository.ts";
 import { createSessionService, type SessionService } from "../../../identity/src/services/sessionService.ts";
+import { createPgUserSecurityTransaction } from "../../../identity/src/repositories/postgres/pgUserSecurityTransaction.ts";
 import { createRbacService, type RbacService } from "../../../identity/src/services/rbacService.ts";
 import { createAuditService, type AuditService } from "../../../identity/src/services/auditService.ts";
 import { createActorResolutionService, type ActorResolutionService } from "../../../identity/src/services/actorResolutionService.ts";
@@ -64,8 +65,8 @@ export async function createWorkflowContainer(db: DatabaseProvider): Promise<Wor
   const sessionRepo = createPgSessionRepository(db);
   const auditRepo = createPgAuditRepository(db);
 
-  const sessions = createSessionService({ sessions: sessionRepo });
-  const rbac = createRbacService({ rbac: rbacRepo, organisation });
+  const sessions = createSessionService({ sessions: sessionRepo, users, transactions: createPgUserSecurityTransaction(db) });
+  const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
   const audit = createAuditService({ audit: auditRepo });
   const actorResolution = createActorResolutionService({ rbac: rbacRepo, rbacService: rbac, users });
 
@@ -90,7 +91,7 @@ export async function createWorkflowContainer(db: DatabaseProvider): Promise<Wor
 
   const definitions = createDefinitionService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, rbac, audit, transactions, systemActions });
   const instances = createInstanceService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, instances: instanceRepo, tasks: taskRepo, events: eventRepo, organisation, users, rbac, audit, transactions, engine });
-  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, taskCandidates: taskCandidateRepo, rbac, audit, transactions, engine });
+  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, taskCandidates: taskCandidateRepo, rbac, users, audit, transactions, engine });
   const escalations = createEscalationService({ tasks: taskRepo, instances: instanceRepo, users, orgAssignments: orgContainer.assignments, rbac, transactions });
 
   return { users, organisation, sessions, rbac, audit, orgContainer, actorResolution, systemActions, engine, definitions, instances, tasks, escalations };

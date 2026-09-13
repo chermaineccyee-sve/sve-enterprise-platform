@@ -19,6 +19,7 @@ import { createPgRbacRepository } from "../../../identity/src/repositories/postg
 import { createPgSessionRepository } from "../../../identity/src/repositories/postgres/pgSessionRepository.ts";
 import { createPgAuditRepository } from "../../../identity/src/repositories/postgres/pgAuditRepository.ts";
 import { createSessionService, type SessionService } from "../../../identity/src/services/sessionService.ts";
+import { createPgUserSecurityTransaction } from "../../../identity/src/repositories/postgres/pgUserSecurityTransaction.ts";
 import { createRbacService, type RbacService } from "../../../identity/src/services/rbacService.ts";
 import { createAuditService, type AuditService } from "../../../identity/src/services/auditService.ts";
 import type { UserRepository, OrganisationRepository } from "../../../identity/src/repositories/types.ts";
@@ -54,8 +55,8 @@ export async function createOrganisationContainer(db: DatabaseProvider): Promise
   const employeeCreation = createPgEmployeeCreationTransaction(db);
   const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
 
-  const sessions = createSessionService({ sessions: sessionRepo });
-  const rbac = createRbacService({ rbac: rbacRepo, organisation });
+  const sessions = createSessionService({ sessions: sessionRepo, users, transactions: createPgUserSecurityTransaction(db) });
+  const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
   const audit = createAuditService({ audit: auditRepo });
 
   const employees = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });

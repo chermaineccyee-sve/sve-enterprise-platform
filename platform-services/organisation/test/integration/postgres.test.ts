@@ -231,7 +231,7 @@ test("Organisation end-to-end through real Postgres: SK Lai & Partners requires 
     const orgStructureRepo = createPgOrgStructureRepository(db);
     const employeeRepo = createPgEmployeeRepository(db);
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
@@ -327,7 +327,7 @@ test("Transactional employee creation: a successful creation commits both the em
     const orgStructureRepo = createPgOrgStructureRepository(db);
     const employeeRepo = createPgEmployeeRepository(db);
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
@@ -359,7 +359,7 @@ test("Transactional employee creation: a forced initial-assignment failure (inva
     const orgStructureRepo = createPgOrgStructureRepository(db);
     const employeeRepo = createPgEmployeeRepository(db);
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
@@ -402,7 +402,7 @@ test("Transactional employee creation: a duplicate work_email constraint failure
     const orgStructureRepo = createPgOrgStructureRepository(db);
     const employeeRepo = createPgEmployeeRepository(db);
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
@@ -444,7 +444,7 @@ test("Transactional employee creation: audit never records a completed creation 
     const orgStructureRepo = createPgOrgStructureRepository(db);
     const employeeRepo = createPgEmployeeRepository(db);
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
@@ -501,7 +501,7 @@ test("Reporting-cycle concurrency: two simultaneous, mutually-adversarial report
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
     const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
@@ -586,7 +586,7 @@ test("Reporting-cycle concurrency: self-reporting, ordinary multi-hop cycle dete
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
     const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
@@ -688,7 +688,7 @@ test("Current manager assignment integrity: reporting to the manager's current (
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
     const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
@@ -718,7 +718,7 @@ test("Current manager assignment integrity: reporting to a manager's CLOSED (his
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
     const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
@@ -757,7 +757,7 @@ test("Current manager assignment integrity: a nonexistent manager assignment id 
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
     const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
@@ -805,7 +805,7 @@ test("Current manager assignment integrity: self-reporting and cycle protection 
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
     const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
@@ -849,7 +849,7 @@ test("Current manager assignment integrity: a closed historical assignment retai
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
     const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
@@ -897,7 +897,7 @@ test("Current manager assignment integrity: a transfer/promotion can establish a
     const assignmentRepo = createPgEmploymentAssignmentRepository(db);
     const employeeCreation = createPgEmployeeCreationTransaction(db);
     const assignmentTransactions = createPgEmploymentAssignmentTransaction(db);
-    const rbac = createRbacService({ rbac: rbacRepo, organisation });
+    const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
     const audit = createAuditService({ audit: auditRepo });
     const employeeService = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, employeeCreation });
     const assignmentService = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });

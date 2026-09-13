@@ -332,6 +332,20 @@ A, chosen over deterministically picking one assignee)**:
    (`reassignTask()`, §16) — never an implicit consequence of a role
    change elsewhere in the system.
 
+   **Review correction (PR #10 — identity-offboarding-revocation)**: this
+   deliberate snapshot-and-never-re-check behaviour is correct for
+   role/permission DRIFT, but it also meant `decide()`/`completeTask()`
+   never re-checked whether the actor's Identity account was still
+   `active` — a disabled approver could still decide a task, since
+   `checkEligibility()` never calls `rbac.authorize()` (which does check
+   account status centrally, PR #10) at all. Fixed by adding a separate,
+   minimal `requireActiveAccount()` check, called right after
+   `checkEligibility()` in both `decide()` and `completeTask()` —
+   account status is a different axis from role/permission stability, not
+   an exception to this section's own rule. See docs/architecture/
+   identity-offboarding-revocation.md §13 for the full write-up and the
+   real-Postgres test that proved the gap before fixing it.
+
 ## 14. Actor resolution timing
 
 **Step-activation time**, not instance-start time (brief item 14's

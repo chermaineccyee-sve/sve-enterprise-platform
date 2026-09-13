@@ -1,5 +1,5 @@
 import type { DatabaseProvider } from "../../../../../packages/shared/src/DatabaseProvider.ts";
-import type { LifecycleTransaction, LifecycleCaseRepository, LifecycleEventRepository, LifecycleMilestoneRepository, ProbationReviewRepository } from "../types.ts";
+import type { LifecycleTransaction, LifecycleCaseRepository, LifecycleEventRepository, LifecycleMilestoneRepository, ProbationReviewRepository, HrIdentityDeactivationRequestRepository } from "../types.ts";
 
 /** No real Postgres connection exists in-memory — callers that need cross-package transaction-scoping (employment-change/offboarding completion) reuse the shared in-memory Organisation service directly instead of binding to this. Any attempt to actually use it as a DatabaseProvider is a test wiring bug. */
 const NO_REAL_CONNECTION: DatabaseProvider = {
@@ -17,6 +17,7 @@ export function createInMemoryLifecycleTransaction(deps: {
   events: LifecycleEventRepository;
   milestones: LifecycleMilestoneRepository;
   reviews: ProbationReviewRepository;
+  deactivationRequests: HrIdentityDeactivationRequestRepository;
 }): LifecycleTransaction {
   return {
     async run(fn) {

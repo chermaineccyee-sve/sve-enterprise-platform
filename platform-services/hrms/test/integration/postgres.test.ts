@@ -37,7 +37,7 @@ function buildContainer(db: Parameters<typeof createPgUserRepository>[0]) {
   const organisation = createPgOrganisationRepository(db);
   const rbacRepo = createPgRbacRepository(db);
   const auditRepo = createPgAuditRepository(db);
-  const rbac = createRbacService({ rbac: rbacRepo, organisation });
+  const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
   const audit = createAuditService({ audit: auditRepo });
 
   const orgStructureRepo = createPgOrgStructureRepository(db);
@@ -69,7 +69,7 @@ function buildContainer(db: Parameters<typeof createPgUserRepository>[0]) {
   const onboarding = createOnboardingService({ lifecycle });
   const probation = createProbationService({ lifecycle, cases: caseRepo, reviews: reviewRepo, organisation, rbac, audit });
   const employmentChange = createEmploymentChangeService({ lifecycle });
-  const offboarding = createOffboardingService({ lifecycle });
+  const offboarding = createOffboardingService({ lifecycle, users });
 
   return { users, organisation, rbacRepo, rbac, audit, employees, orgAssignments, caseRepo, eventRepo, reviewRepo, lifecycle, onboarding, probation, employmentChange, offboarding };
 }

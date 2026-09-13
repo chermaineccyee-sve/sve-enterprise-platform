@@ -86,6 +86,19 @@ User + session (userId)
 - An Administrator role holding only `system.users.manage` does **not** automatically gain `payroll.salary.view` merely by being Administrator and having Group-wide entity access — the permission was simply never granted to that role.
 - Revoking a role assignment or an entity access grant takes effect immediately (both are re-queried, never cached, on every `authorize()` call).
 
+**Review correction (PR #10 — identity-offboarding-revocation)**:
+`authorize()` did not itself consult `users.status` — a disabled account
+whose role assignments were never explicitly revoked would still pass
+every permission check. Fixed centrally: `authorize()` now denies
+immediately, before any role/permission/entity-access evaluation, when
+the ACTOR's own account exists and is `disabled` (never merely because no
+`users` row exists — see docs/architecture/identity-offboarding-
+revocation.md §3's carve-out reasoning). This reaches every package's own
+permission checks through this one function, with no per-package edits —
+see that doc's "Central active-account invariant" for the full write-up,
+including the one place (Workflow's task-decision eligibility) that
+deliberately bypasses `authorize()` and needed its own, separate fix.
+
 ## Permissions and record-classification-aware authorization
 
 Every `permission` carries a `max_classification` (`PUBLIC` ≤ `INTERNAL` ≤ `CONFIDENTIAL` ≤ `RESTRICTED` ≤ `PRIVILEGED`, matching `docs/architecture/security-architecture.md`'s levels). This is what makes "System Admin ≠ HR ≠ Finance ≠ Management" enforceable rather than just documented: a permission meant for system administration would typically be capped at `INTERNAL`, so even if an Administrator somehow held a payroll-shaped permission by mistake, that permission's own ceiling — not a role check — would need to explicitly allow `RESTRICTED` for a salary record to be reachable. The ceiling lives on the permission, not on the role, so it can't be bypassed by inventing a new role that reuses an existing under-scoped permission.
@@ -99,6 +112,17 @@ This foundation does not create any HRMS/Payroll/Accounting-specific permissions
 **Session tokens**: a 256-bit random bearer token (`crypto.randomBytes(32)`, base64url-encoded) is generated at login and returned to the client exactly once. Only its SHA-256 hash is stored (`sessions.token_hash`), so a database read alone can never yield a usable session token — this mirrors the same "hash, don't store raw" principle recovery codes use, and means a leaked database backup does not equal leaked live sessions. Validation looks up by hash and constant-time-compares are not needed for the lookup itself (an indexed equality lookup), but `crypto.timingSafeEqual` is used wherever a stored hash is compared against a freshly computed one for a match decision (see `src/crypto/token.ts`).
 
 Implemented operations (`src/services/sessionService.ts`, all tested against both an in-memory fake and real Postgres): `createSession`, `validateSession` (rejects not-found/expired/revoked, each verified by a dedicated test), `revokeSession`, `revokeAllSessionsForUser`, `listActiveSessions`, `expireDueSessions`.
+
+**PR #10 addition**: both `createSession` and `validateSession` now also
+check the owning account's status, inside a transaction that locks the
+same `users` row `accountSecurityService.disableAccount()` locks — this
+closes the login/session-creation race against a concurrent disable (a
+session must never become usable if it is created concurrently with, or
+immediately after, a disable transaction commits) and gives
+`validateSession()` a defense-in-depth backstop independent of session
+revocation actually having run. See docs/architecture/
+identity-offboarding-revocation.md §3, §9, §11 for the full design and
+the real-Postgres race test that proves it.
 
 **Known foundation-scope limitation**: `expireDueSessions` is a function to call (e.g. from a scheduled job), not a background timer this PR runs itself — no scheduler/cron was introduced, to avoid infrastructure this PR doesn't need yet.
 

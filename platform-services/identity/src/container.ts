@@ -29,6 +29,8 @@ import { createRbacService, type RbacService } from "./services/rbacService.ts";
 import { createMfaService, type MfaService } from "./services/mfaService.ts";
 import { createRateLimiter, type RateLimiter } from "./services/rateLimiter.ts";
 import { createAuditService, type AuditService } from "./services/auditService.ts";
+import { createAccountSecurityService, type AccountSecurityService } from "./services/accountSecurityService.ts";
+import { createPgUserSecurityTransaction } from "./repositories/postgres/pgUserSecurityTransaction.ts";
 import { createEnvSecretsProvider } from "./config/envSecretsProvider.ts";
 import { loadMfaEncryptionKey } from "./crypto/mfaSecretCipher.ts";
 import type { UserRepository, OrganisationRepository } from "./repositories/types.ts";
@@ -42,6 +44,7 @@ export interface Container {
   mfa: MfaService;
   rateLimiter: RateLimiter;
   audit: AuditService;
+  accountSecurity: AccountSecurityService;
 }
 
 /**
@@ -64,12 +67,15 @@ export async function createContainer(db: DatabaseProvider, opts?: { secrets?: S
   const attemptRepo = createPgAttemptRepository(db);
   const auditRepo = createPgAuditRepository(db);
 
+  const userSecurityTransactions = createPgUserSecurityTransaction(db);
+
   const mfa = createMfaService({ mfa: mfaRepo, encryptionKey: mfaEncryptionKey });
   const rateLimiter = createRateLimiter({ attempts: attemptRepo });
-  const sessions = createSessionService({ sessions: sessionRepo });
-  const rbac = createRbacService({ rbac: rbacRepo, organisation });
+  const sessions = createSessionService({ sessions: sessionRepo, users, transactions: userSecurityTransactions });
+  const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
   const audit = createAuditService({ audit: auditRepo });
   const auth = createAuthService({ users, attempts: attemptRepo, mfa, rateLimiter });
+  const accountSecurity = createAccountSecurityService({ users, rbac, transactions: userSecurityTransactions });
 
-  return { users, organisation, auth, sessions, rbac, mfa, rateLimiter, audit };
+  return { users, organisation, auth, sessions, rbac, mfa, rateLimiter, audit, accountSecurity };
 }

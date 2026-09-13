@@ -10,23 +10,26 @@
  * lifecycleCaseService.completeCaseWithAuthoritativeWrite — see docs/
  * architecture/hrms-employee-lifecycle.md "Transaction boundaries"): (1)
  * ends the authoritative employment assignment through Organisation, (2)
- * updates the case's own lifecycle/outcome, and (3) records an
- * `identity_deactivation_requested` EVENT — it never calls any Identity
- * mutation API and never deletes anything. If any step fails, all of it
- * rolls back together: Organisation's assignment end is never left
- * committed against a case that failed to complete. Actually
- * orchestrating the deactivation follow-up is left to a human
- * administrator or a future Workflow/Approval service; this establishes
- * the safe boundary (a durable, auditable request) without performing the
- * deactivation itself.
+ * updates the case's own lifecycle/outcome, (3) records an
+ * `identity_deactivation_requested` EVENT, and (4, PR #10) — if the
+ * employee has a currently-linked, active Identity user — inserts a
+ * durable `hr_identity_deactivation_requests` row in the SAME transaction,
+ * so a committed request event never exists without a corresponding
+ * durable row to process (see docs/architecture/identity-offboarding-
+ * revocation.md "Deactivation request lifecycle"). This file still never
+ * calls any Identity mutation API and never deletes anything — actual
+ * revocation is `integrations/identityDeactivationProcessor.ts`'s job, a
+ * deliberately separate, later, independently-retryable step (PR #10
+ * §13/§14), not part of this transaction.
  */
 import type { LifecycleCaseService } from "./lifecycleCaseService.ts";
 import { PERMISSIONS, type ActorContext } from "./access.ts";
 import type { EmploymentAssignment } from "../../../organisation/src/domain/employee.ts";
+import type { UserRepository } from "../../../identity/src/repositories/types.ts";
 import { ValidationError } from "../domain/errors.ts";
 import type { HrLifecycleCase, CreateMilestoneInput, HrLifecycleMilestone, MilestoneStatus } from "../domain/lifecycle.ts";
 
-export function createOffboardingService(deps: { lifecycle: LifecycleCaseService }) {
+export function createOffboardingService(deps: { lifecycle: LifecycleCaseService; users: UserRepository }) {
   return {
     async createOffboardingCase(
       actor: ActorContext,
@@ -101,6 +104,17 @@ export function createOffboardingService(deps: { lifecycle: LifecycleCaseService
           // A durable, auditable REQUEST — never an actual Identity
           // mutation. See this file's header comment.
           await repos.events.append({ caseId, eventType: "identity_deactivation_requested", eventData: { employeeId: lockedCase.employeeId }, recordedBy: actor.userId });
+
+          // PR #10: the durable request row the processor consumes,
+          // created atomically alongside the event above. Only when the
+          // employee currently has an ACTIVE Identity link — a contractor
+          // or employee who never had an Identity account has nothing to
+          // revoke, and this deliberately never creates a request with no
+          // real target.
+          const link = await deps.users.findActiveLinkByEmployeeId(lockedCase.employeeId);
+          if (link) {
+            await repos.deactivationRequests.create({ caseId, employeeId: lockedCase.employeeId, targetUserId: link.userId, requestedBy: actor.userId, reasonCategory: "hrms_offboarding" });
+          }
         },
         executionContext,
       );

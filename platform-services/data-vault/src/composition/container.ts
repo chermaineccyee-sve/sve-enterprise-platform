@@ -23,6 +23,7 @@ import { createPgRbacRepository } from "../../../identity/src/repositories/postg
 import { createPgSessionRepository } from "../../../identity/src/repositories/postgres/pgSessionRepository.ts";
 import { createPgAuditRepository } from "../../../identity/src/repositories/postgres/pgAuditRepository.ts";
 import { createSessionService, type SessionService } from "../../../identity/src/services/sessionService.ts";
+import { createPgUserSecurityTransaction } from "../../../identity/src/repositories/postgres/pgUserSecurityTransaction.ts";
 import { createRbacService, type RbacService } from "../../../identity/src/services/rbacService.ts";
 import { createAuditService, type AuditService } from "../../../identity/src/services/auditService.ts";
 import { createEnvSecretsProvider } from "../../../identity/src/config/envSecretsProvider.ts";
@@ -55,8 +56,8 @@ export async function createDataVaultContainer(db: DatabaseProvider, opts?: { se
   const auditRepo = createPgAuditRepository(db);
   const dataVaultRepo = createPgDataVaultRepository(db);
 
-  const sessions = createSessionService({ sessions: sessionRepo });
-  const rbac = createRbacService({ rbac: rbacRepo, organisation });
+  const sessions = createSessionService({ sessions: sessionRepo, users, transactions: createPgUserSecurityTransaction(db) });
+  const rbac = createRbacService({ rbac: rbacRepo, organisation, users });
   const audit = createAuditService({ audit: auditRepo });
   const dataVault = createDataVaultService({ dataVault: dataVaultRepo, rbac, organisation, audit });
 

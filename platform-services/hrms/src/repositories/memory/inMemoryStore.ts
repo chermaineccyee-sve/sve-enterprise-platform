@@ -1,4 +1,4 @@
-import type { HrLifecycleCase, HrLifecycleEvent, HrLifecycleMilestone, HrProbationReview } from "../../domain/lifecycle.ts";
+import type { HrLifecycleCase, HrLifecycleEvent, HrLifecycleMilestone, HrProbationReview, HrIdentityDeactivationRequest } from "../../domain/lifecycle.ts";
 
 /** This package's own isolated in-memory store — mirrors platform-services/organisation's inMemoryStore.ts. Does not merge with Identity's or Organisation's own in-memory stores. */
 export interface InMemoryStore {
@@ -6,9 +6,10 @@ export interface InMemoryStore {
   events: HrLifecycleEvent[];
   milestones: HrLifecycleMilestone[];
   probationReviews: HrProbationReview[];
+  deactivationRequests: HrIdentityDeactivationRequest[];
   caseNumberSeq: number;
 }
 
 export function createInMemoryStore(): InMemoryStore {
-  return { cases: [], events: [], milestones: [], probationReviews: [], caseNumberSeq: 0 };
+  return { cases: [], events: [], milestones: [], probationReviews: [], deactivationRequests: [], caseNumberSeq: 0 };
 }

@@ -9,6 +9,8 @@ import type {
   HrLifecycleEvent,
   HrLifecycleMilestone,
   HrProbationReview,
+  HrIdentityDeactivationRequest,
+  DeactivationRequestStatus,
   LifecycleStatus,
   LifecycleEventType,
   MilestoneStatus,
@@ -81,6 +83,32 @@ export interface ProbationReviewRepository {
 }
 
 /**
+ * PR #10: the durable request row for controlled Identity account
+ * revocation — see domain/lifecycle.ts's HrIdentityDeactivationRequest
+ * doc comment. `create` is called ONLY from offboardingService's own
+ * completion `additionalWrites`, in the SAME transaction as the case's
+ * COMPLETED write. `findByIdForUpdate`/`markCompleted`/`recordFailedAttempt`
+ * are called only from identityDeactivationProcessor.ts.
+ */
+export interface HrIdentityDeactivationRequestRepository {
+  create(input: { caseId: string; employeeId: string; targetUserId: string; requestedBy: string; reasonCategory?: string }): Promise<HrIdentityDeactivationRequest>;
+  findById(id: string): Promise<HrIdentityDeactivationRequest | null>;
+  /** Row-level `SELECT ... FOR UPDATE` lock on the real Postgres implementation — serializes two workers processing the SAME request (Race A). In-memory behaves exactly like findById. */
+  findByIdForUpdate(id: string): Promise<HrIdentityDeactivationRequest | null>;
+  listByStatus(status: DeactivationRequestStatus): Promise<HrIdentityDeactivationRequest[]>;
+  markCompleted(id: string): Promise<HrIdentityDeactivationRequest>;
+  /**
+   * Records a failed processing attempt as METADATA ONLY — failureReason,
+   * attemptCount + 1, lastAttemptedAt — and deliberately does NOT change
+   * status away from "REQUESTED". This is what keeps the row inside
+   * listByStatus("REQUESTED") and therefore eligible for the very next
+   * processAllPending() sweep with no separate retry path. Never call
+   * this on a row whose status is already "COMPLETED".
+   */
+  recordFailedAttempt(id: string, failureReason: string): Promise<HrIdentityDeactivationRequest>;
+}
+
+/**
  * Runs case creation + its initial event atomically — mirrors
  * platform-services/organisation's EmployeeCreationTransaction (PR #6's
  * lesson: authoritative multi-row writes must be atomic). See docs/
@@ -98,5 +126,10 @@ export interface ProbationReviewRepository {
  * in-memory Organisation service directly instead.
  */
 export interface LifecycleTransaction {
-  run<T>(fn: (repos: { cases: LifecycleCaseRepository; events: LifecycleEventRepository; milestones: LifecycleMilestoneRepository; reviews: ProbationReviewRepository }, tx: DatabaseProvider) => Promise<T>): Promise<T>;
+  run<T>(
+    fn: (
+      repos: { cases: LifecycleCaseRepository; events: LifecycleEventRepository; milestones: LifecycleMilestoneRepository; reviews: ProbationReviewRepository; deactivationRequests: HrIdentityDeactivationRequestRepository },
+      tx: DatabaseProvider,
+    ) => Promise<T>,
+  ): Promise<T>;
 }

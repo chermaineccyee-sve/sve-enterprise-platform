@@ -16,7 +16,7 @@ import { createHmac } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { requireDataVaultActor } from "../../src/api/middleware/dataVaultActor.ts";
 import { CsrfOriginRejectedError } from "../../src/domain/errors.ts";
-import { SessionInvalidError, IdentityNotProvisionedError } from "../../../identity/src/domain/errors.ts";
+import { SessionInvalidError, IdentityNotProvisionedError, AccountDisabledError } from "../../../identity/src/domain/errors.ts";
 import type { DataVaultContainer } from "../../src/composition/container.ts";
 import type { User } from "../../../identity/src/domain/entities.ts";
 
@@ -150,6 +150,7 @@ test("5. native bearer-token requests are never subject to the origin check, eve
     } as DataVaultContainer["sessions"],
     users: {
       findById: async () => activeUser,
+      findByIdForUpdate: async () => activeUser,
       findByEmail: async () => null,
       createUser: async () => {
         throw new Error("not used");
@@ -191,6 +192,7 @@ test("an unprovisioned SVEGIP-authenticated caller (trusted origin, no matching 
   const container = fakeContainer({
     users: {
       findById: async () => null,
+      findByIdForUpdate: async () => null,
       findByEmail: async () => null,
       createUser: async () => {
         throw new Error("not used");
@@ -210,4 +212,31 @@ test("an unprovisioned SVEGIP-authenticated caller (trusted origin, no matching 
   });
   const req = fakeReq({ method: "POST", headers: { cookie: buildCookie("unprovisioned@example.test"), origin: TRUSTED_ORIGIN } });
   await assert.rejects(() => requireDataVaultActor(req, container), IdentityNotProvisionedError);
+});
+
+test("PR #10: a disabled Identity user authenticated via the transitional SVEGIP cookie bridge is denied — the central active-account invariant reaches this path too, even though it never touches an Identity session", async () => {
+  const disabledUser = { id: "user-disabled", email: "disabled@example.test", accountType: "employee" as const, status: "disabled" as const, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  const container = fakeContainer({
+    users: {
+      findById: async () => null,
+      findByIdForUpdate: async () => null,
+      findByEmail: async () => disabledUser,
+      createUser: async () => {
+        throw new Error("not used");
+      },
+      setStatus: async () => {},
+      setCredential: async () => {},
+      getCredential: async () => null,
+      linkEmployee: async () => {
+        throw new Error("not used");
+      },
+      findActiveLinkByUserId: async () => null,
+      findActiveLinkByEmployeeId: async () => null,
+      unlinkEmployee: async () => {
+        throw new Error("not used");
+      },
+    } as DataVaultContainer["users"],
+  });
+  const req = fakeReq({ method: "POST", headers: { cookie: buildCookie("disabled@example.test"), origin: TRUSTED_ORIGIN } });
+  await assert.rejects(() => requireDataVaultActor(req, container), AccountDisabledError);
 });

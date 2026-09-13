@@ -25,6 +25,9 @@ export function createInMemoryUserRepository(store: InMemoryStore): UserReposito
     async findById(id: string): Promise<User | null> {
       return store.users.find((u) => u.id === id) ?? null;
     },
+    async findByIdForUpdate(id: string): Promise<User | null> {
+      return store.users.find((u) => u.id === id) ?? null;
+    },
     async setStatus(userId: string, status: "active" | "disabled"): Promise<void> {
       const user = store.users.find((u) => u.id === userId);
       if (user) {

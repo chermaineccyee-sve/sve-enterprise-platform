@@ -3,13 +3,19 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createInMemoryStore } from "../../src/repositories/memory/inMemoryStore.ts";
 import { createInMemorySessionRepository } from "../../src/repositories/memory/inMemorySessionRepository.ts";
+import { createInMemoryUserRepository } from "../../src/repositories/memory/inMemoryUserRepository.ts";
+import { createInMemoryAuditRepository } from "../../src/repositories/memory/inMemoryAuditRepository.ts";
+import { createInMemoryUserSecurityTransaction } from "../../src/repositories/memory/inMemoryUserSecurityTransaction.ts";
 import { createSessionService } from "../../src/services/sessionService.ts";
 import { SessionInvalidError } from "../../src/domain/errors.ts";
 
 function setup() {
   const store = createInMemoryStore();
   const sessions = createInMemorySessionRepository(store);
-  return { store, sessions, service: createSessionService({ sessions }) };
+  const users = createInMemoryUserRepository(store);
+  const audit = createInMemoryAuditRepository(store);
+  const transactions = createInMemoryUserSecurityTransaction({ users, sessions, audit });
+  return { store, sessions, users, service: createSessionService({ sessions, users, transactions }) };
 }
 
 test("createSession then validateSession returns the live session", async () => {
