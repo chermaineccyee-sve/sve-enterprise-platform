@@ -168,5 +168,16 @@ export function createPgRbacRepository(db: DatabaseProvider): RbacRepository {
       );
       return result.rows.map(mapGrant);
     },
+    async listActiveUserIdsForPermission(permissionKey: string): Promise<string[]> {
+      const result = await db.query<{ user_id: string }>(
+        `SELECT DISTINCT ura.user_id
+         FROM user_role_assignments ura
+         JOIN role_permissions rp ON rp.role_id = ura.role_id
+         JOIN permissions p ON p.id = rp.permission_id
+         WHERE p.key = $1 AND ura.revoked_at IS NULL`,
+        [permissionKey],
+      );
+      return result.rows.map((r) => r.user_id);
+    },
   };
 }

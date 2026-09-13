@@ -332,3 +332,82 @@ jobs:
       - name: Run tests
         working-directory: platform-services/hrms
         run: npm test
+
+  validate-workflow:
+    name: Validate platform-services/workflow
+    runs-on: ubuntu-latest
+    # Same shared Postgres schema as Identity/Data Vault/Organisation/HRMS
+    # (this package's tables — workflow_definitions/versions/steps/
+    # instances/tasks/decisions/events/system_action_executions — are
+    # applied by the same migration runner, 005_workflow-approval-
+    # foundation) — see docs/architecture/workflow-approval-foundation.md
+    # "Module ownership and dependency direction".
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sve_identity
+          POSTGRES_PASSWORD: sve_identity_ci_only
+          POSTGRES_DB: sve_identity_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sve_identity"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://sve_identity:sve_identity_ci_only@localhost:5432/sve_identity_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            platform-services/identity/package-lock.json
+            platform-services/organisation/package-lock.json
+            platform-services/workflow/package-lock.json
+
+      # Workflow imports both platform-services/identity's Postgres
+      # repositories/session/RBAC/audit implementations AND
+      # platform-services/organisation's own composition root/services
+      # (for MANAGER routing/escalation via resolveDirectManagerUserId) by
+      # source path — same documented cross-package-import boundary as
+      # Data Vault, Organisation, and HRMS before it. Workflow deliberately
+      # does NOT depend on platform-services/hrms — see
+      # platform-services/workflow/README.md.
+      - name: Install platform-services/identity dependencies
+        working-directory: platform-services/identity
+        run: npm ci
+
+      - name: Install platform-services/organisation dependencies (Workflow imports its manager-routing service)
+        working-directory: platform-services/organisation
+        run: npm ci
+
+      - name: Install platform-services/workflow dependencies
+        working-directory: platform-services/workflow
+        run: npm ci
+
+      - name: Type-check
+        working-directory: platform-services/workflow
+        run: npm run typecheck
+
+      - name: Run migrations against the CI database
+        working-directory: platform-services/workflow
+        run: npm run migrate
+
+      # Real unit + integration tests — definition versioning/publish
+      # validation/immutability, concurrent version-numbering and
+      # concurrent-decision safety against real Postgres, sequential
+      # routing (USER/ROLE/MANAGER) via Organisation's manager-routing
+      # contract, no-self-approval and no-eligible-approver safe failure,
+      # registered-system-action-only execution with idempotency,
+      # RBAC/entity/classification enforcement (including SK Lai &
+      # Partners' privileged tier), escalation processing, mass-assignment
+      # and IDOR/existence-leak checks — against the real shared Postgres
+      # schema.
+      - name: Run tests
+        working-directory: platform-services/workflow
+        run: npm test

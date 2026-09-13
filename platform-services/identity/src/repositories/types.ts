@@ -69,6 +69,19 @@ export interface RbacRepository {
   }): Promise<EntityAccessGrant>;
   revokeEntityAccess(grantId: string, revokedBy: string): Promise<void>;
   listActiveEntityAccessGrants(userId: string): Promise<EntityAccessGrant[]>;
+  /**
+   * Every userId with a currently active (non-revoked) role assignment
+   * granting a role that carries this exact permission key — a coarse,
+   * classification/entity-blind candidate set. Consumers must still run
+   * each candidate through `RbacService.authorize()` (or an equivalent
+   * capability, e.g. `actorResolutionService.listEligibleActors()`) to
+   * apply classification ceiling and entity-access-grant coverage — this
+   * method alone is never sufficient for an authorization decision. See
+   * docs/architecture/identity-foundation.md "Actor resolution" and
+   * platform-services/workflow's ROLE-mode routing, this method's first
+   * consumer.
+   */
+  listActiveUserIdsForPermission(permissionKey: string): Promise<string[]>;
 }
 
 export interface SessionRepository {

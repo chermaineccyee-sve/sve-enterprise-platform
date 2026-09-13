@@ -277,6 +277,40 @@ export function createEmploymentAssignmentService(deps: {
       }
       return false;
     },
+
+    /**
+     * The Identity userId of `employeeId`'s current direct manager (via the
+     * SAME reporting-line resolution isDirectManagerOf walks — the
+     * assignment-level reportsToAssignmentId edge, falling back to the
+     * position-level reportsToPositionId edge), or null if none can be
+     * resolved (no current assignment, no manager assignment, or the
+     * manager has no active linked Identity user). Read-only, side-effect-
+     * free — exposed so other packages (e.g. platform-services/workflow's
+     * MANAGER routing/escalation, PR #8) can resolve a concrete approver
+     * identity without duplicating this package's authoritative
+     * reporting-line data. Returns an opaque userId, never assignment or
+     * position data, so it carries no classification concerns of its own;
+     * the caller still runs its own permission checks around the result.
+     */
+    async resolveDirectManagerUserId(employeeId: string): Promise<string | null> {
+      const targetAssignment = await deps.assignments.findCurrentPrimary(employeeId);
+      if (!targetAssignment) return null;
+
+      let managerAssignment: EmploymentAssignment | null = null;
+      if (targetAssignment.reportsToAssignmentId) {
+        managerAssignment = await deps.assignments.findById(targetAssignment.reportsToAssignmentId);
+      } else if (targetAssignment.positionId) {
+        const position = await deps.orgStructure.findPositionById(targetAssignment.positionId);
+        if (position?.reportsToPositionId) {
+          const holders = await deps.assignments.findByPositionId(position.reportsToPositionId, true);
+          managerAssignment = holders[0] ?? null;
+        }
+      }
+      if (!managerAssignment) return null;
+
+      const managerLink = await deps.users.findActiveLinkByEmployeeId(managerAssignment.employeeId);
+      return managerLink?.userId ?? null;
+    },
   };
 }
 

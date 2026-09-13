@@ -89,5 +89,12 @@ export function createInMemoryRbacRepository(store: InMemoryStore): RbacReposito
     async listActiveEntityAccessGrants(userId: string): Promise<EntityAccessGrant[]> {
       return store.entityAccessGrants.filter((g) => g.userId === userId && g.revokedAt === null);
     },
+    async listActiveUserIdsForPermission(permissionKey: string): Promise<string[]> {
+      const permission = store.permissions.find((p) => p.key === permissionKey);
+      if (!permission) return [];
+      const roleIds = new Set(store.rolePermissions.filter((rp) => rp.permissionId === permission.id).map((rp) => rp.roleId));
+      const userIds = new Set(store.roleAssignments.filter((a) => a.revokedAt === null && roleIds.has(a.roleId)).map((a) => a.userId));
+      return [...userIds];
+    },
   };
 }
