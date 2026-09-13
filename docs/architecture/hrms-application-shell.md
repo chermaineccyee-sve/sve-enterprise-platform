@@ -347,3 +347,49 @@ architecture, API, backend, or responsive-behaviour change):
 
 No new API calls were introduced except resolving `positions` through
 the reference-data endpoint already documented in §7 as available now.
+
+## 13. PR #12: Employee Master & My SVE operational foundation
+
+A follow-up focused on making Employee Directory/Profile/My SVE correct and
+complete against the real Employee Master, rather than adding new screens.
+Full backend rationale (the effective-dating fix, manager display
+resolution, the cross-entity guard) lives in
+`docs/architecture/organisation-employee-master.md` §21 — this section
+covers only the SVEGIP-side presentation changes.
+
+- **Employee Profile is now a real Employee Master view**: a header
+  (name, preferred name, employee number, resolved position/department/
+  legal entity, status) plus real tabs — Overview, Employment,
+  Organisation & Reporting, Lifecycle, History — switched client-side
+  (`hrmsSwitchProfileTab()`) from data already fetched for the screen,
+  never a re-fetch per tab. Employment and History are omitted entirely
+  (not shown empty) for a viewer without restricted-tier access to that
+  employee, since every field either tab shows is restricted-tier; the old
+  single decorative "Overview" tab button and the "Documents — Not
+  available in this release" section are both removed.
+- **"Reports To" now shows a resolved name and title** (e.g. "Eric Tang —
+  Chief Strategic & Planning Officer") via the new `managerDisplay` field,
+  or "Not assigned" — never the previous "Assigned"/"Not assigned"
+  placeholder, and never a raw assignment id.
+- **History is a merged, human-readable timeline** — the employee's
+  assignment history plus completed/cancelled HR lifecycle cases, sorted
+  chronologically (`hrmsProfileHistoryEvents()`) — built entirely from data
+  the Profile screen already fetches; see the architecture doc §21.4 for
+  why this is deliberately not a full event-sourced timeline.
+- **My SVE's identity summary now includes the legal entity** (e.g. "Jane
+  Tan · Strategic Business Management Consultant · SVE International Sdn.
+  Bhd. · Kuala Lumpur"), and My Employment gained Employment Type, Status,
+  Department, and Manager (via the same `managerDisplay` resolution) —
+  matching the brief's target employee-facing summary. My SVE remains
+  read-only: no field here was ever editable, and none was made editable
+  by this PR.
+- **Employee Directory, search, and reference-data loading are unchanged**
+  — PR #11's implementation (search by name/employee number, Legal
+  Entity/Business Unit/Department/Status filters, the Position column, the
+  "View Profile →" affordance, and PR#11's mobile-card responsive layout)
+  already met PR #12's brief in full; it automatically inherited the
+  effective-dating fix (§21.1) since it consumes the same `listEmployees()`
+  service call.
+- No new SVEGIP↔platform-services API surface was added beyond the fields
+  already present on the existing `/employees/:id` and `/employees/me`
+  responses (`managerDisplay`); no new Netlify proxy routes were needed.

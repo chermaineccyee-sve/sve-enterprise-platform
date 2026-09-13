@@ -102,6 +102,15 @@ export function createPgEmploymentAssignmentRepository(db: DatabaseProvider): Em
       );
       return result.rows[0] ? mapAssignment(result.rows[0]) : null;
     },
+    async findEffectiveAsOf(employeeId: string, asOfDate: string): Promise<EmploymentAssignment | null> {
+      const result = await db.query<AssignmentRow>(
+        `SELECT ${ASSIGNMENT_COLUMNS} FROM employment_assignments
+         WHERE employee_id = $1 AND is_primary = TRUE AND effective_from <= $2 AND (effective_to IS NULL OR effective_to >= $2)
+         ORDER BY effective_from DESC LIMIT 1`,
+        [employeeId, asOfDate],
+      );
+      return result.rows[0] ? mapAssignment(result.rows[0]) : null;
+    },
     async list(filter: AssignmentFilter): Promise<EmploymentAssignment[]> {
       const clauses: string[] = [];
       const params: unknown[] = [];

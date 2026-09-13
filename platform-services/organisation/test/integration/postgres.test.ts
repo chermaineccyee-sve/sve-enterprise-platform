@@ -114,6 +114,85 @@ test("Organisation: a non-primary (secondary) assignment can coexist with an ope
   });
 });
 
+// PR #12: findEffectiveAsOf must resolve by DATE-RANGE CONTAINMENT
+// (effective_from <= asOfDate <= effective_to-or-open), never by "which row
+// is still open" (that is findCurrentPrimary's own, deliberately different,
+// contract — see EmploymentAssignmentRepository.findEffectiveAsOf's
+// docstring). Exercised here against the REAL SQL, not the in-memory
+// fake, since this is exactly the kind of off-by-one/boundary logic that
+// reads correctly in memory but can still be wrong in a hand-written query.
+test("Organisation: findEffectiveAsOf resolves the assignment whose date range covers the given date — current, historical, and future-not-yet-effective", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const users = createPgUserRepository(db);
+    const organisation = createPgOrganisationRepository(db);
+    const employees = createPgEmployeeRepository(db);
+    const assignments = createPgEmploymentAssignmentRepository(db);
+    const admin = await users.createUser({ email: "org.pg.effectiveasof.admin@example.test", accountType: "employee" });
+    const [my] = await organisation.listLegalEntities();
+
+    const employee = await employees.create({ legalName: "Fictional Effective-Dating Test", employmentCountry: "MY", employeeNumber: "EMP-900010", createdBy: admin.id });
+    const original = await assignments.create({
+      employeeId: employee.id,
+      legalEntityId: my!.id,
+      employmentType: "full_time",
+      status: "ACTIVE",
+      isPrimary: true,
+      startDate: "2026-01-01",
+      effectiveFrom: "2026-01-01",
+      createdBy: admin.id,
+    } as never);
+    await assignments.closeAssignment(original.id, { effectiveTo: "2026-05-31", updatedBy: admin.id });
+    const current = await assignments.create({
+      employeeId: employee.id,
+      legalEntityId: my!.id,
+      employmentType: "full_time",
+      status: "ACTIVE",
+      isPrimary: true,
+      startDate: "2026-06-01",
+      effectiveFrom: "2026-06-01",
+      createdBy: admin.id,
+    } as never);
+
+    const beforeAnyAssignment = await assignments.findEffectiveAsOf(employee.id, "2025-12-31");
+    assert.equal(beforeAnyAssignment, null, "no assignment exists yet before the original hire's effective date");
+
+    const duringOriginal = await assignments.findEffectiveAsOf(employee.id, "2026-03-15");
+    assert.equal(duringOriginal?.id, original.id, "a date inside the historical (closed) row's range resolves to that row, not the current one");
+
+    const duringCurrent = await assignments.findEffectiveAsOf(employee.id, "2026-06-01");
+    assert.equal(duringCurrent?.id, current.id, "the boundary date itself (effective_from) resolves to the new row");
+
+    const wellIntoCurrent = await assignments.findEffectiveAsOf(employee.id, "2026-12-31");
+    assert.equal(wellIntoCurrent?.id, current.id, "an open-ended (effective_to IS NULL) row remains resolvable arbitrarily far into the future");
+
+    // Now introduce a future-dated transfer — findCurrentPrimary would
+    // incorrectly treat this as "current" the instant it is created, since
+    // it only checks effective_to IS NULL. findEffectiveAsOf must not.
+    await assignments.closeAssignment(current.id, { effectiveTo: "2027-05-31", updatedBy: admin.id });
+    const futureTransfer = await assignments.create({
+      employeeId: employee.id,
+      legalEntityId: my!.id,
+      employmentType: "full_time",
+      status: "ACTIVE",
+      isPrimary: true,
+      startDate: "2027-06-01",
+      effectiveFrom: "2027-06-01",
+      createdBy: admin.id,
+    } as never);
+
+    const stillDuringOldCurrent = await assignments.findEffectiveAsOf(employee.id, "2026-12-31");
+    assert.equal(stillDuringOldCurrent?.id, current.id, "the future transfer must not appear as effective before its own effective_from date");
+    const onceTransferIsEffective = await assignments.findEffectiveAsOf(employee.id, "2027-06-01");
+    assert.equal(onceTransferIsEffective?.id, futureTransfer.id, "once its own effective date arrives, the transfer correctly resolves as current");
+
+    // Meanwhile findCurrentPrimary — the write-pipeline's OWN, deliberately
+    // different concept — correctly still reports the future row as "the
+    // open one", which is exactly why it must never be reused for display.
+    const pipelineOpenRow = await assignments.findCurrentPrimary(employee.id);
+    assert.equal(pipelineOpenRow?.id, futureTransfer.id);
+  });
+});
+
 test("Organisation: self-reporting is rejected at the database level for positions (CHECK constraint)", { skip }, async () => {
   await withTestDb(async (db) => {
     const users = createPgUserRepository(db);

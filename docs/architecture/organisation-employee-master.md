@@ -819,9 +819,9 @@ and remain stable (5 consecutive full-suite runs, zero failures).
 - **Cross-package source imports remain a documented, intentional
   coupling** (§5), not a long-term architecture — the same open item
   already recorded for Data Vault, now shared by a third package.
-- **No SVEGIP bridge exists for this API** (§5) — if a future PR surfaces
-  Employee Master data inside `apps/svegip`, it will need Data Vault's
-  cookie-bridge + CSRF/origin-check pattern added here.
+- ~~**No SVEGIP bridge exists for this API**~~ — resolved by PR #11 (the
+  cookie-bridge + CSRF/origin-check pattern from Data Vault, replicated
+  here) and built on by PR #12 (§21).
 - **The manager/"team" read fallback is direct-reports only** — no
   indirect/skip-level visibility is implemented; a future iteration may
   need a bounded recursive variant once a real management-chain use case
@@ -925,3 +925,154 @@ incidentally also corrects.
 All three packages' full suites were run against a real Postgres database
 (and a clean-install simulation — fresh test database, `npm ci`, typecheck,
 migrate, test) before this PR was opened.
+
+## 21. PR #12: Employee Master & My SVE operational foundation
+
+PR #12's brief was explicit that this is **not** another broad HR module: it
+hardens the existing Employee Master into a reliable layer that SVEGIP's
+Employee Directory/Profile/My SVE consume today, and that Leave/Payroll/
+Payslips/iClaims/Performance are expected to consume LATER — as the SAME
+records, never a parallel copy. Inspection (recorded in the PR's own
+findings) confirmed the `Employee`/`EmploymentAssignment` schema (§6) and the
+existing Employee Master/HRMS lifecycle APIs already carry every field and
+capability this PR needed; no migration, no new tables, no new permission
+keys were required. Two real correctness gaps were found and fixed.
+
+### 21.1 Calendar-current vs. pipeline-current assignment resolution
+
+`EmploymentAssignmentRepository.findCurrentPrimary()` answers "which row is
+still open in the write pipeline" (`effective_to IS NULL AND is_primary`) —
+a concept the transition/termination write path (`createAssignment`/
+`endAssignment` in `employmentAssignmentService.ts`) genuinely needs: it must
+know which row to close before inserting a successor, regardless of that
+row's own dates. But every DISPLAY consumer — Employee Directory, Employee
+Profile, My SVE, `/employees/me` — was also using `findCurrentPrimary()` to
+answer a DIFFERENT question: "what is this employee's assignment as of
+today?" Since a future-dated transition is an intentionally supported
+feature (§18's `isCurrentAt()` already validates a new reporting edge
+against its own effective date, not today's), creating a future-dated
+transfer made it appear as "current" to every display screen the instant it
+was created — weeks or months before its own effective date arrived.
+
+The fix adds a second, genuinely date-aware repository method,
+`findEffectiveAsOf(employeeId, asOfDate)`
+(`WHERE employee_id = $1 AND is_primary = TRUE AND effective_from <= $2 AND
+(effective_to IS NULL OR effective_to >= $2) ORDER BY effective_from DESC
+LIMIT 1`), and switches `employeeService.ts`'s `getEmployee`/`listEmployees`
+(and, transitively, `getMyEmployee`) to it. `findCurrentPrimary()` itself is
+UNCHANGED and remains exactly what the write pipeline needs. The Workflow-
+facing manager-routing helpers (`isDirectManagerOf`/`resolveDirectManagerUserId`,
+PR #8) are also UNCHANGED — they intentionally keep asking "who currently
+holds this position/reporting edge in the pipeline," a routing question, not
+a display question, and are covered by their own PR #8 tests that must not
+regress. This is a narrow, additive fix: one new repository method, two
+call-site substitutions, zero behavior change to the write path.
+
+### 21.2 Manager display resolution vs. Workflow manager routing
+
+The API never returned a manager's identity as anything but a raw
+`reportsToAssignmentId` (an internal assignment id, not even an employee
+id) buried inside the restricted-tier assignment payload — unusable for a
+"Reports To" UI without leaking an internal identifier. PR #12 adds
+`resolveManagerDisplay()` in `employeeService.ts`: resolves the manager's
+assignment (via the same assignment-edge-then-position-edge fallback
+`isDirectManagerOf` uses, but as fresh, independent logic — never a call
+into the PR #8 Workflow-facing functions, which stay untouched per §21.1),
+then the manager's employee record, and returns only `{ name, title }` —
+never an id of any kind. The result is surfaced as `EmployeeView.
+managerDisplay` and, over HTTP, `restricted.managerDisplay`;
+`reportsToAssignmentId` itself is no longer serialized to any client.
+
+**Cross-entity guard:** naming a manager is itself a directory-level
+disclosure of the MANAGER's own record. `resolveManagerDisplay()` re-runs
+the same base `employee_master.read[.privileged]` check against the
+MANAGER's own legal entity/classification ceiling before returning a name —
+so a manager at SK Lai & Partners is never named to a caller who can see
+the report but lacks RESTRICTED/`.privileged` access to SK Lai & Partners
+itself, even though the report's own record is otherwise fully visible.
+The one exception is `bypassClassification`, used only when a caller is
+resolving THEIR OWN manager (My SVE / `getMyEmployee`) — mirroring the
+existing self-view bypass for an employee's own record — since an employee
+needs to see their own manager's name regardless of what HR-read permissions
+they hold. `managerDisplay: null` is deliberately ambiguous between "no
+manager" and "manager not visible to you"; the frontend renders both as
+"Not assigned", never distinguishing the two (the same IDOR-safe principle
+already used for employee existence elsewhere in this package).
+
+### 21.3 Employee Profile tab availability
+
+The Employee Profile's Employment and History tabs are omitted entirely
+(not rendered empty, not rendered with a placeholder) for a viewer without
+`canReadRestricted` for that employee, since every field either tab would
+show is restricted-tier. Overview and Organisation & Reporting remain
+available to any viewer who can see the record at all, since legal
+entity/business unit/department/position are directory-level fields. This
+mirrors the existing directory-vs-restricted masking model (§12) at the UI
+layer rather than introducing a new one.
+
+### 21.4 History/audit projection — smallest safe version
+
+A full unified, event-sourced employee timeline was explicitly out of
+scope. The History tab instead merges two sources ALREADY fetched for the
+Profile screen — no new API, no new backend model:
+
+- the employee's own effective-dated assignment rows (`/employees/:id/
+  assignments`), each labelled with its `changeReason` (or "Joined" for the
+  earliest row);
+- HRMS lifecycle cases (`/hrms/lifecycle/cases?employeeId=`) that have
+  reached `completedAt`/`cancelledAt`, labelled as "`<Lifecycle type>`
+  completed/cancelled".
+
+The two lists are merged and sorted client-side, in `apps/svegip/app.js`'s
+`hrmsProfileHistoryEvents()`. This deliberately does not attempt to surface
+every individual lifecycle EVENT (milestones, probation reviews, etc.) —
+that would require an additional fetch per case; if a future PR needs a
+fuller timeline, `HrLifecycleEvent` (already append-only and already
+exposed via `/hrms/lifecycle/cases/:id/events`) is the correct source to
+add, not a new audit model.
+
+### 21.5 HR Employee Master maintenance stays out of scope
+
+`updateEmployee` (legal name/preferred name/work email/personal email/
+employment country) and the assignment-transition APIs (`createAssignment`/
+`endAssignment`, §16–18) are real, safe, already-authorised mutation paths —
+but building a maintenance UI on top of them (a transfer/promotion form,
+a confirmation-date editor, etc.) is a distinct, sizeable feature in its
+own right, not a "small safe gap". Per the brief's own instruction, the
+Employee Profile stays READ-ONLY in PR #12 rather than exposing a partial
+edit surface. A future PR should build that maintenance workflow directly
+on these existing APIs — no new mutation endpoints are needed for it.
+
+### 21.6 Future modules consume this same Employee Master
+
+Leave, Attendance, Payroll, Payslips, iClaims, Performance, and Training —
+all explicitly out of scope for PR #12 — are expected to reference an
+employee by this package's `Employee.id` (and, where a specific
+assignment's terms matter, an `EmploymentAssignment.id`) exactly the way
+HRMS's lifecycle cases already do (§5), never maintain their own parallel
+employee/assignment record. No schema change was needed to support this in
+PR #12; it is recorded here so a future module's design starts from "join
+against Organisation's Employee Master" rather than re-deriving employee
+identity.
+
+### 21.7 Tests added
+
+`test/unit/employmentAssignmentService.test.ts`: a future-dated transfer
+does not appear as current before its effective date; a historical transfer
+resolves correctly; manager display resolves to name+title with no id of
+any kind; no-manager resolves to `null`; a caller viewing their own manager
+via `getMyEmployee` succeeds with zero HR permissions; a manager at SK Lai &
+Partners is not named to a caller without RESTRICTED/`.privileged` access to
+that entity; a privileged caller does see that same manager named correctly.
+`test/integration/postgres.test.ts`: `findEffectiveAsOf` against real
+Postgres — nothing before the first hire, correct resolution of a
+historical row, the boundary date itself, an open-ended row arbitrarily far
+into the future, a future-dated transfer NOT appearing as effective before
+its own date, and `findCurrentPrimary` confirmed to still (correctly, for
+its own purpose) report the future row as the pipeline-open one.
+`apps/svegip/test/employeeMaster.test.mjs`: Employment/History tab omission,
+all-tabs-present with restricted access, "Reports To" rendering (resolved
+and "Not assigned"), no raw id/UUID anywhere in rendered HTML for either the
+viewed employee or their manager, the merged History timeline, and My SVE
+showing the caller's own manager/department without exposing HR-only or
+audit terminology.

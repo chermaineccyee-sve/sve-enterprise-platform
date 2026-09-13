@@ -45,6 +45,21 @@ export interface EmploymentAssignmentRepository {
   create(input: CreateAssignmentInput & { employeeId: string; createdBy: string }): Promise<EmploymentAssignment>;
   findById(id: string): Promise<EmploymentAssignment | null>;
   findCurrentPrimary(employeeId: string): Promise<EmploymentAssignment | null>;
+  /**
+   * PR #12: the employee's primary assignment whose effective date range
+   * actually covers `asOfDate` — distinct from findCurrentPrimary's
+   * "still-open pipeline row", which a future-dated transition (an
+   * intentionally supported feature, see employmentAssignmentService.ts's
+   * isCurrentAt()) makes return prematurely. Every DISPLAY consumer of
+   * "the employee's current assignment" (Employee Directory, Employee
+   * Profile, My SVE, /employees/me) must use this, never
+   * findCurrentPrimary — see docs/architecture/organisation-employee-
+   * master.md "Calendar-current vs. pipeline-current assignment
+   * resolution". The write-path transition/termination logic keeps using
+   * findCurrentPrimary unchanged: it genuinely wants "the row still open
+   * in the pipeline" to know what to close, regardless of its date.
+   */
+  findEffectiveAsOf(employeeId: string, asOfDate: string): Promise<EmploymentAssignment | null>;
   list(filter: AssignmentFilter): Promise<EmploymentAssignment[]>;
   /** Ends the temporal validity of an assignment row (superseded by a transition, or a true employment end) — never a destructive update to its other business fields. `status` is accepted only so a true employment end (termination/resignation) can record the terminal status for that historical period; a transition close (superseded by a new row) omits it and leaves the row's prior status untouched. */
   closeAssignment(id: string, input: { effectiveTo: string; endDate?: string | null; status?: EmploymentStatus; updatedBy: string }): Promise<EmploymentAssignment>;

@@ -50,7 +50,7 @@ function serializeDirectory(employee: Employee, assignment: EmploymentAssignment
   };
 }
 
-function serializeRestricted(employee: Employee, assignment: EmploymentAssignment | null) {
+function serializeRestricted(employee: Employee, assignment: EmploymentAssignment | null, managerDisplay: { name: string; title: string | null } | null) {
   return {
     personalEmail: employee.personalEmail,
     status: employee.status,
@@ -64,17 +64,26 @@ function serializeRestricted(employee: Employee, assignment: EmploymentAssignmen
           endDate: assignment.endDate,
           effectiveFrom: assignment.effectiveFrom,
           effectiveTo: assignment.effectiveTo,
-          reportsToAssignmentId: assignment.reportsToAssignmentId,
+          // reportsToAssignmentId is deliberately NOT serialized — an
+          // internal assignment id is never sent to a frontend; managerDisplay
+          // below is the one supported representation of this edge.
           changeReason: assignment.changeReason,
         }
       : null,
+    // PR #12: "Reports To" as a human-readable name/title, never a raw id
+    // — see employeeService.ts's resolveManagerDisplay for the
+    // cross-entity classification guard behind this. null means either
+    // "no manager" or "not visible to you"; the caller shows "Not
+    // assigned" for both, by design (see docs/architecture/organisation-
+    // employee-master.md "Manager display resolution").
+    managerDisplay,
   };
 }
 
 function serializeView(view: EmployeeView) {
   return {
     ...serializeDirectory(view.employee, view.currentAssignment),
-    restricted: view.canReadRestricted ? serializeRestricted(view.employee, view.currentAssignment) : null,
+    restricted: view.canReadRestricted ? serializeRestricted(view.employee, view.currentAssignment, view.managerDisplay) : null,
   };
 }
 
