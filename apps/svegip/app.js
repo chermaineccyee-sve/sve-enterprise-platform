@@ -138,7 +138,7 @@ function sidebarMode(){
 function sidebarBrand(){
  const mode=sidebarMode();
  if(mode==="skl") return `<div class="brand unit-brand"><button class="back-group" onclick="goHome()">← SVE Group</button><div class="brand-logo-panel"><img src="assets/skl-logo.png" alt="SK Lai & Partners"></div><div><div class="brand-title">SK Lai & Partners</div><div class="brand-sub">Legal & Professional Services</div></div></div>`;
- if(mode==="hrms") return `<div class="brand unit-brand"><button class="back-group" onclick="goHome()">← SVE Group</button><div class="brand-logo-panel sve-small"><img src="assets/sve-logo.jpeg" alt="SVE Group"></div><div><div class="brand-title">People / HRMS</div><div class="brand-sub">SVE Group People Operations</div></div></div>`;
+ if(mode==="hrms") return `<div class="brand unit-brand"><button class="back-group" onclick="goHome()">← SVE Group</button><div class="brand-logo-panel sve-small"><img src="assets/sve-logo.jpeg" alt="SVE Group"></div><div><div class="brand-title">People</div><div class="brand-sub">SVE Group People Operations</div></div></div>`;
  if(mode==="sve") return `<div class="brand unit-brand"><button class="back-group" onclick="goHome()">← SVE Group</button><div class="brand-logo-panel sve-small"><img src="assets/sve-logo.jpeg" alt="SVE International"></div><div><div class="brand-title">SVE International</div><div class="brand-sub">Corporate & Business Operations</div></div></div>`;
  return `<div class="brand"><img src="assets/sve-logo.jpeg"><div><div class="brand-title">SVE Group Internal Portal</div><div class="brand-sub">Management Review v0.1</div></div></div>`;
 }
@@ -147,7 +147,7 @@ function sidebarNav(){
  if(mode==="skl") return `${navLabel("SKL WORKSPACE")}${permittedNav("skl","SKL Home")}${portalAllowed("projects")?nav("projects","Matters & Projects","skl"):""}${portalAllowed("governance")?nav("governance","SOP & Governance","skl"):""}${portalAllowed("documents")?nav("documents","Documents & Resources","skl"):""}<button onclick="openOurInsights()">Our Insights ↗</button>${navLabel("GROUP")}${permittedNav("home","Return to Group Home")}`;
  if(mode==="hrms") return `${navLabel("PEOPLE")}${permittedNav("hrms","HR Dashboard")}${permittedNav("hrmsDirectory","Employee Directory")}${navLabel("HR LIFECYCLE")}${hrmsLifecycleNavLink("onboarding","Onboarding")}${hrmsLifecycleNavLink("probation","Probation & Confirmation")}${hrmsLifecycleNavLink("employment_change","Employment Changes")}${hrmsLifecycleNavLink("offboarding","Offboarding")}${permittedNav("hrmsApprovals","Approvals")}${navLabel("GROUP")}${permittedNav("home","Return to Group Home")}`;
  if(mode==="sve") return `${navLabel("SVE INTERNATIONAL")}${permittedNav("sve","SVE Home")}${permittedNav("executive","Executive Office")}${permittedNav("projects","Projects & Clients")}${permittedNav("governance","Corporate Governance")}${permittedNav("documents","Knowledge & Documents")}${navLabel("GROUP")}${permittedNav("home","Return to Group Home")}`;
- return `${navLabel("MY WORKSPACE")}${permittedNav("mysve","My SVE")}${permittedNav("mytasks","My Tasks")}${navLabel("GROUP")}${permittedNav("home","Group Home")}${(session?.role==="Administrator"||session?.role==="Management"||session?.role==="Executive Office")?`${navLabel("GROUP MANAGEMENT & INTELLIGENCE")}<button onclick="openManagementCommandCentre()">Management Command Centre</button><button onclick="openUnifiedWorkflow()">Insight to Implementation</button><button onclick="openDecisionTracker()">Decision Tracker</button>`:""}${hasDataVaultAccess()?`${navLabel("INTELLIGENCE")}<button onclick="openDataVault()">SVE Data Vault ↗</button>`:""}${navLabel("PEOPLE")}${permittedNav("hrms","People / HRMS")}${navLabel("GROUP RESOURCES")}<button class="${active==='announcements'?'active':''}" onclick="showAnnouncements()">Group Announcements</button><button onclick="secureGo('documents')">Policies & Guidelines</button>${navLabel("BUSINESS UNITS")}${permittedNav("sve","SVE International")}${permittedNav("skl","SK Lai & Partners")}${canSeeAdmin()?`${navLabel("SYSTEM")}${permittedNav("admin","Administration")}`:""}`;
+ return `${navLabel("MY WORKSPACE")}${permittedNav("mysve","My SVE")}${permittedNav("mytasks","My Tasks")}${navLabel("GROUP")}${permittedNav("home","Group Home")}${(session?.role==="Administrator"||session?.role==="Management"||session?.role==="Executive Office")?`${navLabel("GROUP MANAGEMENT & INTELLIGENCE")}<button onclick="openManagementCommandCentre()">Management Command Centre</button><button onclick="openUnifiedWorkflow()">Insight to Implementation</button><button onclick="openDecisionTracker()">Decision Tracker</button>`:""}${hasDataVaultAccess()?`${navLabel("INTELLIGENCE")}<button onclick="openDataVault()">SVE Data Vault ↗</button>`:""}${navLabel("PEOPLE")}${permittedNav("hrms","People")}${navLabel("GROUP RESOURCES")}<button class="${active==='announcements'?'active':''}" onclick="showAnnouncements()">Group Announcements</button><button onclick="secureGo('documents')">Policies & Guidelines</button>${navLabel("BUSINESS UNITS")}${permittedNav("sve","SVE International")}${permittedNav("skl","SK Lai & Partners")}${canSeeAdmin()?`${navLabel("SYSTEM")}${permittedNav("admin","Administration")}`:""}`;
 }
 /** HR-lifecycle sub-nav link inside the "hrms" sidebar mode — all four lifecycle types share the SAME "hrms" page permission (they are not independently reachable from outside this workspace), but each sets hrmsLifecycleType before navigating, mirroring the existing sklContext side-channel pattern used throughout this router. */
 function hrmsLifecycleNavLink(lifecycleType,label){
@@ -188,9 +188,14 @@ function renderSection(){
    nav.className="workspace-nav";
    const sveWorkspaceActives=["executive","projects","governance","documents"];
    const midCrumb=sklContext&&active!=="skl"?`<button onclick="go('skl',null,false)">SK Lai & Partners</button><span>›</span>`
-     :(!sklContext&&HRMS_ACTIVES.includes(active)&&active!=="hrms"?`<button onclick="go('hrms',null,false)">People / HRMS</button><span>›</span>`
+     :(!sklContext&&HRMS_ACTIVES.includes(active)&&active!=="hrms"?`<button onclick="go('hrms',null,false)">People</button><span>›</span>`
      :(!sklContext&&sveWorkspaceActives.includes(active)?`<button onclick="go('sve',null,false)">SVE International</button><span>›</span>`:""));
-   nav.innerHTML=`<button class="btn ghost" onclick="goBack()">← Back</button><div class="crumb"><button onclick="goHome()">SVE Group</button><span>›</span>${midCrumb}<strong>${title(active)}</strong></div><button class="btn secondary" onclick="goHome()">⌂ Group Home</button>`;
+   // The root "SVE Group" segment is hidden on mobile (.crumb-root, see
+   // styles.css) — the page's own <h1> already names the current screen
+   // and "⌂ Group Home" already offers the same jump, so on a narrow
+   // viewport the crumb keeps only the immediate parent (if any) plus
+   // the current page, rather than the full chain.
+   nav.innerHTML=`<button class="btn ghost" onclick="goBack()">← Back</button><div class="crumb"><span class="crumb-root"><button onclick="goHome()">SVE Group</button><span>›</span></span>${midCrumb}<strong>${title(active)}</strong></div><button class="btn secondary" onclick="goHome()">⌂ Group Home</button>`;
    c.prepend(nav);
  }
 }
@@ -414,7 +419,7 @@ async function saveEmployee(e,isNew,id){e.preventDefault();const permissions=[];
 
 
 function adminStandaloneShell(titleText,eyebrowText){
- const groupBrand=`<div class="brand"><img src="assets/sve-logo.jpeg"><div><div class="brand-title">SVE Group Internal Portal</div><div class="brand-sub">Management Review v0.1</div></div></div>`;const groupNav=`${navLabel("MY WORKSPACE")}${permittedNav("mysve","My SVE")}${permittedNav("mytasks","My Tasks")}${navLabel("GROUP")}${permittedNav("home","Group Home")}${navLabel("GROUP MANAGEMENT & INTELLIGENCE")}<button onclick="openManagementCommandCentre()">Management Command Centre</button><button onclick="openUnifiedWorkflow()">Insight to Implementation</button><button onclick="openDecisionTracker()">Decision Tracker</button>${hasDataVaultAccess()?`${navLabel("INTELLIGENCE")}<button onclick="openDataVault()">SVE Data Vault ↗</button>`:""}${navLabel("PEOPLE")}${permittedNav("hrms","People / HRMS")}${navLabel("GROUP RESOURCES")}<button class="${active==='announcements'?'active':''}" onclick="showAnnouncements()">Group Announcements</button><button onclick="secureGo('documents')">Policies & Guidelines</button>${navLabel("BUSINESS UNITS")}${permittedNav("sve","SVE International")}${permittedNav("skl","SK Lai & Partners")}${canSeeAdmin()?`${navLabel("SYSTEM")}${permittedNav("admin","Administration")}`:""}`;return `<div class="shell group-theme"><aside class="sidebar">${groupBrand}<nav class="nav contextual-nav">${groupNav}</nav><div class="side-foot"><div class="side-user">${esc(session.name)}</div><div class="side-role">${esc(session.role)} · ${esc(session.unit)}</div><button class="logout" onclick="signOut()">Sign out</button></div></aside><main class="main employee-admin-page"><header class="topbar"><div class="topbar-title"><button class="mobile-nav-toggle" onclick="togglePortalNav()">☰</button><div><div class="eyebrow">${eyebrowText}</div><h1>${titleText}</h1></div></div><div class="top-right"><div class="avatar">${initials(session.name)}</div></div></header><section class="content" id="adminStandaloneContent"></section></main><div class="portal-nav-overlay" id="portalNavOverlay" onclick="togglePortalNav(false)"></div></div>`;
+ const groupBrand=`<div class="brand"><img src="assets/sve-logo.jpeg"><div><div class="brand-title">SVE Group Internal Portal</div><div class="brand-sub">Management Review v0.1</div></div></div>`;const groupNav=`${navLabel("MY WORKSPACE")}${permittedNav("mysve","My SVE")}${permittedNav("mytasks","My Tasks")}${navLabel("GROUP")}${permittedNav("home","Group Home")}${navLabel("GROUP MANAGEMENT & INTELLIGENCE")}<button onclick="openManagementCommandCentre()">Management Command Centre</button><button onclick="openUnifiedWorkflow()">Insight to Implementation</button><button onclick="openDecisionTracker()">Decision Tracker</button>${hasDataVaultAccess()?`${navLabel("INTELLIGENCE")}<button onclick="openDataVault()">SVE Data Vault ↗</button>`:""}${navLabel("PEOPLE")}${permittedNav("hrms","People")}${navLabel("GROUP RESOURCES")}<button class="${active==='announcements'?'active':''}" onclick="showAnnouncements()">Group Announcements</button><button onclick="secureGo('documents')">Policies & Guidelines</button>${navLabel("BUSINESS UNITS")}${permittedNav("sve","SVE International")}${permittedNav("skl","SK Lai & Partners")}${canSeeAdmin()?`${navLabel("SYSTEM")}${permittedNav("admin","Administration")}`:""}`;return `<div class="shell group-theme"><aside class="sidebar">${groupBrand}<nav class="nav contextual-nav">${groupNav}</nav><div class="side-foot"><div class="side-user">${esc(session.name)}</div><div class="side-role">${esc(session.role)} · ${esc(session.unit)}</div><button class="logout" onclick="signOut()">Sign out</button></div></aside><main class="main employee-admin-page"><header class="topbar"><div class="topbar-title"><button class="mobile-nav-toggle" onclick="togglePortalNav()">☰</button><div><div class="eyebrow">${eyebrowText}</div><h1>${titleText}</h1></div></div><div class="top-right"><div class="avatar">${initials(session.name)}</div></div></header><section class="content" id="adminStandaloneContent"></section></main><div class="portal-nav-overlay" id="portalNavOverlay" onclick="togglePortalNav(false)"></div></div>`;
 }
 function accountAccessSummary(u){
  const p=u.permissions||[];
@@ -774,58 +779,78 @@ function loadHrmsOrgReference(){
      svegipApiFetch("/api/v1/organisation/legal-entities").then(d=>d.legalEntities||[]),
      svegipApiFetch("/api/v1/organisation/business-units").then(d=>d.businessUnits||[]),
      svegipApiFetch("/api/v1/organisation/departments").then(d=>d.departments||[]),
-   ]).then(([legalEntities,businessUnits,departments])=>({legalEntities,businessUnits,departments}))
+     svegipApiFetch("/api/v1/organisation/positions").then(d=>d.positions||[]),
+   ]).then(([legalEntities,businessUnits,departments,positions])=>({legalEntities,businessUnits,departments,positions}))
      .catch(err=>{hrmsOrgRefCache=null;throw err});
  }
  return hrmsOrgRefCache;
 }
-function hrmsNameLookup(list){const m=new Map((list||[]).map(x=>[x.id,x.name||x.key]));return id=>id&&m.has(id)?m.get(id):"—"}
+function hrmsNameLookup(list){const m=new Map((list||[]).map(x=>[x.id,x.name||x.title||x.key]));return id=>id&&m.has(id)?m.get(id):"—"}
+/** Converts a raw backend enum ("full_time", "IN_PROGRESS", "ON_LEAVE") into a professional display label. Only changes what is SHOWN — never the value passed into statusBadge's own colour logic, so existing colour rules keep working unchanged. */
+function hrmsLabel(value){
+ if(value===null||value===undefined||value==="")return "—";
+ return String(value).toLowerCase().replace(/[_\s]+/g," ").trim().replace(/\b\w/g,c=>c.toUpperCase());
+}
+function hrmsStatusBadge(raw){return statusBadge(hrmsLabel(raw))}
 
 // ---- My SVE (employee workspace) ----
 async function loadMySveData(){
- const [employeeData,tasksData]=await Promise.all([
+ const [employeeData,tasksData,ref]=await Promise.all([
    svegipApiFetch("/api/v1/employees/me"),
    svegipApiFetch("/api/v1/workflow/tasks?status=PENDING").catch(()=>({tasks:[]})),
+   loadHrmsOrgReference().catch(()=>null),
  ]);
- return {employee:employeeData&&employeeData.employee,tasks:(tasksData&&tasksData.tasks)||[]};
+ return {employee:employeeData&&employeeData.employee,tasks:(tasksData&&tasksData.tasks)||[],ref};
 }
 function renderMySve(data){
  const e=data.employee;
  if(!e){
-   return `<div class="section"><div class="card hrms-state"><strong>No Employee Master record linked</strong><p>Your SVEGIP account is not yet linked to an Employee Master record, so employment details cannot be shown here. Contact People/HR if you believe this is incorrect.</p></div></div>${renderMySveTasksPreview(data.tasks)}`;
+   return `<div class="section"><div class="card hrms-state"><strong>Profile not linked yet</strong><p>Your SVEGIP account isn't linked to an employee profile yet, so your details can't be shown here. Contact People if this doesn't look right.</p></div></div>${renderMySveTasksPreview(data.tasks)}`;
  }
  const a=e.restricted?e.restricted.currentAssignment:null;
- return `<div class="section hrms-profile-overview">
-   <div class="panel-head"><div><h3>Overview</h3><p>Your own Employee Master summary.</p></div></div>
-   <div class="grid g3">
-     ${metric("Employee Number",esc(e.employeeNumber||"—"),"Employee Master")}
-     ${metric("Status",e.restricted?esc(e.restricted.status||"—"):"—","Current employment status")}
-     ${metric("Employment Type",a?esc(a.employmentType||"—"):"—","Current assignment")}
+ const positionName=data.ref?hrmsNameLookup(data.ref.positions)(e.currentAssignment&&e.currentAssignment.positionId):"—";
+ const departmentName=data.ref?hrmsNameLookup(data.ref.departments)(e.currentAssignment&&e.currentAssignment.departmentId):"—";
+ const subtitle=[positionName!=="—"?positionName:null,departmentName!=="—"?departmentName:null].filter(Boolean).join(" · ")||"SVE Group";
+ return `<div class="section">
+   <div class="card hrms-profile-summary-card">
+     <div class="hrms-profile-summary-head">
+       <div class="employee-avatar hrms-avatar-lg">${initials(e.preferredName||e.legalName)}</div>
+       <div class="hrms-profile-summary-titles">
+         <h3>${esc(e.preferredName||e.legalName)}</h3>
+         <p>${esc(subtitle)}</p>
+       </div>
+       ${e.restricted?hrmsStatusBadge(e.restricted.status):""}
+     </div>
+     <div class="hrms-profile-summary-meta">
+       ${a?`<span>${esc(hrmsLabel(a.employmentType))}</span>`:""}
+       ${a&&a.startDate?`<span>With SVE since ${fmtDate(a.startDate)}</span>`:""}
+       ${(e.currentAssignment&&e.currentAssignment.workLocation)?`<span>${esc(e.currentAssignment.workLocation)}</span>`:""}
+     </div>
    </div>
  </div>
  <div class="section grid g2">
    <div class="card"><h3>My Profile</h3><dl class="hrms-field-list">
+     <div><dt>Employee Number</dt><dd>${esc(e.employeeNumber||"—")}</dd></div>
      <div><dt>Legal Name</dt><dd>${esc(e.legalName||"—")}</dd></div>
      <div><dt>Preferred Name</dt><dd>${esc(e.preferredName||"—")}</dd></div>
      <div><dt>Work Email</dt><dd>${esc(e.workEmail||"—")}</dd></div>
-     <div><dt>Employment Country</dt><dd>${esc(e.employmentCountry||"—")}</dd></div>
    </dl></div>
    <div class="card"><h3>My Employment</h3><dl class="hrms-field-list">
-     <div><dt>Employment Type</dt><dd>${a?esc(a.employmentType||"—"):"—"}</dd></div>
      <div><dt>Start Date</dt><dd>${a&&a.startDate?fmtDate(a.startDate):"—"}</dd></div>
      <div><dt>Confirmation Date</dt><dd>${a&&a.confirmationDate?fmtDate(a.confirmationDate):"—"}</dd></div>
      <div><dt>Work Location</dt><dd>${esc((e.currentAssignment&&e.currentAssignment.workLocation)||"—")}</dd></div>
+     <div><dt>Work Arrangement</dt><dd>${esc(hrmsLabel(e.currentAssignment&&e.currentAssignment.workArrangement))}</dd></div>
    </dl></div>
  </div>
  ${renderMySveTasksPreview(data.tasks)}
  <div class="section hrms-future-modules">
-   <div class="panel-head"><div><h3>Coming later</h3><p>Reserved extension points — not implemented in this release.</p></div></div>
+   <div class="panel-head"><div><h3>Coming later</h3><p>Reserved for future modules.</p></div></div>
    <div class="grid g4">${["Leave","Attendance","Claims","Payslips","Performance","Training","Documents","Policies & Acknowledgements"].map(m=>`<div class="card hrms-future-card"><strong>${esc(m)}</strong><span>Planned</span></div>`).join("")}</div>
  </div>`;
 }
 function renderMySveTasksPreview(tasks){
  return `<div class="section"><div class="panel-head"><div><h3>My Tasks</h3><p>Tasks currently assigned to you.</p></div><button class="btn ghost" onclick="secureGo('mytasks')">Open My Tasks →</button></div>
- <div class="card"><div class="list">${tasks.slice(0,5).map(t=>li(hrmsTaskTypeLabel(t),`${esc(t.status)}${t.dueAt?" · Due "+fmtDate(t.dueAt.slice(0,10)):""}`,t.status)).join("")||hrmsEmptyPanel("No tasks currently assigned to you.")}</div></div></div>`;
+ <div class="card"><div class="list">${tasks.slice(0,5).map(t=>li(hrmsTaskTypeLabel(t),t.dueAt?"Due "+fmtDate(t.dueAt.slice(0,10)):"",hrmsLabel(t.status))).join("")||hrmsEmptyPanel("No tasks currently assigned to you.")}</div></div></div>`;
 }
 function hrmsTaskTypeLabel(t){return t.taskType==="APPROVAL"?"Approval decision required":"Task"}
 function mySve(c){
@@ -853,17 +878,23 @@ async function loadTaskListData(){
  }));
  return enriched;
 }
-function hrmsRequesterLabel(userId){return userId?`User ${esc(String(userId).slice(0,8))}…`:"—"}
+/** Requester identity is deliberately masked, not resolved: no endpoint exists to turn a userId into a display name, and showing a raw internal id fragment reads as unfinished/technical — see docs/architecture/hrms-application-shell.md "API additions/gaps". */
+function hrmsRequesterLabel(userId){return userId?"An SVE employee":"—"}
 function renderTaskList(rows,opts={}){
  if(!rows.length)return hrmsEmptyPanel(opts.emptyMessage||"No tasks currently assigned to you.");
- const desktop=`<div class="table-wrap desktop-register"><table><thead><tr><th>Task</th><th>Process / Subject</th><th>Submitted by</th><th>Submitted</th><th>Current stage</th><th>Due / Status</th><th></th></tr></thead><tbody>${rows.map(hrmsTaskRow).join("")}</tbody></table></div>`;
+ const desktop=`<div class="table-wrap desktop-register"><table><thead><tr><th>Task</th><th>Process / Subject</th><th>Submitted by</th><th>Submitted</th><th>Stage</th><th>Due / Status</th><th></th></tr></thead><tbody>${rows.map(hrmsTaskRow).join("")}</tbody></table></div>`;
  const mobile=`<div class="mobile-record-list">${rows.map(hrmsTaskCard).join("")}</div>`;
  return desktop+mobile;
 }
 function hrmsTaskSubjectLabel(r){
  if(r.hrmsCase)return `${HRMS_LIFECYCLE_LABELS[r.hrmsCase.lifecycleType]||esc(r.hrmsCase.lifecycleType)} · ${esc(r.hrmsCase.caseNumber)}`;
- if(r.instance)return esc(r.instance.subjectType)+" · "+esc(String(r.instance.subjectId).slice(0,8))+"…";
+ if(r.instance)return "Other workflow process";
  return "—";
+}
+/** Prefers the underlying HR case's own human-readable stage (e.g. "Awaiting manager review") over Workflow's internal step id, which is never shown directly to users. */
+function hrmsStageLabel(r){
+ const stage=r.hrmsCase&&r.hrmsCase.restricted&&r.hrmsCase.restricted.currentStage;
+ return stage?esc(stage):"—";
 }
 function hrmsTaskRow(r){
  const t=r.task;
@@ -872,8 +903,8 @@ function hrmsTaskRow(r){
    <td>${hrmsTaskSubjectLabel(r)}</td>
    <td>${hrmsRequesterLabel(r.instance&&r.instance.requesterUserId)}</td>
    <td>${r.instance&&r.instance.startedAt?fmtDate(r.instance.startedAt.slice(0,10)):"—"}</td>
-   <td>${esc((r.instance&&r.instance.currentStepId)||"—")}</td>
-   <td>${statusBadge(t.status)}${t.dueAt?` <small>Due ${fmtDate(t.dueAt.slice(0,10))}</small>`:""}</td>
+   <td>${hrmsStageLabel(r)}</td>
+   <td>${hrmsStatusBadge(t.status)}${t.dueAt?` <small>Due ${fmtDate(t.dueAt.slice(0,10))}</small>`:""}</td>
    <td>${hrmsTaskActions(t)}</td>
  </tr>`;
 }
@@ -882,8 +913,8 @@ function hrmsTaskCard(r){
  return `<article class="mobile-record-card"><h4>${hrmsTaskTypeLabel(t)}</h4><p>${hrmsTaskSubjectLabel(r)}</p><dl>
    <div><dt>Submitted by</dt><dd>${hrmsRequesterLabel(r.instance&&r.instance.requesterUserId)}</dd></div>
    <div><dt>Submitted</dt><dd>${r.instance&&r.instance.startedAt?fmtDate(r.instance.startedAt.slice(0,10)):"—"}</dd></div>
-   <div><dt>Current stage</dt><dd>${esc((r.instance&&r.instance.currentStepId)||"—")}</dd></div>
-   <div><dt>Status</dt><dd>${statusBadge(t.status)}${t.dueAt?` Due ${fmtDate(t.dueAt.slice(0,10))}`:""}</dd></div>
+   <div><dt>Stage</dt><dd>${hrmsStageLabel(r)}</dd></div>
+   <div><dt>Status</dt><dd>${hrmsStatusBadge(t.status)}${t.dueAt?` Due ${fmtDate(t.dueAt.slice(0,10))}`:""}</dd></div>
  </dl>${hrmsTaskActions(t)}</article>`;
 }
 function hrmsTaskActions(t){
@@ -905,11 +936,11 @@ async function decideHrmsTask(taskId,decision){
  }
 }
 function myTasks(c){
- c.innerHTML=`${roleBanner()}<div class="section-head"><div><h3>My Tasks</h3><p>Workflow tasks currently assigned to you. Decisions submitted here are real Workflow decisions.</p></div></div><div id="myTasksBody"></div>`;
+ c.innerHTML=`${roleBanner()}<div class="section-head"><div><h3>My Tasks</h3><p>Tasks currently assigned to you.</p></div></div><div id="myTasksBody"></div>`;
  hrmsAsyncRender(document.getElementById("myTasksBody"),loadTaskListData,rows=>renderTaskList(rows,{emptyMessage:"No tasks currently assigned to you."}),"Loading your tasks…");
 }
 function hrmsApprovals(c){
- c.innerHTML=`${roleBanner()}<div class="section-head"><div><h3>Approvals</h3><p>Workflow approval tasks assigned to you across HR lifecycle cases and other processes.</p></div></div><div id="hrmsApprovalsBody"></div>`;
+ c.innerHTML=`${roleBanner()}<div class="section-head"><div><h3>Approvals</h3><p>Approval decisions currently assigned to you.</p></div></div><div id="hrmsApprovalsBody"></div>`;
  hrmsAsyncRender(document.getElementById("hrmsApprovalsBody"),loadTaskListData,rows=>renderTaskList(rows.filter(r=>r.task.taskType==="APPROVAL"),{emptyMessage:"No approval tasks currently assigned to you."}),"Loading approvals…");
 }
 
@@ -925,27 +956,23 @@ async function loadHrDashboardData(){
  return {employees,onboarding,probation,employmentChange,offboarding};
 }
 function renderHrDashboard(d){
- return `<div class="grid g4">
-   ${metric("Active Employees",d.employees.length,"Employee Master")}
-   ${metric("Onboarding in Progress",d.onboarding.length,"HR Lifecycle")}
-   ${metric("Probation & Confirmation",d.probation.length,"HR Lifecycle")}
-   ${metric("Employment Changes Pending",d.employmentChange.length,"HR Lifecycle")}
- </div>
- <div class="grid g3">
-   ${metric("Offboarding in Progress",d.offboarding.length,"HR Lifecycle")}
-   ${metric("Pending HR Tasks","—","Not available in this release")}
-   ${metric("Probation Reviews Due","—","Not available in this release")}
+ return `<div class="grid g5">
+   ${metric("Active Employees",d.employees.length,"Across SVE Group")}
+   ${metric("Onboarding",d.onboarding.length,"Currently onboarding")}
+   ${metric("Probation & Confirmation",d.probation.length,"Currently in probation")}
+   ${metric("Employment Changes",d.employmentChange.length,"Awaiting completion")}
+   ${metric("Offboarding",d.offboarding.length,"Currently offboarding")}
  </div>
  <div class="section grid g2">
-   <div class="card"><h3>Onboarding in Progress</h3><div class="list">${d.onboarding.slice(0,5).map(hrmsCaseListItem).join("")||hrmsEmptyPanel("No onboarding cases in progress.")}</div></div>
-   <div class="card"><h3>Offboarding in Progress</h3><div class="list">${d.offboarding.slice(0,5).map(hrmsCaseListItem).join("")||hrmsEmptyPanel("No offboarding cases in progress.")}</div></div>
+   <div class="card"><h3>Onboarding</h3><div class="list">${d.onboarding.slice(0,5).map(hrmsCaseListItem).join("")||hrmsEmptyPanel("No onboarding cases in progress.")}</div></div>
+   <div class="card"><h3>Offboarding</h3><div class="list">${d.offboarding.slice(0,5).map(hrmsCaseListItem).join("")||hrmsEmptyPanel("No offboarding cases in progress.")}</div></div>
  </div>`;
 }
 function hrmsCaseListItem(caseRow){
- return `<div class="list-item hrms-case-list-item" onclick="goHrmsCase('${caseRow.id}')"><div><div class="list-title">${esc(caseRow.caseNumber)}</div><div class="list-meta">${HRMS_LIFECYCLE_LABELS[caseRow.lifecycleType]||esc(caseRow.lifecycleType)}</div></div>${statusBadge(caseRow.status)}</div>`;
+ return `<div class="list-item hrms-case-list-item" onclick="goHrmsCase('${caseRow.id}')"><div><div class="list-title">${esc(caseRow.caseNumber)}</div><div class="list-meta">${HRMS_LIFECYCLE_LABELS[caseRow.lifecycleType]||esc(caseRow.lifecycleType)}</div></div>${hrmsStatusBadge(caseRow.status)}</div>`;
 }
 function hrDashboard(c){
- c.innerHTML=`${roleBanner()}<div class="section-head"><div><h3>HR Dashboard</h3><p>Operational overview across active People/HRMS lifecycle work. Counts marked "not available" require a dedicated aggregation endpoint not yet built (see architecture doc).</p></div></div><div id="hrDashboardBody"></div>`;
+ c.innerHTML=`${roleBanner()}<div class="section-head"><div><h3>HR Dashboard</h3><p>An operational overview of active People lifecycle work.</p></div></div><div id="hrDashboardBody"></div>`;
  hrmsAsyncRender(document.getElementById("hrDashboardBody"),loadHrDashboardData,renderHrDashboard,"Loading HR dashboard…");
 }
 
@@ -967,9 +994,9 @@ async function loadHrmsDirectoryData(){
 }
 function renderHrmsDirectory(data){
  const {rows,ref}=data;
- const legalEntityName=hrmsNameLookup(ref.legalEntities),businessUnitName=hrmsNameLookup(ref.businessUnits),departmentName=hrmsNameLookup(ref.departments);
- const desktop=`<div class="table-wrap desktop-register"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Legal Entity</th><th>Business Unit</th><th>Department</th><th>Status</th></tr></thead><tbody>${rows.map(e=>`<tr class="hrms-directory-row" onclick="goHrmsEmployee('${e.id}')"><td><strong>${esc(e.legalName)}</strong>${e.preferredName?`<br><small>${esc(e.preferredName)}</small>`:""}</td><td>${esc(e.employeeNumber)}</td><td>${legalEntityName(e.currentAssignment&&e.currentAssignment.legalEntityId)}</td><td>${businessUnitName(e.currentAssignment&&e.currentAssignment.businessUnitId)}</td><td>${departmentName(e.currentAssignment&&e.currentAssignment.departmentId)}</td><td>${e.restricted?statusBadge(e.restricted.status):"—"}</td></tr>`).join("")}</tbody></table></div>`;
- const mobile=`<div class="mobile-record-list">${rows.map(e=>`<article class="mobile-record-card" onclick="goHrmsEmployee('${e.id}')"><h4>${esc(e.legalName)}</h4><p>${esc(e.employeeNumber)}</p><dl><div><dt>Legal Entity</dt><dd>${legalEntityName(e.currentAssignment&&e.currentAssignment.legalEntityId)}</dd></div><div><dt>Business Unit</dt><dd>${businessUnitName(e.currentAssignment&&e.currentAssignment.businessUnitId)}</dd></div><div><dt>Department</dt><dd>${departmentName(e.currentAssignment&&e.currentAssignment.departmentId)}</dd></div></dl></article>`).join("")}</div>`;
+ const legalEntityName=hrmsNameLookup(ref.legalEntities),businessUnitName=hrmsNameLookup(ref.businessUnits),departmentName=hrmsNameLookup(ref.departments),positionName=hrmsNameLookup(ref.positions);
+ const desktop=`<div class="table-wrap desktop-register"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Legal Entity</th><th>Business Unit</th><th>Department</th><th>Position</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(e=>`<tr class="hrms-directory-row" onclick="goHrmsEmployee('${e.id}')"><td><strong>${esc(e.legalName)}</strong>${e.preferredName?`<br><small>${esc(e.preferredName)}</small>`:""}</td><td>${esc(e.employeeNumber)}</td><td>${legalEntityName(e.currentAssignment&&e.currentAssignment.legalEntityId)}</td><td>${businessUnitName(e.currentAssignment&&e.currentAssignment.businessUnitId)}</td><td>${departmentName(e.currentAssignment&&e.currentAssignment.departmentId)}</td><td>${positionName(e.currentAssignment&&e.currentAssignment.positionId)}</td><td>${e.restricted?hrmsStatusBadge(e.restricted.status):"—"}</td><td><button class="btn ghost hrms-view-profile-btn" onclick="event.stopPropagation();goHrmsEmployee('${e.id}')">View Profile →</button></td></tr>`).join("")}</tbody></table></div>`;
+ const mobile=`<div class="mobile-record-list">${rows.map(e=>`<article class="mobile-record-card"><h4>${esc(e.legalName)}</h4><p>${esc(e.employeeNumber)}</p><dl><div><dt>Legal Entity</dt><dd>${legalEntityName(e.currentAssignment&&e.currentAssignment.legalEntityId)}</dd></div><div><dt>Business Unit</dt><dd>${businessUnitName(e.currentAssignment&&e.currentAssignment.businessUnitId)}</dd></div><div><dt>Department</dt><dd>${departmentName(e.currentAssignment&&e.currentAssignment.departmentId)}</dd></div><div><dt>Position</dt><dd>${positionName(e.currentAssignment&&e.currentAssignment.positionId)}</dd></div></dl><button class="btn ghost" onclick="goHrmsEmployee('${e.id}')">View Profile →</button></article>`).join("")}</div>`;
  return (rows.length?desktop+mobile:hrmsEmptyPanel("No employees match the current filters."));
 }
 function hrmsDirectoryRerender(){
@@ -978,7 +1005,7 @@ function hrmsDirectoryRerender(){
 }
 function hrmsDirectoryFilterChanged(field,value){hrmsDirectoryFilters[field]=value;hrmsDirectoryRerender()}
 function hrmsDirectory(c){
- c.innerHTML=`${roleBanner()}<div class="section-head"><div><h3>Employee Directory</h3><p>General directory information only — compensation, bank, tax and lifecycle detail are never shown here.</p></div></div>
+ c.innerHTML=`${roleBanner()}<div class="section-head"><div><h3>Employee Directory</h3><p>General contact and role information. Sensitive employment details are not shown here.</p></div></div>
  <div class="account-tools hrms-directory-tools" id="hrmsDirectoryTools">${hrmsLoadingPanel("Loading filters…")}</div>
  <div id="hrmsDirectoryBody"></div>`;
  loadHrmsOrgReference().then(ref=>{
@@ -997,16 +1024,18 @@ function hrmsDirectory(c){
 function goHrmsEmployee(employeeId){hrmsSelectedEmployeeId=employeeId;secureGo("hrmsEmployee")}
 async function loadHrmsEmployeeProfileData(){
  const id=hrmsSelectedEmployeeId;
- const [employeeData,assignmentsData,casesData]=await Promise.all([
+ const [employeeData,assignmentsData,casesData,ref]=await Promise.all([
    svegipApiFetch(`/api/v1/employees/${encodeURIComponent(id)}`),
    svegipApiFetch(`/api/v1/employees/${encodeURIComponent(id)}/assignments`).catch(()=>({assignments:[]})),
    svegipApiFetch(`/api/v1/hrms/lifecycle/cases?employeeId=${encodeURIComponent(id)}`).catch(()=>({cases:[]})),
+   loadHrmsOrgReference().catch(()=>null),
  ]);
- return {employee:employeeData.employee,assignments:assignmentsData.assignments||[],cases:casesData.cases||[]};
+ return {employee:employeeData.employee,assignments:assignmentsData.assignments||[],cases:casesData.cases||[],ref};
 }
 function renderHrmsEmployeeProfile(data){
  const e=data.employee,a=e.restricted?e.restricted.currentAssignment:null;
- return `<div class="identity hrms-workspace-identity"><div><div class="eyebrow">EMPLOYEE MASTER</div><h2>${esc(e.legalName)}</h2><p>${esc(e.employeeNumber)}${e.workEmail?" · "+esc(e.workEmail):""}</p></div></div>
+ const positionName=data.ref?hrmsNameLookup(data.ref.positions)(e.currentAssignment&&e.currentAssignment.positionId):"—";
+ return `<div class="identity hrms-workspace-identity"><div><div class="eyebrow">EMPLOYEE PROFILE</div><h2>${esc(e.legalName)}</h2><p>${esc(e.employeeNumber)}${e.workEmail?" · "+esc(e.workEmail):""}</p></div></div>
  <div class="tabs hrms-profile-tabs">
    <button class="tab active">Overview</button>
  </div>
@@ -1015,23 +1044,24 @@ function renderHrmsEmployeeProfile(data){
      <div><dt>Preferred Name</dt><dd>${esc(e.preferredName||"—")}</dd></div>
      <div><dt>Work Email</dt><dd>${esc(e.workEmail||"—")}</dd></div>
      <div><dt>Employment Country</dt><dd>${esc(e.employmentCountry||"—")}</dd></div>
-     <div><dt>Status</dt><dd>${e.restricted?statusBadge(e.restricted.status):"Restricted — no access"}</dd></div>
+     <div><dt>Status</dt><dd>${e.restricted?hrmsStatusBadge(e.restricted.status):"Restricted — no access"}</dd></div>
    </dl></div>
    <div class="card"><h3>Employment</h3><dl class="hrms-field-list">
-     <div><dt>Employment Type</dt><dd>${a?esc(a.employmentType):"—"}</dd></div>
+     <div><dt>Employment Type</dt><dd>${a?esc(hrmsLabel(a.employmentType)):"—"}</dd></div>
      <div><dt>Start Date</dt><dd>${a&&a.startDate?fmtDate(a.startDate):"—"}</dd></div>
      <div><dt>Confirmation Date</dt><dd>${a&&a.confirmationDate?fmtDate(a.confirmationDate):"—"}</dd></div>
      <div><dt>Probation End Date</dt><dd>${a&&a.probationEndDate?fmtDate(a.probationEndDate):"—"}</dd></div>
    </dl></div>
  </div>
  <div class="section"><h3>Position & Reporting</h3><div class="card"><dl class="hrms-field-list">
+   <div><dt>Position</dt><dd>${positionName}</dd></div>
    <div><dt>Work Location</dt><dd>${esc((e.currentAssignment&&e.currentAssignment.workLocation)||"—")}</dd></div>
-   <div><dt>Work Arrangement</dt><dd>${esc((e.currentAssignment&&e.currentAssignment.workArrangement)||"—")}</dd></div>
-   <div><dt>Reports-to Assignment</dt><dd>${a&&a.reportsToAssignmentId?esc(a.reportsToAssignmentId.slice(0,8))+"…":"—"}</dd></div>
+   <div><dt>Work Arrangement</dt><dd>${esc(hrmsLabel(e.currentAssignment&&e.currentAssignment.workArrangement))}</dd></div>
+   <div><dt>Reports To</dt><dd>${a&&a.reportsToAssignmentId?"Assigned":"Not assigned"}</dd></div>
  </dl></div></div>
  <div class="section"><h3>Lifecycle</h3><div class="card"><div class="list">${data.cases.map(hrmsCaseListItem).join("")||hrmsEmptyPanel("No HR lifecycle cases on record for this employee.")}</div></div></div>
- <div class="section"><h3>History</h3><div class="table-wrap"><table><thead><tr><th>Employment Type</th><th>Start</th><th>End</th><th>Status</th></tr></thead><tbody>${data.assignments.map(x=>`<tr><td>${esc(x.employmentType)}</td><td>${fmtDate(x.startDate)}</td><td>${x.endDate?fmtDate(x.endDate):"—"}</td><td>${statusBadge(x.status)}</td></tr>`).join("")||`<tr><td colspan="4">${hrmsEmptyPanel("No assignment history.")}</td></tr>`}</tbody></table></div></div>
- <div class="section"><h3>Documents</h3>${hrmsEmptyPanel("Not available in this release — no employee document store exists yet.")}</div>`;
+ <div class="section"><h3>History</h3><div class="table-wrap"><table><thead><tr><th>Employment Type</th><th>Start</th><th>End</th><th>Status</th></tr></thead><tbody>${data.assignments.map(x=>`<tr><td>${esc(hrmsLabel(x.employmentType))}</td><td>${fmtDate(x.startDate)}</td><td>${x.endDate?fmtDate(x.endDate):"—"}</td><td>${hrmsStatusBadge(x.status)}</td></tr>`).join("")||`<tr><td colspan="4">${hrmsEmptyPanel("No assignment history.")}</td></tr>`}</tbody></table></div></div>
+ <div class="section"><h3>Documents</h3>${hrmsEmptyPanel("Not available in this release.")}</div>`;
 }
 function hrmsEmployeeProfile(c){
  if(!hrmsSelectedEmployeeId){c.innerHTML=hrmsEmptyPanel("No employee selected. Return to the Employee Directory and select an employee.");return}
@@ -1047,12 +1077,12 @@ async function loadHrmsLifecycleListData(){
 }
 function renderHrmsLifecycleList(cases){
  if(!cases.length)return hrmsEmptyPanel(`No ${(HRMS_LIFECYCLE_LABELS[hrmsLifecycleType]||"").toLowerCase()} cases on record.`);
- const desktop=`<div class="table-wrap desktop-register"><table><thead><tr><th>Case</th><th>Status</th><th>Initiated</th><th></th></tr></thead><tbody>${cases.map(x=>`<tr><td><strong>${esc(x.caseNumber)}</strong></td><td>${statusBadge(x.status)}</td><td>${fmtDate(x.initiatedAt.slice(0,10))}</td><td><button class="btn ghost" onclick="goHrmsCase('${x.id}')">Open →</button></td></tr>`).join("")}</tbody></table></div>`;
- const mobile=`<div class="mobile-record-list">${cases.map(x=>`<article class="mobile-record-card"><h4>${esc(x.caseNumber)}</h4><dl><div><dt>Status</dt><dd>${statusBadge(x.status)}</dd></div><div><dt>Initiated</dt><dd>${fmtDate(x.initiatedAt.slice(0,10))}</dd></div></dl><button class="btn ghost" onclick="goHrmsCase('${x.id}')">Open →</button></article>`).join("")}</div>`;
+ const desktop=`<div class="table-wrap desktop-register"><table><thead><tr><th>Case</th><th>Status</th><th>Initiated</th><th></th></tr></thead><tbody>${cases.map(x=>`<tr><td><strong>${esc(x.caseNumber)}</strong></td><td>${hrmsStatusBadge(x.status)}</td><td>${fmtDate(x.initiatedAt.slice(0,10))}</td><td><button class="btn ghost" onclick="goHrmsCase('${x.id}')">Open →</button></td></tr>`).join("")}</tbody></table></div>`;
+ const mobile=`<div class="mobile-record-list">${cases.map(x=>`<article class="mobile-record-card"><h4>${esc(x.caseNumber)}</h4><dl><div><dt>Status</dt><dd>${hrmsStatusBadge(x.status)}</dd></div><div><dt>Initiated</dt><dd>${fmtDate(x.initiatedAt.slice(0,10))}</dd></div></dl><button class="btn ghost" onclick="goHrmsCase('${x.id}')">Open →</button></article>`).join("")}</div>`;
  return desktop+mobile;
 }
 function hrmsLifecycleList(c){
- c.innerHTML=`${roleBanner()}<div class="section-head"><div><h3>${HRMS_LIFECYCLE_LABELS[hrmsLifecycleType]}</h3><p>Cases currently in this HR lifecycle stage. The HRMS service remains authoritative — status here is never set from the browser.</p></div></div><div id="hrmsLifecycleBody"></div>`;
+ c.innerHTML=`${roleBanner()}<div class="section-head"><div><h3>${HRMS_LIFECYCLE_LABELS[hrmsLifecycleType]}</h3><p>Cases currently in this stage.</p></div></div><div id="hrmsLifecycleBody"></div>`;
  hrmsAsyncRender(document.getElementById("hrmsLifecycleBody"),loadHrmsLifecycleListData,renderHrmsLifecycleList,"Loading cases…");
 }
 
@@ -1068,19 +1098,19 @@ async function loadHrmsCaseDetailData(){
 }
 function renderHrmsCaseDetail(data){
  const x=data.caseRow,r=x.restricted;
- const stageLabel=r&&r.currentStage?r.currentStage:x.status;
- return `<div class="identity hrms-workspace-identity"><div><div class="eyebrow">${HRMS_LIFECYCLE_LABELS[x.lifecycleType]||esc(x.lifecycleType)}</div><h2>${esc(x.caseNumber)}</h2><p>${statusBadge(x.status)}${r&&r.currentStage?` · ${esc(r.currentStage)}`:""}</p></div></div>
- <div class="section hrms-lifecycle-flow"><div><span>1</span><strong>Lifecycle Case</strong></div><b>→</b><div><span>2</span><strong>${esc(stageLabel)}</strong></div><b>→</b><div><span>3</span><strong>Approval / Completion</strong></div><b>→</b><div><span>4</span><strong>History</strong></div></div>
+ const stageLabel=r&&r.currentStage?r.currentStage:hrmsLabel(x.status);
+ return `<div class="identity hrms-workspace-identity"><div><div class="eyebrow">${HRMS_LIFECYCLE_LABELS[x.lifecycleType]||esc(x.lifecycleType)}</div><h2>${esc(x.caseNumber)}</h2><p>${hrmsStatusBadge(x.status)}${r&&r.currentStage?` · ${esc(r.currentStage)}`:""}</p></div></div>
+ <div class="section hrms-lifecycle-flow"><div><span>1</span><strong>Case Opened</strong></div><b>→</b><div><span>2</span><strong>${esc(stageLabel)}</strong></div><b>→</b><div><span>3</span><strong>Approval</strong></div><b>→</b><div><span>4</span><strong>Complete</strong></div></div>
  <div class="section grid g2">
    <div class="card"><h3>Case</h3><dl class="hrms-field-list">
-     <div><dt>Status</dt><dd>${statusBadge(x.status)}</dd></div>
+     <div><dt>Status</dt><dd>${hrmsStatusBadge(x.status)}</dd></div>
      <div><dt>Current Stage</dt><dd>${r?esc(r.currentStage||"—"):"Restricted — no access"}</dd></div>
      <div><dt>Effective Date</dt><dd>${r&&r.effectiveDate?fmtDate(r.effectiveDate):"—"}</dd></div>
      <div><dt>Initiated</dt><dd>${fmtDate(x.initiatedAt.slice(0,10))}</dd></div>
    </dl></div>
-   <div class="card"><h3>History</h3><div class="audit-timeline">${data.events.map(ev=>`<div class="audit-event"><div class="audit-dot"></div><div><strong>${esc(ev.eventType)}</strong><p>${fmtDate(ev.occurredAt.slice(0,10))}</p></div></div>`).join("")||hrmsEmptyPanel("No history recorded yet.")}</div></div>
+   <div class="card"><h3>History</h3><div class="audit-timeline">${data.events.map(ev=>`<div class="audit-event"><div class="audit-dot"></div><div><strong>${esc(hrmsLabel(ev.eventType))}</strong><p>${fmtDate(ev.occurredAt.slice(0,10))}</p></div></div>`).join("")||hrmsEmptyPanel("No history recorded yet.")}</div></div>
  </div>
- <div class="section callout">Case progression, approval and completion are performed through the HR Lifecycle and Workflow services, never from this screen — see My Tasks/Approvals for any decision currently required from you.</div>`;
+ <div class="section callout">Any decision required from you on this case will appear under My Tasks.</div>`;
 }
 function hrmsCaseDetail(c){
  if(!hrmsSelectedCaseId){c.innerHTML=hrmsEmptyPanel("No case selected.");return}

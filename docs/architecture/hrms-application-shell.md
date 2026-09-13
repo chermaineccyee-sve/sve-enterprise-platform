@@ -58,9 +58,9 @@ SVE GROUP PORTAL / SVEGIP
         │     ├── My SVE        (Overview / My Profile / My Employment / My Tasks)
         │     └── My Tasks      (real Workflow tasks assigned to the caller)
         │
-        ├── People / HRMS                         [own sidebar mode, peer to SVE/SKL]
+        ├── People  (internally "hrms" — own sidebar mode, peer to SVE/SKL)
         │     ├── HR Dashboard
-        │     ├── Employee Directory  →  Employee Master / Employee Profile
+        │     ├── Employee Directory  →  Employee Profile
         │     ├── Onboarding
         │     ├── Probation & Confirmation
         │     ├── Employment Changes
@@ -204,7 +204,7 @@ already run these services.
 | "Submitted by" display name on a task/instance | **Future module** | no endpoint resolves an arbitrary `userId` to a display name; this UI shows a shortened id, explicitly labelled, rather than a name |
 | HR Dashboard counts (active employees, onboarding/probation/employment-change/offboarding in progress) | **Available now**, computed from real (unpaginated) list calls | not a fabricated number — each tile reflects a real `GET /employees` or `GET /hrms/lifecycle/cases?...` response, filtered by the browser. Not a substitute for a real aggregation endpoint at scale (see §9) |
 | "Pending HR Tasks" / "Probation Reviews Due" dashboard tiles | **Future module — shown as "Not available in this release,"** never a fabricated number | no filter/endpoint exists for either; building the N+1 fetch-and-filter needed for "reviews due" was judged not worth doing for a dashboard tile in this PR |
-| Legal Entity / Business Unit / Department reference lists | **Available now** | `platform-services/organisation`'s reference-data routes (flagged, unchanged by this PR: gated only by "has a session," not an RBAC permission) |
+| Legal Entity / Business Unit / Department / Position reference lists | **Available now** | `platform-services/organisation`'s reference-data routes, including `GET /organisation/positions` (used from the polish pass to resolve Position on Employee Directory/Profile/My SVE) — flagged, unchanged by this PR: gated only by "has a session," not an RBAC permission |
 | "What can I do" (permission list for nav) | **Does not exist** | RBAC only exposes per-key `authorize()`; nav visibility is instead driven by SVEGIP's own role/permission model (§5) — a UX narrowing, not a substitute for backend RBAC |
 | Employee documents | **Out of scope** | no employee document store exists in this domain; the Documents tab renders an explicit "Not available in this release" state |
 
@@ -309,3 +309,41 @@ in count for Identity/Data Vault. This PR adds:
 
 All packages green on a fresh CI-equivalent Postgres database. No
 existing test was weakened, skipped, or deleted.
+
+## 12. Post-review polish pass
+
+A follow-up, presentation-only pass over the same screens (no
+architecture, API, backend, or responsive-behaviour change):
+
+- Removed developer/architecture wording from user-facing copy (e.g. "the
+  HRMS service remains authoritative," "counts require a dedicated
+  aggregation endpoint" — this reasoning now lives only in this doc).
+- Added `hrmsLabel()`/`hrmsStatusBadge()` to render raw backend enums
+  (`full_time`, `IN_PROGRESS`, `ON_LEAVE`) as proper display labels
+  everywhere they appear, without changing the values `statusBadge`'s
+  colour logic evaluates.
+- HR Dashboard's two "not available" tiles (Pending HR Tasks, Probation
+  Reviews Due) were removed rather than shown as gaps — the remaining
+  five tiles are all real counts.
+- My SVE now leads with a personal profile summary card (name, resolved
+  position/department, status, employment type, tenure) instead of an
+  Employee-Master-styled metrics grid.
+- Employee Directory gained a Position column (resolved via the existing
+  `GET /organisation/positions` reference endpoint) and an explicit
+  "View Profile →" affordance on every row, matching the existing
+  Employee Accounts admin table's own convention.
+- Internal identifiers are no longer shown raw: My Tasks/Approvals masks
+  the requester as "An SVE employee" (no id fragment) and prefers the
+  underlying HR case's own human-readable `currentStage` over Workflow's
+  internal step id; the Employee Profile's "Reports To" field shows
+  "Assigned"/"Not assigned" rather than a partial assignment id.
+- Mobile breadcrumbs drop the "SVE Group" root segment (`.crumb-root`,
+  hidden ≤820px) — the page's own `<h1>` and the "⌂ Group Home" button
+  already cover that context, so the crumb keeps only the immediate
+  parent (if any) plus the current page.
+- The user-facing nav label "People / HRMS" is now "People"; `hrms*`
+  remains the internal function/route naming throughout the codebase and
+  this document.
+
+No new API calls were introduced except resolving `positions` through
+the reference-data endpoint already documented in §7 as available now.
