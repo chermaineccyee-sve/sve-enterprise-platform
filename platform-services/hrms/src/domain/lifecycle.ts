@@ -106,7 +106,7 @@ export interface HrLifecycleEvent {
   recordedBy: string;
 }
 
-export type DeactivationRequestStatus = "REQUESTED" | "COMPLETED" | "FAILED";
+export type DeactivationRequestStatus = "REQUESTED" | "COMPLETED";
 
 /**
  * PR #10: a durable, HRMS-owned request driving controlled Identity
@@ -115,8 +115,16 @@ export type DeactivationRequestStatus = "REQUESTED" | "COMPLETED" | "FAILED";
  * completion itself (never a second, separate write that could leave an
  * `identity_deactivation_requested` event with no corresponding durable
  * row) — see docs/architecture/identity-offboarding-revocation.md
- * "Deactivation request lifecycle". Never mutated except by
- * identityDeactivationProcessor.ts's own completed/failed transition.
+ * "Deactivation request lifecycle".
+ *
+ * status is intentionally 2-valued: a failed processing attempt is
+ * recorded as metadata (failureReason / attemptCount / lastAttemptedAt)
+ * on a row that STAYS "REQUESTED" — it is never a status transition to a
+ * terminal "FAILED" state. This is what makes the request genuinely,
+ * automatically retryable by identityDeactivationProcessor.ts's own
+ * batch sweep (which selects status === "REQUESTED"), rather than only
+ * reachable via a manual, by-id retry. Only a successful disable moves a
+ * row to the terminal "COMPLETED" status.
  */
 export interface HrIdentityDeactivationRequest {
   id: string;
@@ -130,6 +138,7 @@ export interface HrIdentityDeactivationRequest {
   completedAt: string | null;
   failureReason: string | null;
   attemptCount: number;
+  lastAttemptedAt: string | null;
 }
 
 export type MilestoneStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "SKIPPED";

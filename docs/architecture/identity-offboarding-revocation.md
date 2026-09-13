@@ -170,17 +170,44 @@ zero knowledge it exists (see §12, dependency direction):
 ```sql
 hr_identity_deactivation_requests (
   id, case_id UNIQUE, employee_id, target_user_id, requested_by,
-  reason_category, status ('REQUESTED'|'COMPLETED'|'FAILED'),
-  requested_at, completed_at, failure_reason, attempt_count
+  reason_category, status ('REQUESTED'|'COMPLETED'),
+  requested_at, completed_at, failure_reason, attempt_count,
+  last_attempted_at
 )
 ```
 
-The smallest model that distinguishes requested / completed /
-failed-and-retryable (brief §15) — deliberately **not** a generic
-job-processing table: no queue semantics, no worker-lease columns, no
-priority/backoff schedule, no "processing" state (the transaction either
-fully commits or fully rolls back — there is never an observable durable
-"in progress" state worth persisting). `reason_category` is a short,
+Deliberately **2-valued**, not 3: `'REQUESTED'` (durably pending —
+including a request that has already failed one or more processing
+attempts) and `'COMPLETED'` (terminal). There is no `'FAILED'` status. A
+failed processing attempt is recorded as **metadata only**
+(`failure_reason`, `attempt_count`, `last_attempted_at`) on a row that
+stays `'REQUESTED'` — never a status transition to a separate terminal
+state. This is what makes the request genuinely, automatically retryable
+(brief §15's "independently retryable" requirement): §10's
+`processAllPending()` selects `status = 'REQUESTED'`, so a previously
+failed request is picked back up by the very next ordinary batch sweep,
+with no separate retry query and no manual by-id intervention required.
+
+An earlier revision of this migration had a third `'FAILED'` status that
+`processAllPending()`'s `listByStatus('REQUESTED')` query never selected
+again once a request transitioned into it — a single transient failure
+(e.g. a dropped connection, a momentarily-stale case snapshot) could
+therefore permanently orphan an offboarding deactivation request while
+the target account stayed active indefinitely. This was caught and fixed
+before the PR left Draft; see the "Failure/rollback" tests in §10/§20 for
+the regression coverage proving the fix.
+
+Still deliberately **not** a generic job-processing table: no queue
+semantics, no worker-lease columns, no priority/backoff schedule, no
+attempt-count cutoff, no "processing" state (the transaction either fully
+commits or fully rolls back — there is never an observable durable "in
+progress" state worth persisting). `last_attempted_at` is pure operational
+visibility (when was this last tried) — it drives no automatic behaviour
+and creates no hot retry loop: each external invocation of
+`processAllPending()` does exactly one pass over currently-`REQUESTED`
+rows, so retry cadence is controlled entirely by how often something
+external calls it (the same externally-driven-cadence pattern already
+documented for `expireDueSessions`). `reason_category` is a short,
 generic string (`"hrms_offboarding"`) — never HR case content, never SK
 Lai & Partners privileged legal-case material (§16).
 
@@ -236,12 +263,18 @@ processOne(requestId):
 
 Never claims completion while any step failed (brief §12's explicit
 invariant) — proven directly:
-`hrms/test/integration/identityDeactivation.test.ts`, "Failure/rollback:
-if the referenced case is not (or no longer) COMPLETED, processing fails
-cleanly... without disabling anything", and
-`identity/test/integration/accountSecurity.test.ts`, "Rollback: a
-failure anywhere inside the shared transaction rolls back the account
-status change together with everything else".
+`hrms/test/integration/identityDeactivation.test.ts`, "Failure/rollback: a
+forced first processing failure leaves the account active and the request
+durably REQUESTED", and `identity/test/integration/accountSecurity.test.ts`,
+"Rollback: a failure anywhere inside the shared transaction rolls back the
+account status change together with everything else".
+
+On failure, a SEPARATE, subsequent transaction records
+`failure_reason`/`attempt_count`/`last_attempted_at` on the request row —
+guarded by `if (current.status === "REQUESTED")` so it never overwrites a
+row that a concurrent worker completed in the meantime — and deliberately
+does **not** change `status`. See §8 for why this (not a terminal
+`'FAILED'` status) is the corrected design.
 
 Why this two-transaction split is *safe*, unlike a naive one: unlike the
 HRMS↔Workflow submission gap PR #9 found (a crash between two writes with
@@ -266,9 +299,23 @@ returns `alreadyInState: true`, no error, no duplicate audit).
 `COMPLETED` request is a no-op before even touching Identity). Verified
 directly with three consecutive `processOne()` calls against the same
 request: exactly one `account.disabled` audit row, one completion.
-A `FAILED` request remains retryable (status is not terminal) — proven by
-the failure/rollback test above, which corrects the underlying condition
-and retries successfully.
+
+A request that has failed one or more processing attempts remains
+`'REQUESTED'` — not a separate terminal `'FAILED'` state (§8) — so it is
+*independently* retryable in the literal sense: it is picked back up by
+the ordinary `processAllPending()` batch sweep once the underlying fault
+is removed, with no operator or caller needing to know its id. Proven by
+`hrms/test/integration/identityDeactivation.test.ts`'s two "Failure/
+rollback" tests: the first proves a forced failure leaves the row
+`REQUESTED` with attempt metadata recorded and the account untouched; the
+second proves that, after the fault is removed, a plain
+`processAllPending()` call (never a by-id `processOne()` retry) finds and
+completes the same request, with exactly one `account.disabled` audit row
+across the whole failed-then-retried sequence and no reprocessing on the
+sweep after that. A third test, "Concurrent retry workers", proves two
+workers racing to reprocess an already-once-failed request still produce
+exactly one committed completion (the request row's `FOR UPDATE` lock
+serializes them exactly as in Race A below).
 
 ## 11. Concurrency
 
@@ -467,6 +514,13 @@ additive only, one new table
 employees/users seeded. Verified idempotent (re-run twice cleanly) and
 applies fresh after `001`–`006`.
 
+This migration is this PR's own, not-yet-merged file, so it was edited in
+place — not superseded by a later migration — when the `status` model was
+corrected from a 3-value (`'REQUESTED'|'COMPLETED'|'FAILED'`) to a
+2-value (`'REQUESTED'|'COMPLETED'`) CHECK constraint (§8) and a
+`last_attempted_at TIMESTAMPTZ` column was added, before PR #10 left
+Draft.
+
 ## 20. Regression
 
 Baseline immediately before this PR (substantive `test()` counts):
@@ -489,15 +543,29 @@ Data Vault     46   (+1: SVEGIP-cookie disabled-user test)
 Organisation   65   (unchanged — mechanical `users` param threading only)
 Workflow       61   (+1: disabled-approver-cannot-decide, the gap found
                       and closed in §13)
-HRMS           83   (+6: identityDeactivation.test.ts's full request-
-                      lifecycle/idempotency/Race-A/rollback suite, plus
-                      one extended end-to-end assertion on the existing
-                      Workflow-approval offboarding test)
+HRMS           85   (+8: identityDeactivation.test.ts's full request-
+                      lifecycle/idempotency/Race-A/rollback-and-retry
+                      suite, plus one extended end-to-end assertion on the
+                      existing Workflow-approval offboarding test)
 ```
 
 All green, zero weakened or deleted tests. Concurrency-sensitive suites
 (`accountSecurity.test.ts`, `identityDeactivation.test.ts`) re-run 5×
 consecutively with zero flakes.
+
+The HRMS `+8` above already reflects a **post-Draft correction** made
+before this PR left Draft: the original single "Failure/rollback" test
+was split into two — (a) a forced first failure leaves the request
+`REQUESTED` with attempt metadata and the account untouched, and (b)
+after the fault is removed, a plain `processAllPending()` sweep (never a
+by-id retry) finds and completes the same request, with exactly one audit
+row across the whole sequence — plus one new "Concurrent retry workers"
+test proving two workers racing to reprocess an already-once-failed
+request still produce exactly one committed completion. This fixed a real
+bug where a request that failed a single processing attempt was moved to
+a terminal `'FAILED'` status that the normal batch sweep never selected
+again, permanently leaving the target account active. See §8/§10 for the
+corrected design.
 
 ## 21. Remaining risks
 

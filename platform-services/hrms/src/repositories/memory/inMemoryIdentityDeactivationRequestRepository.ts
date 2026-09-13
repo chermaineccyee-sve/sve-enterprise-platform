@@ -19,6 +19,7 @@ export function createInMemoryIdentityDeactivationRequestRepository(store: InMem
         completedAt: null,
         failureReason: null,
         attemptCount: 0,
+        lastAttemptedAt: null,
       };
       store.deactivationRequests.push(request);
       return request;
@@ -35,17 +36,19 @@ export function createInMemoryIdentityDeactivationRequestRepository(store: InMem
     async markCompleted(id: string): Promise<HrIdentityDeactivationRequest> {
       const request = store.deactivationRequests.find((r) => r.id === id);
       if (!request) throw new Error("Identity deactivation request not found");
+      const now = new Date().toISOString();
       request.status = "COMPLETED";
-      request.completedAt = new Date().toISOString();
+      request.completedAt = now;
       request.attemptCount += 1;
+      request.lastAttemptedAt = now;
       return request;
     },
-    async markFailed(id: string, failureReason: string): Promise<HrIdentityDeactivationRequest> {
+    async recordFailedAttempt(id: string, failureReason: string): Promise<HrIdentityDeactivationRequest> {
       const request = store.deactivationRequests.find((r) => r.id === id);
       if (!request) throw new Error("Identity deactivation request not found");
-      request.status = "FAILED";
       request.failureReason = failureReason;
       request.attemptCount += 1;
+      request.lastAttemptedAt = new Date().toISOString();
       return request;
     },
   };

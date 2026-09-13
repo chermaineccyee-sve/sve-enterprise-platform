@@ -14,9 +14,11 @@ interface RequestRow {
   completed_at: string | null;
   failure_reason: string | null;
   attempt_count: number;
+  last_attempted_at: string | null;
 }
 
-const COLUMNS = "id, case_id, employee_id, target_user_id, requested_by, reason_category, status, requested_at, completed_at, failure_reason, attempt_count";
+const COLUMNS =
+  "id, case_id, employee_id, target_user_id, requested_by, reason_category, status, requested_at, completed_at, failure_reason, attempt_count, last_attempted_at";
 
 function mapRow(r: RequestRow): HrIdentityDeactivationRequest {
   return {
@@ -31,6 +33,7 @@ function mapRow(r: RequestRow): HrIdentityDeactivationRequest {
     completedAt: r.completed_at,
     failureReason: r.failure_reason,
     attemptCount: r.attempt_count,
+    lastAttemptedAt: r.last_attempted_at,
   };
 }
 
@@ -58,14 +61,14 @@ export function createPgIdentityDeactivationRequestRepository(db: DatabaseProvid
     },
     async markCompleted(id: string): Promise<HrIdentityDeactivationRequest> {
       const result = await db.query<RequestRow>(
-        `UPDATE hr_identity_deactivation_requests SET status = 'COMPLETED', completed_at = NOW(), attempt_count = attempt_count + 1 WHERE id = $1 RETURNING ${COLUMNS}`,
+        `UPDATE hr_identity_deactivation_requests SET status = 'COMPLETED', completed_at = NOW(), attempt_count = attempt_count + 1, last_attempted_at = NOW() WHERE id = $1 RETURNING ${COLUMNS}`,
         [id],
       );
       return mapRow(result.rows[0]!);
     },
-    async markFailed(id: string, failureReason: string): Promise<HrIdentityDeactivationRequest> {
+    async recordFailedAttempt(id: string, failureReason: string): Promise<HrIdentityDeactivationRequest> {
       const result = await db.query<RequestRow>(
-        `UPDATE hr_identity_deactivation_requests SET status = 'FAILED', failure_reason = $2, attempt_count = attempt_count + 1 WHERE id = $1 RETURNING ${COLUMNS}`,
+        `UPDATE hr_identity_deactivation_requests SET failure_reason = $2, attempt_count = attempt_count + 1, last_attempted_at = NOW() WHERE id = $1 RETURNING ${COLUMNS}`,
         [id, failureReason],
       );
       return mapRow(result.rows[0]!);

@@ -87,8 +87,8 @@ export interface ProbationReviewRepository {
  * revocation — see domain/lifecycle.ts's HrIdentityDeactivationRequest
  * doc comment. `create` is called ONLY from offboardingService's own
  * completion `additionalWrites`, in the SAME transaction as the case's
- * COMPLETED write. `findByIdForUpdate`/`markCompleted`/`markFailed` are
- * called only from identityDeactivationProcessor.ts.
+ * COMPLETED write. `findByIdForUpdate`/`markCompleted`/`recordFailedAttempt`
+ * are called only from identityDeactivationProcessor.ts.
  */
 export interface HrIdentityDeactivationRequestRepository {
   create(input: { caseId: string; employeeId: string; targetUserId: string; requestedBy: string; reasonCategory?: string }): Promise<HrIdentityDeactivationRequest>;
@@ -97,7 +97,15 @@ export interface HrIdentityDeactivationRequestRepository {
   findByIdForUpdate(id: string): Promise<HrIdentityDeactivationRequest | null>;
   listByStatus(status: DeactivationRequestStatus): Promise<HrIdentityDeactivationRequest[]>;
   markCompleted(id: string): Promise<HrIdentityDeactivationRequest>;
-  markFailed(id: string, failureReason: string): Promise<HrIdentityDeactivationRequest>;
+  /**
+   * Records a failed processing attempt as METADATA ONLY — failureReason,
+   * attemptCount + 1, lastAttemptedAt — and deliberately does NOT change
+   * status away from "REQUESTED". This is what keeps the row inside
+   * listByStatus("REQUESTED") and therefore eligible for the very next
+   * processAllPending() sweep with no separate retry path. Never call
+   * this on a row whose status is already "COMPLETED".
+   */
+  recordFailedAttempt(id: string, failureReason: string): Promise<HrIdentityDeactivationRequest>;
 }
 
 /**

@@ -224,7 +224,7 @@ test("Race A: two workers processing the SAME deactivation request concurrently 
   });
 });
 
-test("Failure/rollback: if the referenced case is not (or no longer) COMPLETED, processing fails cleanly, is recorded as FAILED without disabling anything, and a corrected retry succeeds", { skip }, async () => {
+test("Failure/rollback: a forced first processing failure leaves the account active and the request durably REQUESTED (never a terminal FAILED status)", { skip }, async () => {
   await withTestDb(async (db) => {
     const container = await createHrmsContainer(db);
     const hr = await provisionHr(db, container, "iddeactivation.fail.hr@example.test");
@@ -251,15 +251,109 @@ test("Failure/rollback: if the referenced case is not (or no longer) COMPLETED, 
 
     const target = await container.users.findById(identityUser.id);
     assert.equal(target!.status, "active", "the account must never be disabled when the safety re-check failed");
-    const requestAfterFailure = await db.query<{ status: string; failure_reason: string | null }>(`SELECT status, failure_reason FROM hr_identity_deactivation_requests WHERE id = $1`, [requestRow.id]);
-    assert.equal(requestAfterFailure.rows[0]!.status, "FAILED");
-    assert.ok(requestAfterFailure.rows[0]!.failure_reason);
 
-    // Correct the case back and retry — a FAILED request is retryable.
+    // The core fix under test: status stays "REQUESTED" (there is no
+    // terminal "FAILED" status any more) — only metadata records the
+    // failed attempt. This is what keeps the row inside
+    // listByStatus("REQUESTED"), and therefore reachable by the very next
+    // processAllPending() sweep, with no separate retry path required.
+    const requestAfterFailure = await db.query<{ status: string; failure_reason: string | null; attempt_count: number; last_attempted_at: string | null }>(
+      `SELECT status, failure_reason, attempt_count, last_attempted_at FROM hr_identity_deactivation_requests WHERE id = $1`,
+      [requestRow.id],
+    );
+    assert.equal(requestAfterFailure.rows[0]!.status, "REQUESTED", "a failed attempt must never move the request out of REQUESTED");
+    assert.ok(requestAfterFailure.rows[0]!.failure_reason);
+    assert.equal(requestAfterFailure.rows[0]!.attempt_count, 1);
+    assert.ok(requestAfterFailure.rows[0]!.last_attempted_at);
+  });
+});
+
+test("Failure/rollback: after the fault is removed, processAllPending's normal batch sweep (not a by-id retry) picks the previously-failed request back up and disables the account exactly once", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const container = await createHrmsContainer(db);
+    const hr = await provisionHr(db, container, "iddeactivation.retry.hr@example.test");
+    const system = await provisionSystemPrincipal(db, container, "iddeactivation.retry.system@example.test", hr.userId);
+    const entities = await container.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const employee = await hireFictional(container, hr, my.id, "Fictional Retry Employee");
+
+    const identityUser = await container.users.createUser({ email: "iddeactivation.retry.target@example.test", accountType: "employee" });
+    await container.users.linkEmployee({ userId: identityUser.id, employeeId: employee.id, linkedBy: hr.userId });
+    await container.sessions.createSession({ userId: identityUser.id, mfaVerified: true });
+
+    const hrCase = await container.offboarding.createOffboardingCase(hr, { employeeId: employee.id, legalEntityId: my.id, hrOwnerUserId: hr.userId, separationType: "resignation" });
+    await container.offboarding.completeOffboarding(hr, hrCase.id, OFFBOARDING_INPUT);
+    const requestRow = (await db.query<{ id: string }>(`SELECT id FROM hr_identity_deactivation_requests WHERE case_id = $1`, [hrCase.id])).rows[0]!;
+
+    // First pass fails (fault injected the same way as the previous test).
+    await db.query(`UPDATE hr_lifecycle_cases SET status = 'IN_PROGRESS', completed_at = NULL WHERE id = $1`, [hrCase.id]);
+    const firstPass = await container.identityDeactivation.processAllPending(system);
+    assert.equal(firstPass.length, 1);
+    assert.equal(firstPass[0]!.outcome, "failed");
+    assert.equal((await container.users.findById(identityUser.id))!.status, "active");
+
+    // Remove the fault, but never call processOne(requestId) directly —
+    // going through the ordinary batch sweep is the actual bug fix under
+    // test: before this fix, a request that had failed once was moved to
+    // a terminal "FAILED" status that listByStatus("REQUESTED") never
+    // selected again, so this second sweep would have found nothing.
     await db.query(`UPDATE hr_lifecycle_cases SET status = 'COMPLETED', completed_at = NOW() WHERE id = $1`, [hrCase.id]);
-    const retried = await container.identityDeactivation.processOne(system, requestRow.id);
-    assert.equal(retried.outcome, "completed");
-    const targetAfterRetry = await container.users.findById(identityUser.id);
-    assert.equal(targetAfterRetry!.status, "disabled");
+    const secondPass = await container.identityDeactivation.processAllPending(system);
+    assert.equal(secondPass.length, 1, "the previously-failed request must still be visible to the normal batch sweep");
+    assert.equal(secondPass[0]!.requestId, requestRow.id);
+    assert.equal(secondPass[0]!.outcome, "completed");
+
+    const target = await container.users.findById(identityUser.id);
+    assert.equal(target!.status, "disabled");
+    assert.equal((await container.sessions.listActiveSessions(identityUser.id)).length, 0);
+
+    // Exactly one effective disable/audit occurred across the whole
+    // failed-then-retried sequence, never two.
+    const auditRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM security_audit_events WHERE resource_id = $1 AND action = 'account.disabled'`, [identityUser.id]);
+    assert.equal(auditRows.rows[0]!.count, "1");
+
+    const requestAfter = await db.query<{ status: string; attempt_count: number }>(`SELECT status, attempt_count FROM hr_identity_deactivation_requests WHERE id = $1`, [requestRow.id]);
+    assert.equal(requestAfter.rows[0]!.status, "COMPLETED");
+    assert.equal(requestAfter.rows[0]!.attempt_count, 2, "one failed attempt + one successful completion");
+
+    // A completed request is never processed again by a later sweep.
+    const thirdPass = await container.identityDeactivation.processAllPending(system);
+    assert.equal(thirdPass.length, 0);
+  });
+});
+
+test("Concurrent retry workers: two workers racing to reprocess an already-once-failed, still-REQUESTED request produce exactly one committed completion", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const container = await createHrmsContainer(db);
+    const hr = await provisionHr(db, container, "iddeactivation.retryrace.hr@example.test");
+    const system = await provisionSystemPrincipal(db, container, "iddeactivation.retryrace.system@example.test", hr.userId);
+    const entities = await container.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const employee = await hireFictional(container, hr, my.id, "Fictional Retry Race Employee");
+
+    const identityUser = await container.users.createUser({ email: "iddeactivation.retryrace.target@example.test", accountType: "employee" });
+    await container.users.linkEmployee({ userId: identityUser.id, employeeId: employee.id, linkedBy: hr.userId });
+    await container.sessions.createSession({ userId: identityUser.id, mfaVerified: true });
+
+    const hrCase = await container.offboarding.createOffboardingCase(hr, { employeeId: employee.id, legalEntityId: my.id, hrOwnerUserId: hr.userId, separationType: "resignation" });
+    await container.offboarding.completeOffboarding(hr, hrCase.id, OFFBOARDING_INPUT);
+    const requestRow = (await db.query<{ id: string }>(`SELECT id FROM hr_identity_deactivation_requests WHERE case_id = $1`, [hrCase.id])).rows[0]!;
+
+    // Force one failed attempt first, so the retry race below starts from
+    // a request that has already failed once and carries attempt/error
+    // metadata — not from a pristine, never-tried row (that scenario is
+    // already covered by the plain "Race A" test above).
+    await db.query(`UPDATE hr_lifecycle_cases SET status = 'IN_PROGRESS', completed_at = NULL WHERE id = $1`, [hrCase.id]);
+    const failedFirst = await container.identityDeactivation.processOne(system, requestRow.id);
+    assert.equal(failedFirst.outcome, "failed");
+    await db.query(`UPDATE hr_lifecycle_cases SET status = 'COMPLETED', completed_at = NOW() WHERE id = $1`, [hrCase.id]);
+
+    const [a, b] = await Promise.all([container.identityDeactivation.processOne(system, requestRow.id), container.identityDeactivation.processOne(system, requestRow.id)]);
+    const outcomes = [a.outcome, b.outcome].sort();
+    assert.deepEqual(outcomes, ["already_completed", "completed"]);
+
+    const auditRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM security_audit_events WHERE resource_id = $1 AND action = 'account.disabled'`, [identityUser.id]);
+    assert.equal(auditRows.rows[0]!.count, "1", "exactly one committed completion, never two, even when retrying after a prior failure");
+    assert.equal((await container.sessions.listActiveSessions(identityUser.id)).length, 0);
   });
 });

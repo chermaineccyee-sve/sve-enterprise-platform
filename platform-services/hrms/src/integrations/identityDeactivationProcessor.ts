@@ -79,11 +79,20 @@ export function createIdentityDeactivationProcessor(deps: { db: DatabaseProvider
       // subsequent transaction whose only job is to leave a durable,
       // non-sensitive breadcrumb for the next retry/operator, never HR
       // case content.
+      // Records failureReason/attemptCount/lastAttemptedAt as METADATA
+      // only — the row's status stays "REQUESTED", so it remains inside
+      // processAllPending()'s own listByStatus("REQUESTED") sweep with no
+      // separate retry path. This is the fix for the bug where a request
+      // that failed once would be excluded from every future
+      // processAllPending() call (it used to move to a terminal "FAILED"
+      // status nothing ever re-selected), permanently leaving the target
+      // account active. See docs/architecture/
+      // identity-offboarding-revocation.md "Retries / idempotency".
       const message = (error instanceof Error ? error.message : String(error)).slice(0, 500);
       await transactions.run(async (repos) => {
         const current = await repos.deactivationRequests.findById(requestId);
         if (current && current.status === "REQUESTED") {
-          await repos.deactivationRequests.markFailed(requestId, message);
+          await repos.deactivationRequests.recordFailedAttempt(requestId, message);
         }
       });
       return { requestId, outcome: "failed" };
