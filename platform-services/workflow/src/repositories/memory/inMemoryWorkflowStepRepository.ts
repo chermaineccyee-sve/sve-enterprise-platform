@@ -15,6 +15,7 @@ export function createInMemoryWorkflowStepRepository(store: InMemoryStore): Work
         name: input.name,
         assignmentMode: input.assignmentMode ?? null,
         assignedPermissionKey: input.assignedPermissionKey ?? null,
+        assignedPermissionKeyPrivileged: input.assignedPermissionKeyPrivileged ?? null,
         allowSelfApproval: input.allowSelfApproval ?? false,
         permittedDecisions: input.permittedDecisions ?? null,
         systemActionHandlerKey: input.systemActionHandlerKey ?? null,

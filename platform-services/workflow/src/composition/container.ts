@@ -23,6 +23,7 @@ import { createPgAuditRepository } from "../../../identity/src/repositories/post
 import { createSessionService, type SessionService } from "../../../identity/src/services/sessionService.ts";
 import { createRbacService, type RbacService } from "../../../identity/src/services/rbacService.ts";
 import { createAuditService, type AuditService } from "../../../identity/src/services/auditService.ts";
+import { createActorResolutionService, type ActorResolutionService } from "../../../identity/src/services/actorResolutionService.ts";
 import type { UserRepository, OrganisationRepository } from "../../../identity/src/repositories/types.ts";
 import { createOrganisationContainer, type OrganisationContainer } from "../../../organisation/src/composition/container.ts";
 import { createPgWorkflowDefinitionRepository } from "../repositories/postgres/pgWorkflowDefinitionRepository.ts";
@@ -30,6 +31,7 @@ import { createPgWorkflowDefinitionVersionRepository } from "../repositories/pos
 import { createPgWorkflowStepRepository } from "../repositories/postgres/pgWorkflowStepRepository.ts";
 import { createPgWorkflowInstanceRepository } from "../repositories/postgres/pgWorkflowInstanceRepository.ts";
 import { createPgWorkflowTaskRepository } from "../repositories/postgres/pgWorkflowTaskRepository.ts";
+import { createPgWorkflowTaskCandidateRepository } from "../repositories/postgres/pgWorkflowTaskCandidateRepository.ts";
 import { createPgWorkflowEventRepository } from "../repositories/postgres/pgWorkflowEventRepository.ts";
 import { createPgWorkflowTransaction } from "../repositories/postgres/pgWorkflowTransaction.ts";
 import { createSystemActionRegistry, type SystemActionRegistry } from "../domain/systemActionRegistry.ts";
@@ -46,6 +48,7 @@ export interface WorkflowContainer {
   rbac: RbacService;
   audit: AuditService;
   orgContainer: OrganisationContainer;
+  actorResolution: ActorResolutionService;
   systemActions: SystemActionRegistry;
   engine: InstanceEngine;
   definitions: DefinitionService;
@@ -64,6 +67,7 @@ export async function createWorkflowContainer(db: DatabaseProvider): Promise<Wor
   const sessions = createSessionService({ sessions: sessionRepo });
   const rbac = createRbacService({ rbac: rbacRepo, organisation });
   const audit = createAuditService({ audit: auditRepo });
+  const actorResolution = createActorResolutionService({ rbac: rbacRepo, rbacService: rbac, users });
 
   // Organisation is consumed as a whole container, the same
   // dependency-direction convention platform-services/hrms established —
@@ -76,17 +80,18 @@ export async function createWorkflowContainer(db: DatabaseProvider): Promise<Wor
   const stepRepo = createPgWorkflowStepRepository(db);
   const instanceRepo = createPgWorkflowInstanceRepository(db);
   const taskRepo = createPgWorkflowTaskRepository(db);
+  const taskCandidateRepo = createPgWorkflowTaskCandidateRepository(db);
   const eventRepo = createPgWorkflowEventRepository(db);
   const transactions = createPgWorkflowTransaction(db);
 
   const systemActions = createSystemActionRegistry();
 
-  const engine = createInstanceEngine({ organisation, users, orgAssignments: orgContainer.assignments, systemActions });
+  const engine = createInstanceEngine({ orgAssignments: orgContainer.assignments, actorResolution, systemActions });
 
   const definitions = createDefinitionService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, rbac, audit, transactions, systemActions });
   const instances = createInstanceService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, instances: instanceRepo, tasks: taskRepo, events: eventRepo, organisation, users, rbac, audit, transactions, engine });
-  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, rbac, audit, transactions, engine });
+  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, taskCandidates: taskCandidateRepo, rbac, audit, transactions, engine });
   const escalations = createEscalationService({ tasks: taskRepo, instances: instanceRepo, users, orgAssignments: orgContainer.assignments, rbac, transactions });
 
-  return { users, organisation, sessions, rbac, audit, orgContainer, systemActions, engine, definitions, instances, tasks, escalations };
+  return { users, organisation, sessions, rbac, audit, orgContainer, actorResolution, systemActions, engine, definitions, instances, tasks, escalations };
 }

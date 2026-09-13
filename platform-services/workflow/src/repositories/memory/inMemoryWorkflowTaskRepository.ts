@@ -36,10 +36,12 @@ export function createInMemoryWorkflowTaskRepository(store: InMemoryStore): Work
       return store.tasks.filter((t) => t.instanceId === instanceId);
     },
     async listCandidatesForUser(userId, filter) {
+      const roleTaskIdsForUser = new Set(store.taskCandidates.filter((c) => c.userId === userId).map((c) => c.taskId));
       return store.tasks.filter((t) => {
         if (filter.instanceId && t.instanceId !== filter.instanceId) return false;
         if (filter.status && t.status !== filter.status) return false;
-        return t.assignedUserId === userId || t.assignmentMode === "ROLE";
+        if (t.assignedUserId === userId) return true;
+        return t.assignmentMode === "ROLE" && roleTaskIdsForUser.has(t.id);
       });
     },
     async transitionStatus(id, expectedStatus, input) {

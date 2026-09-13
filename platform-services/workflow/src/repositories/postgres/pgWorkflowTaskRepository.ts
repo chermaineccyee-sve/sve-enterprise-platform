@@ -66,7 +66,11 @@ export function createPgWorkflowTaskRepository(db: DatabaseProvider): WorkflowTa
       return result.rows.map(mapRow);
     },
     async listCandidatesForUser(userId, filter) {
-      const clauses: string[] = [`(assigned_user_id = $1 OR assignment_mode = 'ROLE')`];
+      const clauses: string[] = [
+        `(assigned_user_id = $1 OR (assignment_mode = 'ROLE' AND EXISTS (
+           SELECT 1 FROM workflow_task_candidates wtc WHERE wtc.task_id = workflow_tasks.id AND wtc.user_id = $1
+         )))`,
+      ];
       const params: unknown[] = [userId];
       let i = 2;
       if (filter.instanceId) {

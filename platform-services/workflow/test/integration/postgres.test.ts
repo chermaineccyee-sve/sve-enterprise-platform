@@ -8,6 +8,7 @@ import { createPgRbacRepository } from "../../../identity/src/repositories/postg
 import { createPgAuditRepository } from "../../../identity/src/repositories/postgres/pgAuditRepository.ts";
 import { createRbacService } from "../../../identity/src/services/rbacService.ts";
 import { createAuditService } from "../../../identity/src/services/auditService.ts";
+import { createActorResolutionService } from "../../../identity/src/services/actorResolutionService.ts";
 
 import { createPgOrgStructureRepository } from "../../../organisation/src/repositories/postgres/pgOrgStructureRepository.ts";
 import { createPgEmployeeRepository } from "../../../organisation/src/repositories/postgres/pgEmployeeRepository.ts";
@@ -22,6 +23,7 @@ import { createPgWorkflowDefinitionVersionRepository } from "../../src/repositor
 import { createPgWorkflowStepRepository } from "../../src/repositories/postgres/pgWorkflowStepRepository.ts";
 import { createPgWorkflowInstanceRepository } from "../../src/repositories/postgres/pgWorkflowInstanceRepository.ts";
 import { createPgWorkflowTaskRepository } from "../../src/repositories/postgres/pgWorkflowTaskRepository.ts";
+import { createPgWorkflowTaskCandidateRepository } from "../../src/repositories/postgres/pgWorkflowTaskCandidateRepository.ts";
 import { createPgWorkflowEventRepository } from "../../src/repositories/postgres/pgWorkflowEventRepository.ts";
 import { createPgWorkflowTransaction } from "../../src/repositories/postgres/pgWorkflowTransaction.ts";
 import { createSystemActionRegistry } from "../../src/domain/systemActionRegistry.ts";
@@ -40,6 +42,7 @@ function buildContainer(db: Parameters<typeof createPgUserRepository>[0]) {
   const auditRepo = createPgAuditRepository(db);
   const rbac = createRbacService({ rbac: rbacRepo, organisation });
   const audit = createAuditService({ audit: auditRepo });
+  const actorResolution = createActorResolutionService({ rbac: rbacRepo, rbacService: rbac, users });
 
   const orgStructureRepo = createPgOrgStructureRepository(db);
   const employeeRepo = createPgEmployeeRepository(db);
@@ -54,16 +57,17 @@ function buildContainer(db: Parameters<typeof createPgUserRepository>[0]) {
   const stepRepo = createPgWorkflowStepRepository(db);
   const instanceRepo = createPgWorkflowInstanceRepository(db);
   const taskRepo = createPgWorkflowTaskRepository(db);
+  const taskCandidateRepo = createPgWorkflowTaskCandidateRepository(db);
   const eventRepo = createPgWorkflowEventRepository(db);
   const transactions = createPgWorkflowTransaction(db);
   const systemActions = createSystemActionRegistry();
-  const engine = createInstanceEngine({ organisation, users, orgAssignments, systemActions });
+  const engine = createInstanceEngine({ orgAssignments, actorResolution, systemActions });
 
   const definitions = createDefinitionService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, rbac, audit, transactions, systemActions });
   const instances = createInstanceService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, instances: instanceRepo, tasks: taskRepo, events: eventRepo, organisation, users, rbac, audit, transactions, engine });
-  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, rbac, audit, transactions, engine });
+  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, taskCandidates: taskCandidateRepo, rbac, audit, transactions, engine });
 
-  return { users, organisation, rbacRepo, rbac, audit, employees, orgAssignments, definitions, instances, tasks, systemActions };
+  return { users, organisation, rbacRepo, rbac, audit, employees, orgAssignments, actorResolution, taskCandidateRepo, definitions, instances, tasks, systemActions };
 }
 
 async function grantFullAccess(c: ReturnType<typeof buildContainer>, userId: string, grantedBy: string) {
@@ -169,6 +173,54 @@ test("Workflow: two concurrent decisions on the same task produce exactly one co
     const finalInstance = await c.instances.getInstance({ userId: admin.id, email: admin.email }, instance.id);
     assert.equal(finalInstance.status, "COMPLETED");
     assert.equal(finalInstance.outcome, "APPROVED");
+  });
+});
+
+test("Workflow: two eligible ROLE candidates racing the same task — exactly one decision commits (review correction: candidate-set concurrency)", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const c = buildContainer(db);
+    const admin = await c.users.createUser({ email: "workflow.pg.roleconcurrency.admin@example.test", accountType: "employee" });
+    await grantFullAccess(c, admin.id, admin.id);
+    const entities = await c.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+
+    const { version } = await c.definitions.createDefinition({ userId: admin.id, email: admin.email }, { key: "test.pg.roleconcurrency", name: "Role concurrency" });
+    await c.definitions.addStep({ userId: admin.id, email: admin.email }, version.id, { sequenceNumber: 1, stepType: "APPROVAL", name: "Role approval", assignmentMode: "ROLE", assignedPermissionKey: "test.pg.role_approve", permittedDecisions: ["APPROVE"] });
+    await c.definitions.publish({ userId: admin.id, email: admin.email }, version.id);
+
+    const holderA = await c.users.createUser({ email: "workflow.pg.roleconcurrency.holdera@example.test", accountType: "employee" });
+    const holderB = await c.users.createUser({ email: "workflow.pg.roleconcurrency.holderb@example.test", accountType: "employee" });
+    const role = await c.rbacRepo.createRole({ key: "workflow-role-concurrency", name: "Role concurrency test role" });
+    const permission = (await c.rbacRepo.findPermissionByKey("test.pg.role_approve")) ?? (await c.rbacRepo.createPermission({ key: "test.pg.role_approve", maxClassification: "CONFIDENTIAL" }));
+    await c.rbacRepo.grantPermissionToRole(role.id, permission.id);
+    await c.rbacRepo.assignRole({ userId: holderA.id, roleId: role.id, grantedBy: admin.id });
+    await c.rbacRepo.assignRole({ userId: holderB.id, roleId: role.id, grantedBy: admin.id });
+    await c.rbacRepo.grantEntityAccess({ userId: holderA.id, scopeType: "legal_entity", legalEntityId: my.id, grantedBy: admin.id });
+    await c.rbacRepo.grantEntityAccess({ userId: holderB.id, scopeType: "legal_entity", legalEntityId: my.id, grantedBy: admin.id });
+
+    const instance = await c.instances.startWorkflow({ userId: admin.id, email: admin.email }, { definitionKey: "test.pg.roleconcurrency", subjectType: "test.fixture", subjectId: randomUUID(), legalEntityId: my.id });
+    assert.equal(instance.status, "ACTIVE");
+
+    const tasksA = await c.tasks.listAssignedTasks({ userId: holderA.id, email: holderA.email }, { instanceId: instance.id });
+    const tasksB = await c.tasks.listAssignedTasks({ userId: holderB.id, email: holderB.email }, { instanceId: instance.id });
+    assert.equal(tasksA.length, 1, "holderA must be a resolved candidate");
+    assert.equal(tasksB.length, 1, "holderB must be a resolved candidate");
+    assert.equal(tasksA[0]!.id, tasksB[0]!.id, "both candidates must see the SAME task");
+    const taskId = tasksA[0]!.id;
+
+    const attemptA = () => c.tasks.decide({ userId: holderA.id, email: holderA.email }, taskId, { decision: "APPROVE" });
+    const attemptB = () => c.tasks.decide({ userId: holderB.id, email: holderB.email }, taskId, { decision: "APPROVE" });
+    const results = await Promise.allSettled([attemptA(), attemptB()]);
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r) => r.status === "rejected");
+    assert.equal(fulfilled.length, 1, "exactly one of the two eligible ROLE candidates' concurrent decisions must commit");
+    assert.equal(rejected.length, 1);
+
+    const decisionRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM workflow_decisions WHERE task_id = $1`, [taskId]);
+    assert.equal(decisionRows.rows[0]!.count, "1", "at most one committed decision may ever exist for a task, even under ROLE-mode candidate contention");
+
+    const actorRow = await db.query<{ actor_user_id: string }>(`SELECT actor_user_id FROM workflow_decisions WHERE task_id = $1`, [taskId]);
+    assert.ok([holderA.id, holderB.id].includes(actorRow.rows[0]!.actor_user_id), "decision history must record the actual winning actor");
   });
 });
 

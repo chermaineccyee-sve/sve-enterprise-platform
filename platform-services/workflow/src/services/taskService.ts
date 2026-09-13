@@ -3,7 +3,7 @@
  * docs/architecture/workflow-approval-foundation.md "Tasks", "Approvals",
  * "Concurrency".
  */
-import type { WorkflowInstanceRepository, WorkflowStepRepository, WorkflowTaskRepository, WorkflowTransaction } from "../repositories/types.ts";
+import type { WorkflowInstanceRepository, WorkflowStepRepository, WorkflowTaskRepository, WorkflowTaskCandidateRepository, WorkflowTransaction } from "../repositories/types.ts";
 import type { RbacService } from "../../../identity/src/services/rbacService.ts";
 import type { AuditService } from "../../../identity/src/services/auditService.ts";
 import type { InstanceEngine } from "./instanceEngine.ts";
@@ -16,17 +16,25 @@ export function createTaskService(deps: {
   instances: WorkflowInstanceRepository;
   steps: WorkflowStepRepository;
   tasks: WorkflowTaskRepository;
+  taskCandidates: WorkflowTaskCandidateRepository;
   rbac: RbacService;
   audit: AuditService;
   transactions: WorkflowTransaction;
   engine: InstanceEngine;
 }) {
-  /** Is `actor` currently eligible to act on `task` — a fixed match for USER/MANAGER modes, or a live permission check for ROLE mode (PR brief item 13: "no eligible approver" is possible for ROLE mode by design — see docs "Remaining risks"). */
-  async function checkEligibility(actor: ActorContext, task: WorkflowTask, instance: { legalEntityId: string; dataClassification: string }): Promise<void> {
+  /**
+   * Is `actor` currently eligible to act on `task` — a fixed match for
+   * USER/MANAGER modes, or (review correction) membership in that task's
+   * OWN immutable, resolved-at-activation `workflow_task_candidates` set
+   * for ROLE mode. Never a live RBAC re-check: a later role grant/
+   * revocation must not silently change who may act on an
+   * already-activated task — see docs "Role-change semantics after
+   * activation".
+   */
+  async function checkEligibility(actor: ActorContext, task: WorkflowTask): Promise<void> {
     if (task.assignmentMode === "ROLE") {
-      if (!task.assignedPermissionKey) throw new ForbiddenError(PERMISSIONS.APPROVAL_DECIDE);
-      const result = await deps.rbac.authorize({ userId: actor.userId, permissionKey: task.assignedPermissionKey, target: { legalEntityId: instance.legalEntityId, recordClassification: instance.dataClassification as never } });
-      if (!result.allowed) throw new ForbiddenError(task.assignedPermissionKey);
+      const isCandidate = await deps.taskCandidates.isCandidate(task.id, actor.userId);
+      if (!isCandidate) throw new ForbiddenError(task.assignedPermissionKey ?? PERMISSIONS.APPROVAL_DECIDE);
       return;
     }
     if (task.assignedUserId !== actor.userId) throw new ForbiddenError("This task is not assigned to you.");
@@ -42,7 +50,7 @@ export function createTaskService(deps: {
       // ROLE-eligible, or the instance's own requester.
       if (instance.requesterUserId !== actor.userId) {
         try {
-          await checkEligibility(actor, task, instance);
+          await checkEligibility(actor, task);
         } catch {
           throw new NotFoundError("Workflow task");
         }
@@ -50,21 +58,16 @@ export function createTaskService(deps: {
       return task;
     },
 
+    /**
+     * Tasks fixed-assigned to `actor` (USER/MANAGER), plus ROLE-mode
+     * tasks where `actor` appears in that task's own resolved
+     * `workflow_task_candidates` set — the repository query already
+     * applies this filter (see `WorkflowTaskRepository.listCandidatesForUser`),
+     * so no additional live RBAC re-check happens here (review
+     * correction: eligibility was already fixed at step-activation time).
+     */
     async listAssignedTasks(actor: ActorContext, filter: TaskFilter): Promise<WorkflowTask[]> {
-      const candidates = await deps.tasks.listCandidatesForUser(actor.userId, filter);
-      const eligible: WorkflowTask[] = [];
-      for (const task of candidates) {
-        if (task.assignmentMode !== "ROLE") {
-          eligible.push(task);
-          continue;
-        }
-        if (!task.assignedPermissionKey) continue;
-        const instance = await deps.instances.findById(task.instanceId);
-        if (!instance) continue;
-        const result = await deps.rbac.authorize({ userId: actor.userId, permissionKey: task.assignedPermissionKey, target: { legalEntityId: instance.legalEntityId, recordClassification: instance.dataClassification as never } });
-        if (result.allowed) eligible.push(task);
-      }
-      return eligible;
+      return deps.tasks.listCandidatesForUser(actor.userId, filter);
     },
 
     async decide(actor: ActorContext, taskId: string, input: RecordDecisionInput): Promise<{ task: WorkflowTask; decision: WorkflowDecision }> {
@@ -75,7 +78,7 @@ export function createTaskService(deps: {
 
       const instance = await deps.instances.findById(task.instanceId);
       if (!instance) throw new NotFoundError("Workflow task");
-      await checkEligibility(actor, task, instance);
+      await checkEligibility(actor, task);
 
       const step = await deps.steps.findById(task.stepId);
       if (!step) throw new NotFoundError("Workflow step");
@@ -112,7 +115,7 @@ export function createTaskService(deps: {
 
       const instance = await deps.instances.findById(task.instanceId);
       if (!instance) throw new NotFoundError("Workflow task");
-      await checkEligibility(actor, task, instance);
+      await checkEligibility(actor, task);
 
       const step = await deps.steps.findById(task.stepId);
       if (!step) throw new NotFoundError("Workflow step");

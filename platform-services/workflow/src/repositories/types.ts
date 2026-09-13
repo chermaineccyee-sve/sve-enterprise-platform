@@ -13,6 +13,7 @@ import type {
   WorkflowDecision,
   WorkflowEvent,
   WorkflowSystemActionExecution,
+  WorkflowTaskCandidate,
   DefinitionVersionStatus,
   CreateStepInput,
   InstanceStatus,
@@ -97,7 +98,12 @@ export interface WorkflowTaskRepository {
   }): Promise<WorkflowTask>;
   findById(id: string): Promise<WorkflowTask | null>;
   listByInstance(instanceId: string): Promise<WorkflowTask[]>;
-  /** Tasks fixed-assigned to this user, or ROLE-mode tasks (eligibility checked separately at read time by the service). */
+  /**
+   * Tasks actionable by this user: fixed-assigned to them (USER/MANAGER),
+   * or ROLE-mode tasks where they appear in that task's OWN resolved
+   * workflow_task_candidates set (never a live role/permission
+   * re-check — see WorkflowTaskCandidateRepository).
+   */
   listCandidatesForUser(userId: string, filter: TaskFilter): Promise<WorkflowTask[]>;
   /**
    * Conditional status transition guarded by the CURRENT status — returns
@@ -156,12 +162,29 @@ export interface WorkflowSystemActionExecutionRepository {
   updateStatus(id: string, input: { status: SystemActionExecutionStatus; attempts: number; lastError?: string | null }): Promise<WorkflowSystemActionExecution>;
 }
 
+/**
+ * The ROLE-routing review correction: the immutable, resolved-once
+ * eligible-actor set for a single ROLE-mode task, recorded at the exact
+ * moment its step activated. See docs "ROLE routing semantics" and
+ * "Role-change semantics after activation" for why this table exists
+ * instead of a live RBAC re-check at decision time.
+ */
+export interface WorkflowTaskCandidateRepository {
+  /** Called exactly once per task, immediately after task creation, inside the SAME transaction. Never called again for that task. */
+  recordCandidates(taskId: string, userIds: string[]): Promise<void>;
+  isCandidate(taskId: string, userId: string): Promise<boolean>;
+  listCandidateUserIds(taskId: string): Promise<string[]>;
+  /** For history/inspection — e.g. an audit trail of exactly who was eligible when a task activated. */
+  listByTask(taskId: string): Promise<WorkflowTaskCandidate[]>;
+}
+
 export interface WorkflowTxRepos {
   definitions: WorkflowDefinitionRepository;
   versions: WorkflowDefinitionVersionRepository;
   steps: WorkflowStepRepository;
   instances: WorkflowInstanceRepository;
   tasks: WorkflowTaskRepository;
+  taskCandidates: WorkflowTaskCandidateRepository;
   decisions: WorkflowDecisionRepository;
   events: WorkflowEventRepository;
   systemActions: WorkflowSystemActionExecutionRepository;

@@ -48,8 +48,10 @@ export interface WorkflowStep {
   name: string;
   /** APPROVAL/TASK only — null for SYSTEM_ACTION. */
   assignmentMode: AssignmentMode | null;
-  /** ROLE mode only — the permission key checked live at decision time. */
+  /** ROLE mode only — the permission key whose current holders are resolved into a fixed candidate set at step-activation time (see WorkflowTaskCandidate). */
   assignedPermissionKey: string | null;
+  /** ROLE mode only, optional — a privileged-tier sibling of assignedPermissionKey (mirroring this codebase's base/.privileged pattern), unioned into the same candidate set. */
+  assignedPermissionKeyPrivileged: string | null;
   allowSelfApproval: boolean;
   /** APPROVAL only — the decisions this step permits. */
   permittedDecisions: ApprovalDecisionType[] | null;
@@ -102,6 +104,7 @@ export interface WorkflowTask {
   taskType: TaskType;
   assignmentMode: AssignmentMode;
   assignedUserId: string | null;
+  /** ROLE mode only — retained as a historical record of which key was resolved; the actual eligible actors for this task are workflow_task_candidates, never re-derived from this key. */
   assignedPermissionKey: string | null;
   status: TaskStatus;
   dueAt: string | null;
@@ -169,6 +172,19 @@ export interface WorkflowSystemActionExecution {
   executedAt: string | null;
 }
 
+/**
+ * One row per user resolved as eligible for a ROLE-mode task at the
+ * moment its step activated (PR #8 review correction — see docs
+ * "ROLE routing semantics"). Immutable, insert-only, written once by
+ * `recordCandidates()` when the task is created.
+ */
+export interface WorkflowTaskCandidate {
+  id: string;
+  taskId: string;
+  userId: string;
+  createdAt: string;
+}
+
 // --- Input shapes -----------------------------------------------------
 
 export interface CreateStepInput {
@@ -177,6 +193,7 @@ export interface CreateStepInput {
   name: string;
   assignmentMode?: AssignmentMode | null;
   assignedPermissionKey?: string | null;
+  assignedPermissionKeyPrivileged?: string | null;
   allowSelfApproval?: boolean;
   permittedDecisions?: ApprovalDecisionType[] | null;
   systemActionHandlerKey?: string | null;

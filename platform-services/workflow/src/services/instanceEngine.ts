@@ -9,15 +9,21 @@
  * workflow-approval-foundation.md "Instances" and "Actor resolution".
  */
 import type { WorkflowTxRepos } from "../repositories/types.ts";
-import type { OrganisationRepository, UserRepository } from "../../../identity/src/repositories/types.ts";
 import type { EmploymentAssignmentService } from "../../../organisation/src/services/employmentAssignmentService.ts";
+import type { ActorResolutionService } from "../../../identity/src/services/actorResolutionService.ts";
 import type { SystemActionRegistry } from "../domain/systemActionRegistry.ts";
 import type { WorkflowInstance, WorkflowStep, ApprovalDecisionType } from "../domain/workflow.ts";
 import { InvalidStateError } from "../domain/errors.ts";
 
-type Resolution = { ok: true; assignedUserId: string | null; assignedPermissionKey: string | null } | { ok: false; reason: string };
+type Resolution =
+  | { ok: true; assignedUserId: string | null; assignedPermissionKey: string | null; candidateUserIds?: string[] }
+  | { ok: false; reason: string };
 
-export function createInstanceEngine(deps: { organisation: OrganisationRepository; users: UserRepository; orgAssignments: Pick<EmploymentAssignmentService, "resolveDirectManagerUserId">; systemActions: SystemActionRegistry }) {
+export function createInstanceEngine(deps: {
+  orgAssignments: Pick<EmploymentAssignmentService, "resolveDirectManagerUserId">;
+  actorResolution: ActorResolutionService;
+  systemActions: SystemActionRegistry;
+}) {
   /**
    * Resolved at STEP-ACTIVATION time, not instance-start time (PR brief
    * item 14): reporting relationships may change during a long-running
@@ -35,13 +41,33 @@ export function createInstanceEngine(deps: { organisation: OrganisationRepositor
       return { ok: true, assignedUserId: managerUserId, assignedPermissionKey: null };
     }
     if (step.assignmentMode === "ROLE") {
-      // Eligibility is NOT materialised into a user list here — it is
-      // checked live, against assignedPermissionKey, at decision time
-      // (see taskService.ts). This is a documented limitation: a ROLE
-      // step can activate with zero currently-eligible approvers without
-      // that being caught as a routing failure — see docs "Remaining
-      // risks".
-      return { ok: true, assignedUserId: null, assignedPermissionKey: step.assignedPermissionKey };
+      // Review correction: eligibility IS resolved and materialised HERE,
+      // at step-activation time — never deferred to a live per-decision
+      // RBAC re-check. Identity's actorResolutionService already applies
+      // permission-grant, classification-ceiling, entity-access-grant,
+      // and active-account checks per candidate (see
+      // platform-services/identity/src/services/actorResolutionService.ts) —
+      // this function only adds the self-approval exclusion and unions
+      // the optional privileged-tier key, mirroring this codebase's
+      // base/.privileged pattern.
+      const target = { legalEntityId: instance.legalEntityId, recordClassification: instance.dataClassification };
+      const baseCandidates = await deps.actorResolution.listEligibleActors(step.assignedPermissionKey!, target);
+      const privilegedCandidates = step.assignedPermissionKeyPrivileged ? await deps.actorResolution.listEligibleActors(step.assignedPermissionKeyPrivileged, target) : [];
+      let candidateUserIds = [...new Set([...baseCandidates, ...privilegedCandidates])];
+
+      // Apply the self-approval rule BEFORE deciding whether the route is
+      // viable (PR #8 review correction item 2): the requester/subject
+      // actor is excluded from the eligible set first, so "only self is
+      // eligible" correctly falls through to the empty-set routing
+      // failure below rather than ever being offered a task.
+      if (!step.allowSelfApproval && instance.subjectActorUserId) {
+        candidateUserIds = candidateUserIds.filter((id) => id !== instance.subjectActorUserId);
+      }
+
+      if (candidateUserIds.length === 0) {
+        return { ok: false, reason: "No eligible ROLE candidate could be resolved for this step (permission, classification, entity access, active-account, and self-approval rules all applied)." };
+      }
+      return { ok: true, assignedUserId: null, assignedPermissionKey: step.assignedPermissionKey, candidateUserIds };
     }
     // USER mode: the caller supplied an explicit target at instance-start
     // time (stored in instance.context.stepAssignments), since a
@@ -85,7 +111,13 @@ export function createInstanceEngine(deps: { organisation: OrganisationRepositor
       escalateAfter: addMinutes(step.escalateAfterMinutes),
       escalationTargetMode: step.escalationTargetMode,
     });
-    await repos.events.append({ instanceId: instance.id, eventType: "task_created", eventData: { taskId: task.id, stepId: step.id, assignmentMode: step.assignmentMode }, recordedBy });
+    // Persist the resolved ROLE candidate set exactly once, at this same
+    // activation moment — never rewritten by a later role change (see
+    // docs "Role-change semantics after activation").
+    if (step.assignmentMode === "ROLE" && resolution.candidateUserIds) {
+      await repos.taskCandidates.recordCandidates(task.id, resolution.candidateUserIds);
+    }
+    await repos.events.append({ instanceId: instance.id, eventType: "task_created", eventData: { taskId: task.id, stepId: step.id, assignmentMode: step.assignmentMode, candidateCount: resolution.candidateUserIds?.length }, recordedBy });
     return repos.instances.updateProgress(instance.id, { status: "ACTIVE", currentStepId: step.id });
   }
 

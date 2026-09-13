@@ -12,6 +12,7 @@ import { createInMemoryAuditRepository } from "../../../identity/src/repositorie
 import { createInMemoryUserRepository } from "../../../identity/src/repositories/memory/inMemoryUserRepository.ts";
 import { createRbacService } from "../../../identity/src/services/rbacService.ts";
 import { createAuditService } from "../../../identity/src/services/auditService.ts";
+import { createActorResolutionService } from "../../../identity/src/services/actorResolutionService.ts";
 
 import { createInMemoryStore as createOrgInMemoryStore } from "../../../organisation/src/repositories/memory/inMemoryStore.ts";
 import { createInMemoryOrgStructureRepository } from "../../../organisation/src/repositories/memory/inMemoryOrgStructureRepository.ts";
@@ -31,6 +32,7 @@ import { createInMemoryWorkflowTaskRepository } from "../../src/repositories/mem
 import { createInMemoryWorkflowDecisionRepository } from "../../src/repositories/memory/inMemoryWorkflowDecisionRepository.ts";
 import { createInMemoryWorkflowEventRepository } from "../../src/repositories/memory/inMemoryWorkflowEventRepository.ts";
 import { createInMemoryWorkflowSystemActionExecutionRepository } from "../../src/repositories/memory/inMemoryWorkflowSystemActionExecutionRepository.ts";
+import { createInMemoryWorkflowTaskCandidateRepository } from "../../src/repositories/memory/inMemoryWorkflowTaskCandidateRepository.ts";
 import { createInMemoryWorkflowTransaction } from "../../src/repositories/memory/inMemoryWorkflowTransaction.ts";
 import { createSystemActionRegistry } from "../../src/domain/systemActionRegistry.ts";
 import { createInstanceEngine } from "../../src/services/instanceEngine.ts";
@@ -50,6 +52,7 @@ export async function setup() {
   const users = createInMemoryUserRepository(identityStore);
   const rbac = createRbacService({ rbac: rbacRepo, organisation });
   const audit = createAuditService({ audit: auditRepo });
+  const actorResolution = createActorResolutionService({ rbac: rbacRepo, rbacService: rbac, users });
 
   const orgStore = createOrgInMemoryStore();
   const orgStructure = createInMemoryOrgStructureRepository(orgStore);
@@ -69,18 +72,19 @@ export async function setup() {
   const decisionRepo = createInMemoryWorkflowDecisionRepository(wfStore);
   const eventRepo = createInMemoryWorkflowEventRepository(wfStore);
   const systemActionExecutionRepo = createInMemoryWorkflowSystemActionExecutionRepository(wfStore);
-  const transactions = createInMemoryWorkflowTransaction({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, instances: instanceRepo, tasks: taskRepo, decisions: decisionRepo, events: eventRepo, systemActions: systemActionExecutionRepo });
+  const taskCandidateRepo = createInMemoryWorkflowTaskCandidateRepository(wfStore);
+  const transactions = createInMemoryWorkflowTransaction({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, instances: instanceRepo, tasks: taskRepo, taskCandidates: taskCandidateRepo, decisions: decisionRepo, events: eventRepo, systemActions: systemActionExecutionRepo });
 
   const systemActions = createSystemActionRegistry();
-  const engine = createInstanceEngine({ organisation, users, orgAssignments, systemActions });
+  const engine = createInstanceEngine({ orgAssignments, actorResolution, systemActions });
 
   const definitions = createDefinitionService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, rbac, audit, transactions, systemActions });
   const instances = createInstanceService({ definitions: definitionRepo, versions: versionRepo, steps: stepRepo, instances: instanceRepo, tasks: taskRepo, events: eventRepo, organisation, users, rbac, audit, transactions, engine });
-  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, rbac, audit, transactions, engine });
+  const tasks = createTaskService({ instances: instanceRepo, steps: stepRepo, tasks: taskRepo, taskCandidates: taskCandidateRepo, rbac, audit, transactions, engine });
   const escalations = createEscalationService({ tasks: taskRepo, instances: instanceRepo, users, orgAssignments, rbac, transactions });
 
   const [sg, my, skl] = identityStore.legalEntities;
-  return { identityStore, rbacRepo, organisation, users, employees, orgAssignments, systemActions, definitions, instances, tasks, escalations, eventRepo, taskRepo, wfStore, sg: sg!, my: my!, skl: skl! };
+  return { identityStore, rbacRepo, organisation, users, employees, orgAssignments, actorResolution, taskCandidateRepo, systemActions, definitions, instances, tasks, escalations, eventRepo, taskRepo, wfStore, sg: sg!, my: my!, skl: skl! };
 }
 
 export async function grantRole(

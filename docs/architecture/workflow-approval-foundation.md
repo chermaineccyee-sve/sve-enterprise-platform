@@ -1,5 +1,12 @@
 # SVE Workflow & Approval Foundation (PR #8)
 
+> **Review correction**: this document was updated after the initial PR
+> #8 review to resolve the ROLE-mode routing gap originally flagged as an
+> accepted risk in §44 ("no eligible approver undetectable at routing
+> time" and decision-time-only self-approval enforcement). See the new
+> §13a for the resolved design; §13, §14, §15, §19, §31, §32, §39, §40,
+> and §44 were each revised to match. No other section's design changed.
+
 ## 1. Domain boundary
 
 ```
@@ -227,20 +234,103 @@ would be an abstraction with no current use.
 - **`MANAGER`**: calls
   `EmploymentAssignmentService.resolveDirectManagerUserId(subjectEmployeeId)`
   (§4) — never a duplicated reporting-line lookup.
-- **`ROLE`**: the step stores `assignedPermissionKey` (any permission key
-  in the system — Workflow's own, or a business-specific one like a
-  future `hrms.lifecycle.manage_probation`); eligibility is checked
-  **live**, at listing/decision time, via
-  `rbac.authorize({userId, permissionKey, target: {legalEntityId,
-  recordClassification}})` — never materialised into a stored list of
-  users. System Administrator is never implicitly a role-holder: a
-  System-Admin-only actor without the specific permission key is denied,
-  verified directly by a unit test.
+- **`ROLE`** (review correction — see §13a): the step stores
+  `assignedPermissionKey` and an optional `assignedPermissionKeyPrivileged`
+  (any permission key in the system — Workflow's own, or a
+  business-specific one like a future `hrms.lifecycle.manage_probation`).
+  Eligibility is resolved **once, at step-activation time**, via a new
+  additive Identity capability
+  (`actorResolutionService.listEligibleActors(permissionKey, target)`),
+  and the resulting candidate set is persisted immutably in
+  `workflow_task_candidates` — never re-checked live at decision time.
+  System Administrator is never implicitly a role-holder: a
+  System-Admin-only actor without the specific permission key is not a
+  candidate, verified directly by a unit test.
 - **`USER`**: the workflow-start caller supplies an explicit
   `stepAssignments: {sequenceNumber: {userId}}` map (persisted in
   `workflow_instances.context`, the same JSONB column used for other
   small routing context) — a definition never hard-codes a specific
   person.
+
+## 13a. ROLE routing semantics (review correction)
+
+The original design (§13/§15 as originally written) checked `ROLE`
+eligibility **live**, at listing/decision time, via a direct
+`rbac.authorize()` call per actor. Two problems followed directly from
+that: (1) a `ROLE` step could activate and create a normal PENDING task
+with **zero** currently-eligible approvers, since nothing checked
+eligibility at routing time; and (2) self-approval exclusion for `ROLE`
+mode could only be enforced at decision time, after a task nominally
+"assigned" to the pool had already been offered to the subject actor.
+Both were flagged as an accepted-risk gap in the original PR and are
+resolved here.
+
+**Resolution — activation-time candidate-set model (brief item 4, option
+A, chosen over deterministically picking one assignee)**:
+
+1. At step activation, `resolveAssignment()` (`instanceEngine.ts`) calls
+   `actorResolutionService.listEligibleActors(assignedPermissionKey,
+   {legalEntityId, recordClassification})` (and, if
+   `assignedPermissionKeyPrivileged` is set, unions in that key's
+   eligible set too — the same base/`.privileged` two-tier convention
+   Organisation/HRMS/Data Vault already use for SK Lai & Partners; see
+   §29). `actorResolutionService` (new,
+   `platform-services/identity/src/services/actorResolutionService.ts`)
+   is a genuinely additive Identity capability, not a Workflow-side
+   shortcut into Identity's tables: it uses a new, deliberately coarse
+   `RbacRepository.listActiveUserIdsForPermission(permissionKey)` query
+   (every user with an active role assignment granting that key, ignoring
+   entity/classification) purely to shrink the candidate pool, then reuses
+   `RbacService.authorize()` — the SAME evaluator every other permission
+   check in this codebase goes through — per candidate to apply the
+   classification ceiling and entity-access-grant coverage, and filters to
+   `status === 'active'` accounts. Identity remains authoritative for
+   roles and access; Workflow never queries `user_role_assignments` /
+   `role_permissions` / `permissions` directly.
+2. **Self-approval exclusion is applied to the candidate set BEFORE the
+   empty-set check** (brief item 2): if `allowSelfApproval = false` and
+   the instance has a `subjectActorUserId`, that user is filtered out of
+   the resolved candidates first. This means "only the subject actor
+   holds the role" correctly falls through to the no-eligible-actor
+   routing failure below, rather than ever producing an offerable task.
+3. **No eligible candidate** → the step never creates a task; the same
+   `ROUTING_FAILURE` path used by `MANAGER`/`USER` routing failures fires
+   (§15), with a `routing_failed` business event recorded and no
+   sensitive detail beyond the generic reason string. This is a plain
+   code path with no special cases — it does **not** fall back to System
+   Administrator, does **not** fall back to Group/HQ access, does **not**
+   auto-approve, and does **not** relax entity or classification
+   restrictions; SK Lai & Partners' privileged-tier segregation (§29) is
+   enforced by the very same classification-ceiling check every other
+   candidate goes through, with no special-casing.
+4. **One or more eligible candidates** → the resolved user ids are
+   persisted, once, as rows in `workflow_task_candidates` (`task_id`,
+   `user_id`, `UNIQUE(task_id, user_id)`) in the SAME transaction as the
+   task's own creation — an immutable, insert-only snapshot of "who was
+   eligible when this task activated." Every eligible candidate can see
+   and act on the task; the first to commit a decision wins (§19
+   concurrency is unaffected — the same conditional-`UPDATE` +
+   `UNIQUE(task_id)` decision-row mechanism serializes ROLE candidates
+   exactly like a single fixed assignee).
+5. **Decision-time authorization** (`taskService.checkEligibility()`) for
+   a `ROLE`-mode task is now a plain existence check against
+   `workflow_task_candidates` (`isCandidate(taskId, userId)`) — never a
+   live RBAC re-check. This is deliberate: a later role grant or
+   revocation must never silently change who may act on an
+   already-activated task (see §14). Self-approval is still re-checked at
+   decision time as defence-in-depth (§15), and the task must still be
+   `PENDING` and the decision must still be permitted by the step — this
+   correction changes only how ROLE eligibility itself is determined, not
+   any of the other decision-time invariants.
+6. **Role-change semantics after activation**: a role granted to a new
+   user, or revoked from an existing one, after a `ROLE` task has already
+   activated has NO effect on that task's own candidate set — it was
+   already fixed at activation time. A later grant does not retroactively
+   add a candidate; a later revocation does not retroactively remove one.
+   If a genuinely different set of people should be able to decide an
+   already-active task, that requires an explicit, audited reassignment
+   (`reassignTask()`, §16) — never an implicit consequence of a role
+   change elsewhere in the system.
 
 ## 14. Actor resolution timing
 
@@ -249,34 +339,43 @@ recommended default) — `resolveAssignment()` runs fresh every time
 `activateStep()` runs, whether that is step 1 at `startWorkflow()` or
 step N+1 after a decision. `MANAGER` routing therefore always reflects
 the CURRENT reporting line, even for a long-running, multi-step
-instance. Once a task is created, its `assignedUserId` is fixed — no
-code path silently reassigns it except the explicit, audited
-`reassignTask()`/escalation paths (§16, §17).
+instance. `ROLE` routing follows the SAME philosophy (review correction,
+§13a): its candidate set is resolved fresh at that step's own activation
+and then frozen — a long-running instance's earlier steps and later
+steps can each see a different set of eligible people if role
+assignments changed in between, but a single step's own candidate set
+never drifts after that step activates. Once a task is created, its
+`assignedUserId` (USER/MANAGER) or `workflow_task_candidates` set (ROLE)
+is fixed — no code path silently reassigns or rewrites it except the
+explicit, audited `reassignTask()`/escalation paths (§16, §17).
 
 ## 15. No self-approval
 
 `allow_self_approval` (default `false`) is a per-step column. Enforcement
 is layered:
 
-1. **At routing time** (`MANAGER`/`USER` modes): if the resolved/assigned
-   user equals the instance's `subjectActorUserId`, the step never
-   creates a task — the instance fails immediately with
-   `failureCategory: 'ROUTING_FAILURE'`, verified directly by two unit
-   tests (MANAGER-resolves-to-subject-actor; USER-assigned-to-subject-actor).
-2. **At decision time** (all modes, but the ONLY enforcement point for
-   `ROLE` mode, whose actual decider cannot be known at routing time):
-   `decide()` refuses a decision from the subject actor with
-   `ForbiddenError`, verified directly by a unit test.
+1. **At routing time** (`MANAGER`/`USER` modes, AND — since the review
+   correction — `ROLE` mode too): if the resolved/assigned user (or, for
+   `ROLE`, the resolved candidate set once the subject actor is excluded)
+   is empty, the step never creates a task — the instance fails
+   immediately with `failureCategory: 'ROUTING_FAILURE'`, verified
+   directly by unit tests for all three modes
+   (MANAGER-resolves-to-subject-actor; USER-assigned-to-subject-actor;
+   ROLE-only-self-eligible, §13a).
+2. **At decision time** (all modes, as defence-in-depth — for `ROLE`
+   mode specifically this is now a second, redundant check, since
+   routing-time exclusion already prevents the subject actor from ever
+   becoming a candidate): `decide()` refuses a decision from the subject
+   actor with `ForbiddenError`, verified directly by a unit test.
 
 **No eligible approver** (a resolvable-in-principle mode with no
 resolvable target — `MANAGER` with no current manager, `USER` with no
-`stepAssignments` entry) fails the SAME way: `ROUTING_FAILURE`, never a
-silent auto-approval or insecure fallback. **Known limitation**: `ROLE`
-mode's eligibility is checked lazily (§13), so a `ROLE` step can activate
-with zero currently-eligible approvers without that being caught as a
-routing failure — building a "who currently holds permission X" reverse
-index was assessed and rejected as a fourth Identity/RBAC capability this
-foundation does not need yet (see §37 remaining risks).
+`stepAssignments` entry, or — since the review correction — `ROLE` with
+an empty resolved candidate set) fails the SAME way: `ROUTING_FAILURE`,
+never a silent auto-approval or insecure fallback. See §13a for the full
+`ROLE` routing design; the previously-documented "ROLE-mode 'no eligible
+approver' is not detectable at routing time" limitation is resolved and
+removed from §44's remaining risks.
 
 ## 16. Delegation — explicitly deferred
 
@@ -345,7 +444,14 @@ the same task produce exactly one commit and two rejections, and
 `SELECT count(*) FROM workflow_decisions WHERE task_id=$1` confirms
 exactly one row. The same real-connection technique verifies concurrent
 `createDraftVersion()` calls never produce duplicate version numbers
-(§33).
+(§33), and — added by the ROLE-routing review correction, §13a — that TWO
+DIFFERENT eligible `ROLE` candidates racing the SAME task also produce
+exactly one commit: `workflow_task_candidates` only ever gates who MAY
+attempt a decision, it is never itself part of the concurrency
+mechanism, so a multi-candidate task is serialized by the exact same
+`transitionStatus` guarded UPDATE + `workflow_decisions.task_id UNIQUE`
+pair as a single-assignee task — no new concurrency primitive was
+needed.
 
 ## 20. Idempotency
 
@@ -561,15 +667,21 @@ Definitions are entity-agnostic templates (no `.privileged` variant
 needed for `DEFINITION_*` — see §28's "security belongs at the instance
 level" reasoning). `TASK_READ_ASSIGNED` has no `.privileged` variant: a
 task is only ever visible because its own assignment already passed an
-entity/classification-aware check (USER/MANAGER at routing time, ROLE at
-read/decision time). Default-deny throughout; every check is server-side
-via Identity's existing `rbacService.authorize()`, never re-implemented.
+entity/classification-aware check — for USER/MANAGER at routing time,
+and (review correction, §13a) for ROLE ALSO at routing time, against the
+step's own `assignedPermissionKey`/`assignedPermissionKeyPrivileged`
+pair, never at read/decision time. Default-deny throughout; every check
+is server-side via Identity's existing `rbacService.authorize()` (reused
+by the new `actorResolutionService`, §13a), never re-implemented.
 
 ## 32. Database
 
 `database/migrations/005_workflow-approval-foundation/migration.sql` —
 the next migration after HRMS's `004`. **No prior migration file is
-altered.**
+altered.** This migration was itself amended in place (not superseded by
+a `006`) for the ROLE-routing review correction below, since PR #8 was
+still unmerged/Draft when that correction was made — see this doc's
+revision note in §44.
 
 - `workflow_definitions` / `workflow_definition_versions` — §8's model;
   `UNIQUE(definition_id, version_number)`; CHECK constraints enforce
@@ -577,7 +689,11 @@ altered.**
 - `workflow_steps` — `UNIQUE(version_id, sequence_number)`; CHECK
   constraints enforce step-type-specific field requirements
   (`SYSTEM_ACTION` requires a handler key; `APPROVAL`/`TASK` require an
-  assignment mode; `ROLE` requires a permission key).
+  assignment mode; `ROLE` requires a permission key). Carries an optional
+  `assigned_permission_key_privileged` column (review correction, §13a) —
+  the same base/`.privileged` two-tier pattern as every other
+  classification-gated permission pair in this codebase, resolved once at
+  activation time exactly like the base key.
 - `workflow_instances` — FKs to `workflow_definitions`,
   `workflow_definition_versions`, `legal_entities`, `employees` (nullable,
   §27's subject-employee reference), `users`; **no FK to any business
@@ -586,7 +702,19 @@ altered.**
   `completed_at`/`cancelled_at`/`failure_category` consistency with
   `status`.
 - `workflow_tasks` — CHECK constraints enforce `ROLE` mode requires a
-  permission key and non-`ROLE` modes require a fixed assignee.
+  permission key and non-`ROLE` modes require a fixed assignee. Its
+  `assigned_permission_key` column is, for `ROLE` mode, a historical
+  record only (review correction, §13a) — never re-checked live; the
+  actual eligible-actor set lives in `workflow_task_candidates` below.
+- `workflow_task_candidates` (review correction, §13a) — one row per
+  actor found eligible for a `ROLE`-mode task at the moment it activated:
+  `task_id` (FK to `workflow_tasks`), `user_id` (FK to `users`),
+  `UNIQUE(task_id, user_id)`. Insert-only and immutable — rows are
+  written exactly once, by `recordCandidates()`, in the same transaction
+  as the task's own creation, and are never updated or deleted by a
+  later role change (§14). Indexed on both `task_id` (decision-time
+  eligibility lookup) and `user_id` (a candidate's own "my tasks"
+  listing).
 - `workflow_decisions` — `task_id UNIQUE` (§12, §19's core mechanism).
 - `workflow_events` — append-only, CHECK-constrained `event_type`.
 - `workflow_system_action_executions` — `UNIQUE(instance_id, step_id)`
@@ -681,15 +809,23 @@ otherwise coincide.
 
 `getInstance`/`getTask` return the identical `NotFoundError` for "exists
 but you may not see it" and "does not exist" — verified directly (unit
-and real-HTTP). List endpoints (`listInstances`, `listAssignedTasks`)
-filter server-side by re-checking access per candidate row, never trusting
-a client-supplied filter as an authorization boundary. Approval comments
-are visible only through the same read-access check as the rest of the
-instance — no separate, laxer path exposes them.
+and real-HTTP). List endpoints filter server-side, never trusting a
+client-supplied filter as an authorization boundary: `listInstances`
+re-checks read access per candidate row; `listAssignedTasks` (review
+correction, §13a) is now a single repository-level query matching either
+a fixed `assignedUserId` (USER/MANAGER) or membership in that task's own
+`workflow_task_candidates` set (ROLE) — no per-row live RBAC re-check
+remains on this path, since ROLE eligibility was already fixed at
+activation time. Approval comments are visible only through the same
+read-access check as the rest of the instance — no separate, laxer path
+exposes them.
 
 ## 39. Tests
 
-**Workflow package** (`platform-services/workflow/`) — 51 tests total:
+**Workflow package** (`platform-services/workflow/`) — 58 tests total
+(review correction added 8 net new tests: 9 new ROLE-routing tests
+replacing the original 2, plus 1 new real-Postgres ROLE concurrency
+test):
 
 - `test/unit/definitionService.test.ts` (14 tests, in-memory) — permission
   denial (including System-Admin-is-not-Workflow-Admin); definition
@@ -713,20 +849,35 @@ instance — no separate, laxer path exposes them.
   TASK-type completion (no decision row); SYSTEM_ACTION success (handler
   invoked exactly once) and failure (`SYSTEM_ACTION_FAILURE`, never
   falsely `COMPLETED`).
-- `test/unit/roleRoutingAndEscalation.test.ts` (4 tests, in-memory) — ROLE
-  eligibility (holder can decide, non-holder sees nothing); ROLE
-  self-approval refused at decision time; `processDueEscalations`
-  reassigns to the assignee's manager exactly once (second sweep is a
-  no-op); decision-comment audit redaction.
-- `test/integration/postgres.test.ts` (5 real-Postgres tests) — CHECK
+- `test/unit/roleRoutingAndEscalation.test.ts` (11 tests, in-memory) —
+  rewritten by the review correction (§13a) around the new
+  activation-time candidate-set design: one eligible candidate can see
+  and decide (decision history records them); multiple eligible
+  candidates all see the SAME task but exactly one decision commits;
+  zero eligible candidates fails as `ROUTING_FAILURE` with no usable
+  task and no System-Administrator/Group fallback; only-the-subject-actor
+  is-eligible is excluded before the empty-set check, also failing
+  safely; a MY-scoped grant does not resolve a candidate for an
+  SG-scoped instance; a group-scoped base-tier grant does not resolve a
+  candidate for an SK Lai & Partners step, but the `.privileged` tier
+  does; an insufficient classification ceiling excludes a candidate; a
+  resolved candidate remains able to decide after their role is later
+  revoked; a user who obtains the role only AFTER activation is never
+  added as a candidate and cannot decide even once they hold the role.
+  Plus, unchanged: `processDueEscalations` reassigns to the assignee's
+  manager exactly once (second sweep is a no-op); decision-comment audit
+  redaction.
+- `test/integration/postgres.test.ts` (6 real-Postgres tests) — CHECK
   constraints (`status`, `failure_category` consistency); 5 concurrent
   `createDraftVersion` calls produce version numbers 2–6 with zero
   duplicates; 3 concurrent `decide()` calls on one task produce exactly
-  one committed decision (verified via `SELECT count(*)`); a full
+  one committed decision (verified via `SELECT count(*)`); TWO eligible
+  `ROLE` candidates racing the SAME task also produce exactly one
+  committed decision (review correction, §13a/§19); a full
   definition→publish→start→decide flow committing real rows across every
   table, including JSONB `context` round-tripping; SK Lai & Partners
-  privileged-tier end-to-end. The two concurrency tests were re-run five
-  times consecutively with zero flakes.
+  privileged-tier end-to-end. All three concurrency tests were re-run
+  five times consecutively with zero flakes.
 - `test/integration/http.test.ts` (6 real-HTTP tests) — unauthenticated/
   invalid-token denial; a full definition-to-decision flow over real HTTP
   including history reconstruction; mass-assignment rejection; IDOR/
@@ -748,6 +899,16 @@ Identity (96/96), Data Vault (46/46), Organisation (66/66), and HRMS
 (46/46) were all re-run on a fresh CI-equivalent Postgres database after
 this PR's changes, alongside Workflow's own 51/51 — all green, zero
 weakened tests.
+
+**Review correction re-verification**: after the ROLE-routing correction
+(§13a), Identity (95/95 — 76 unit + 19 integration; the new
+`actorResolutionService` and `RbacRepository.listActiveUserIdsForPermission`
+capability are additive and touch no existing call site), Data Vault
+(45/45 — 25 unit + 20 integration), Organisation (65/65 — 30 unit + 35
+integration), and HRMS (44/44 — 20 unit + 24 integration) were all
+re-run again on a fresh CI-equivalent Postgres database, alongside
+Workflow's own revised 58/58 (46 unit + 12 integration) — all green,
+zero weakened tests.
 
 ## 41. CI
 
@@ -793,9 +954,18 @@ diff.
 
 ## 44. Remaining risks / open questions
 
-- **ROLE-mode "no eligible approver" is not detectable at routing time**
-  (§15) — a documented, deliberate limitation rather than building a
-  reverse role-membership index this foundation does not yet need.
+> **Review correction (post-PR #8 draft review)**: the previously-listed
+> risk "ROLE-mode 'no eligible approver' is not detectable at routing
+> time" is **resolved** and removed from this list. ROLE eligibility is
+> now resolved once at step-activation time via a new additive Identity
+> capability (`actorResolutionService.listEligibleActors`) and persisted
+> as an immutable candidate set (`workflow_task_candidates`); an empty
+> resolved set (after self-approval exclusion) fails the step safely as a
+> `ROUTING_FAILURE`, exactly like `MANAGER`/`USER` routing failures — see
+> §13a for the full design and §39 for the tests added to verify it
+> (including a real-Postgres concurrency test with two eligible
+> candidates racing the same task).
+
 - **Escalation's only supported target strategy is
   `REASSIGN_TO_ASSIGNEE_MANAGER`** — a richer strategy set (e.g. escalate
   to a specific role) can be added to the `EscalationTargetMode` enum
@@ -810,10 +980,12 @@ diff.
   built code** (§24) — the extension point is proven (PR #7's
   precedent), but nothing in this PR exercises it, since zero real
   handlers are registered.
-- **List authorization runs in application code, per candidate row**, not
-  pushed into the SQL `WHERE` clause — the same open item already
-  recorded for Data Vault, Organisation, and HRMS, now shared by a fourth
-  package.
+- **`listInstances` authorization runs in application code, per candidate
+  row**, not pushed into the SQL `WHERE` clause — the same open item
+  already recorded for Data Vault, Organisation, and HRMS, now shared by
+  a fourth package. (`listAssignedTasks` no longer has this shape as of
+  the ROLE-routing review correction, §13a: it is now a single
+  repository-level query with no per-row application-code RBAC check.)
 - **Cross-package source imports remain a documented, intentional
   coupling** — the same open item already recorded for the three
   packages before it.
@@ -821,12 +993,13 @@ diff.
   beyond being the fixed assignee** — `checkEligibility()` only checks
   `assignedUserId === actor.userId` for these two modes; there is no
   additional `workflow.approval.decide` check layered on top (unlike
-  `ROLE` mode, which IS gated by a live permission check, §13). This
-  mirrors Organisation's own `read.team` design (being someone's manager
-  is itself the authorization, not a substitute for one) and is safe
-  under this PR's data model specifically because a task carries only
-  minimal fields (§27, §28) — but a future integration that needs
-  finer-grained control over WHO may act as a MANAGER/USER-mode assignee
-  (e.g. requiring they also hold a business permission) would need an
-  explicit additional check at that integration's own definition/step
-  level, not a change to this foundation's routing engine.
+  `ROLE` mode, which is gated by a permission-based eligibility
+  resolution at step-activation time, §13a). This mirrors Organisation's
+  own `read.team` design (being someone's manager is itself the
+  authorization, not a substitute for one) and is safe under this PR's
+  data model specifically because a task carries only minimal fields
+  (§27, §28) — but a future integration that needs finer-grained control
+  over WHO may act as a MANAGER/USER-mode assignee (e.g. requiring they
+  also hold a business permission) would need an explicit additional
+  check at that integration's own definition/step level, not a change to
+  this foundation's routing engine.

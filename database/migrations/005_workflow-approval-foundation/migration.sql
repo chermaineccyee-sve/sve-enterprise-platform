@@ -80,11 +80,15 @@ CREATE TABLE IF NOT EXISTS workflow_steps (
   name TEXT NOT NULL,
   -- APPROVAL/TASK only (NULL for SYSTEM_ACTION):
   assignment_mode TEXT CHECK (assignment_mode IN ('USER', 'ROLE', 'MANAGER')),
-  -- ROLE mode only: the permission key that gates eligibility to act on
-  -- this step's tasks, checked live at decision time against the
-  -- instance's own legal entity/classification — never a materialised
-  -- list of users (see docs "Actor resolution").
+  -- ROLE mode only: the permission key (and an optional privileged-tier
+  -- sibling, mirroring the base/.privileged pattern used throughout this
+  -- codebase) whose current holders are resolved into a fixed candidate
+  -- set (workflow_task_candidates) at STEP-ACTIVATION time — never a
+  -- live, per-decision re-check, so a later role change cannot silently
+  -- alter who may act on an already-activated task. See docs
+  -- "Actor resolution" and "ROLE routing semantics".
   assigned_permission_key TEXT,
+  assigned_permission_key_privileged TEXT,
   allow_self_approval BOOLEAN NOT NULL DEFAULT FALSE,
   -- APPROVAL only: the decisions this step permits, a subset of
   -- APPROVE/REJECT/RETURN — validated at publish time (application code),
@@ -177,8 +181,11 @@ CREATE TABLE IF NOT EXISTS workflow_tasks (
   step_id UUID NOT NULL REFERENCES workflow_steps(id),
   task_type TEXT NOT NULL CHECK (task_type IN ('APPROVAL', 'TASK')),
   assignment_mode TEXT NOT NULL CHECK (assignment_mode IN ('USER', 'ROLE', 'MANAGER')),
-  -- Fixed at task-creation time (USER/MANAGER); NULL for ROLE mode, whose
-  -- eligible-actor set is checked live against assigned_permission_key.
+  -- Fixed at task-creation time (USER/MANAGER). NULL for ROLE mode, whose
+  -- eligible actors are instead resolved ONCE, at this same activation
+  -- moment, into workflow_task_candidates below — assigned_permission_key
+  -- here is retained only as a historical record of which key(s) were
+  -- used for that resolution, never re-checked live at decision time.
   assigned_user_id UUID REFERENCES users(id),
   assigned_permission_key TEXT,
   status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'COMPLETED', 'CANCELLED')),
@@ -200,6 +207,31 @@ CREATE INDEX IF NOT EXISTS workflow_tasks_instance_idx ON workflow_tasks(instanc
 CREATE INDEX IF NOT EXISTS workflow_tasks_assignee_idx ON workflow_tasks(assigned_user_id, status);
 CREATE INDEX IF NOT EXISTS workflow_tasks_role_pool_idx ON workflow_tasks(assignment_mode, assigned_permission_key, status);
 CREATE INDEX IF NOT EXISTS workflow_tasks_escalation_idx ON workflow_tasks(escalate_after) WHERE status = 'PENDING' AND escalated_at IS NULL;
+
+-- ============================================================
+-- workflow_task_candidates — the ROLE-mode routing fix. At the moment a
+-- ROLE-mode step activates, EVERY currently-eligible actor (already
+-- passed permission + classification ceiling + entity-access-grant
+-- coverage, and — when the step disallows self-approval — already
+-- excluding the instance's own subject actor) is resolved ONCE via
+-- Identity's actorResolutionService and recorded here. This is the
+-- historical, immutable record of "who could act on this task the
+-- moment it activated" — a later role grant/revocation never rewrites
+-- it (see docs "Role-change semantics after activation"). Decision-time
+-- eligibility for a ROLE task is a plain existence check against this
+-- table, never a fresh RBAC re-check. UNIQUE(task_id, user_id) is
+-- defensive (recordCandidates is called at most once per task, but this
+-- guarantees no duplicate row is ever possible).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS workflow_task_candidates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id UUID NOT NULL REFERENCES workflow_tasks(id),
+  user_id UUID NOT NULL REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (task_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS workflow_task_candidates_task_idx ON workflow_task_candidates(task_id);
+CREATE INDEX IF NOT EXISTS workflow_task_candidates_user_idx ON workflow_task_candidates(user_id);
 
 -- ============================================================
 -- workflow_decisions — one immutable, insert-only row per DECIDED

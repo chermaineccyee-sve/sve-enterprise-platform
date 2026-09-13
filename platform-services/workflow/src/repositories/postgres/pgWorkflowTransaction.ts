@@ -5,6 +5,7 @@ import { createPgWorkflowDefinitionVersionRepository } from "./pgWorkflowDefinit
 import { createPgWorkflowStepRepository } from "./pgWorkflowStepRepository.ts";
 import { createPgWorkflowInstanceRepository } from "./pgWorkflowInstanceRepository.ts";
 import { createPgWorkflowTaskRepository } from "./pgWorkflowTaskRepository.ts";
+import { createPgWorkflowTaskCandidateRepository } from "./pgWorkflowTaskCandidateRepository.ts";
 import { createPgWorkflowDecisionRepository } from "./pgWorkflowDecisionRepository.ts";
 import { createPgWorkflowEventRepository } from "./pgWorkflowEventRepository.ts";
 import { createPgWorkflowSystemActionExecutionRepository } from "./pgWorkflowSystemActionExecutionRepository.ts";
@@ -25,6 +26,7 @@ export function createPgWorkflowTransaction(db: DatabaseProvider): WorkflowTrans
           steps: createPgWorkflowStepRepository(tx),
           instances: createPgWorkflowInstanceRepository(tx),
           tasks: createPgWorkflowTaskRepository(tx),
+          taskCandidates: createPgWorkflowTaskCandidateRepository(tx),
           decisions: createPgWorkflowDecisionRepository(tx),
           events: createPgWorkflowEventRepository(tx),
           systemActions: createPgWorkflowSystemActionExecutionRepository(tx),
