@@ -5,14 +5,18 @@
  * Identity's contracts/services, imported by source path; Identity has no
  * corresponding dependency on this package.
  *
- * Unlike Data Vault, this package does not include a SVEGIP session-
- * cookie bridge: no existing apps/svegip page authenticates against
- * Employee Master today (no SVEGIP UI change is made by this PR), so the
- * only authentication path is a native Identity bearer session. Adding a
- * SVEGIP bridge remains straightforward to add later following Data
- * Vault's model, if a future PR wires an apps/svegip page into this API.
+ * PR #11: the SVEGIP session-cookie bridge (previously not wired here —
+ * this file used to note "no existing apps/svegip page authenticates
+ * against Employee Master today") is now wired, following Data Vault's
+ * existing model exactly, because apps/svegip's new People/HRMS area does
+ * call into this service's HTTP API (via its own Netlify proxy functions
+ * — see docs/architecture/hrms-application-shell.md "Frontend/backend
+ * boundaries"). This is not a new authentication mechanism: it reuses the
+ * same identity/src/services/svegipSessionBridge.ts capability Data Vault
+ * already relies on.
  */
 import type { DatabaseProvider } from "../../../../packages/shared/src/DatabaseProvider.ts";
+import type { SecretsProvider } from "../../../../packages/security/src/SecretsProvider.ts";
 import { createPgUserRepository } from "../../../identity/src/repositories/postgres/pgUserRepository.ts";
 import { createPgOrganisationRepository } from "../../../identity/src/repositories/postgres/pgOrganisationRepository.ts";
 import { createPgRbacRepository } from "../../../identity/src/repositories/postgres/pgRbacRepository.ts";
@@ -22,6 +26,8 @@ import { createSessionService, type SessionService } from "../../../identity/src
 import { createPgUserSecurityTransaction } from "../../../identity/src/repositories/postgres/pgUserSecurityTransaction.ts";
 import { createRbacService, type RbacService } from "../../../identity/src/services/rbacService.ts";
 import { createAuditService, type AuditService } from "../../../identity/src/services/auditService.ts";
+import { createEnvSecretsProvider } from "../../../identity/src/config/envSecretsProvider.ts";
+import { loadSvegipBridgeSecret } from "../../../identity/src/services/svegipSessionBridge.ts";
 import type { UserRepository, OrganisationRepository } from "../../../identity/src/repositories/types.ts";
 import { createPgOrgStructureRepository } from "../repositories/postgres/pgOrgStructureRepository.ts";
 import { createPgEmployeeRepository } from "../repositories/postgres/pgEmployeeRepository.ts";
@@ -31,6 +37,7 @@ import { createPgEmploymentAssignmentTransaction } from "../repositories/postgre
 import { createEmployeeService, type EmployeeService } from "../services/employeeService.ts";
 import { createEmploymentAssignmentService, type EmploymentAssignmentService } from "../services/employmentAssignmentService.ts";
 import { createOrganisationStructureService, type OrganisationStructureService } from "../services/organisationStructureService.ts";
+import { loadTrustedOrigins } from "../config/trustedOrigins.ts";
 
 export interface OrganisationContainer {
   users: UserRepository;
@@ -41,9 +48,14 @@ export interface OrganisationContainer {
   employees: EmployeeService;
   assignments: EmploymentAssignmentService;
   orgStructure: OrganisationStructureService;
+  /** Null when the transitional SVEGIP bridge is not configured for this deployment — see identity/src/services/svegipSessionBridge.ts. */
+  svegipBridgeSecret: string | null;
+  /** Origins trusted for cookie-authenticated state-changing requests — see config/trustedOrigins.ts. */
+  trustedOrigins: Set<string>;
 }
 
-export async function createOrganisationContainer(db: DatabaseProvider): Promise<OrganisationContainer> {
+export async function createOrganisationContainer(db: DatabaseProvider, opts?: { secrets?: SecretsProvider }): Promise<OrganisationContainer> {
+  const secrets = opts?.secrets ?? createEnvSecretsProvider();
   const users = createPgUserRepository(db);
   const organisation = createPgOrganisationRepository(db);
   const rbacRepo = createPgRbacRepository(db);
@@ -63,5 +75,8 @@ export async function createOrganisationContainer(db: DatabaseProvider): Promise
   const assignments = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure: orgStructureRepo, organisation, users, rbac, audit, transactions: assignmentTransactions });
   const orgStructure = createOrganisationStructureService({ orgStructure: orgStructureRepo, organisation, rbac, audit });
 
-  return { users, organisation, sessions, rbac, audit, employees, assignments, orgStructure };
+  const svegipBridgeSecret = await loadSvegipBridgeSecret(secrets);
+  const trustedOrigins = loadTrustedOrigins();
+
+  return { users, organisation, sessions, rbac, audit, employees, assignments, orgStructure, svegipBridgeSecret, trustedOrigins };
 }

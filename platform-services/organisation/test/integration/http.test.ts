@@ -463,3 +463,55 @@ test("Organisation: organisation-structure write (create department) requires th
     }
   });
 });
+
+test("PR #11: GET /api/v1/employees/me resolves the caller's own linked record with self-view (restricted-tier) access, and returns null (not an error) when unlinked", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const { server, baseUrl, container } = await startServer(db);
+    try {
+      const entities = await container.organisation.listLegalEntities();
+      const my = entities.find((e) => e.key === "sve-international-my")!;
+      const admin = await container.users.createUser({ email: "org.http.me.admin@example.test", accountType: "service" });
+      const rbacRepo = createPgRbacRepository(db);
+      // Deliberately NO Employee Master permissions at all — self-view must
+      // work purely from the active user_employee_links row, exactly like
+      // getEmployee's own self-view bypass, never from a granted permission.
+      const { token: hrToken } = await provisionUser(container, rbacRepo, "org.http.me.hr@example.test", FULL_PERMS, { scopeType: "group" }, admin.id);
+      const hrAuth = { authorization: `Bearer ${hrToken}` };
+
+      const createRes = await fetch(`${baseUrl}/api/v1/employees`, { method: "POST", headers: { ...hrAuth, "content-type": "application/json" }, body: JSON.stringify(hireBody(my.id)) });
+      const employee = (await createRes.json()).data.employee;
+
+      const noPermsUser = await container.users.createUser({ email: "org.http.me.self@example.test", accountType: "employee" });
+      const linkRes = await fetch(`${baseUrl}/api/v1/employees/${employee.id}/link-identity`, {
+        method: "POST",
+        headers: { ...hrAuth, "content-type": "application/json" },
+        body: JSON.stringify({ userId: noPermsUser.id }),
+      });
+      assert.equal(linkRes.status, 200, await linkRes.text());
+
+      const selfSession = await container.sessions.createSession({ userId: noPermsUser.id, mfaVerified: true });
+      const selfAuth = { authorization: `Bearer ${selfSession.token}` };
+
+      const meRes = await fetch(`${baseUrl}/api/v1/employees/me`, { headers: selfAuth });
+      const meJson = await meRes.json();
+      assert.equal(meRes.status, 200, JSON.stringify(meJson));
+      const meBody = meJson.data;
+      assert.equal(meBody.employee.id, employee.id);
+      // Self-view bypass grants restricted-tier fields even with zero
+      // granted permissions — restricted.status only ever appears when
+      // canReadRestricted is true.
+      assert.ok(meBody.employee.restricted, "self-view must include the restricted tier even with no granted permissions");
+      assert.ok(meBody.employee.restricted.currentAssignment?.status, "restricted-tier assignment status must be present under self-view");
+
+      // A user with no active Employee Master link (e.g. the HR admin
+      // above, who was never linked to an employee record) gets an
+      // honest null, never a 403/404.
+      const unlinkedRes = await fetch(`${baseUrl}/api/v1/employees/me`, { headers: hrAuth });
+      const unlinkedBody = await unlinkedRes.json();
+      assert.equal(unlinkedRes.status, 200, JSON.stringify(unlinkedBody));
+      assert.equal(unlinkedBody.data.employee, null);
+    } finally {
+      server.close();
+    }
+  });
+});

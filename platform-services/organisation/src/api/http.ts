@@ -16,6 +16,9 @@ const STATIC_ROUTES: Record<string, Record<string, Handler>> = {
   "/api/v1/organisation/departments": { GET: orgRoutes.handleListDepartments, POST: orgRoutes.handleCreateDepartment },
   "/api/v1/organisation/positions": { GET: orgRoutes.handleListPositions, POST: orgRoutes.handleCreatePosition },
   "/api/v1/employees": { GET: employeeRoutes.handleListEmployees, POST: employeeRoutes.handleCreateEmployee },
+  // Checked as an exact-match static route BEFORE EMPLOYEE_PATTERN below,
+  // so "me" can never be interpreted as an :id path segment (PR #11).
+  "/api/v1/employees/me": { GET: employeeRoutes.handleGetMyEmployee },
 };
 
 const EMPLOYEE_PATTERN = /^\/api\/v1\/employees\/([^/]+)$/;

@@ -6,10 +6,17 @@
  * dependency on this package. See docs/architecture/
  * hrms-employee-lifecycle.md "Module ownership and dependency direction".
  *
- * No SVEGIP session-cookie bridge (same reasoning as Organisation): no
- * existing apps/svegip page authenticates against HRMS today.
+ * PR #11: the SVEGIP session-cookie bridge is now wired here, following
+ * Organisation's own newly-added wiring exactly (which itself mirrors
+ * Data Vault's already-accepted model) — apps/svegip's new People/HRMS
+ * area calls into this service's HTTP API via its own Netlify proxy
+ * function. See docs/architecture/hrms-application-shell.md.
  */
 import type { DatabaseProvider } from "../../../../packages/shared/src/DatabaseProvider.ts";
+import type { SecretsProvider } from "../../../../packages/security/src/SecretsProvider.ts";
+import { createEnvSecretsProvider } from "../../../identity/src/config/envSecretsProvider.ts";
+import { loadSvegipBridgeSecret } from "../../../identity/src/services/svegipSessionBridge.ts";
+import { loadTrustedOrigins } from "../config/trustedOrigins.ts";
 import { createPgUserRepository } from "../../../identity/src/repositories/postgres/pgUserRepository.ts";
 import { createPgOrganisationRepository } from "../../../identity/src/repositories/postgres/pgOrganisationRepository.ts";
 import { createPgRbacRepository } from "../../../identity/src/repositories/postgres/pgRbacRepository.ts";
@@ -65,9 +72,14 @@ export interface HrmsContainer {
    * Identity remains entirely unaware this container/table exists.
    */
   identityDeactivation: IdentityDeactivationProcessor;
+  /** Null when the transitional SVEGIP bridge is not configured for this deployment — see identity/src/services/svegipSessionBridge.ts. */
+  svegipBridgeSecret: string | null;
+  /** Origins trusted for cookie-authenticated state-changing requests — see config/trustedOrigins.ts. */
+  trustedOrigins: Set<string>;
 }
 
-export async function createHrmsContainer(db: DatabaseProvider): Promise<HrmsContainer> {
+export async function createHrmsContainer(db: DatabaseProvider, opts?: { secrets?: SecretsProvider }): Promise<HrmsContainer> {
+  const secrets = opts?.secrets ?? createEnvSecretsProvider();
   const users = createPgUserRepository(db);
   const organisation = createPgOrganisationRepository(db);
   const rbacRepo = createPgRbacRepository(db);
@@ -132,5 +144,8 @@ export async function createHrmsContainer(db: DatabaseProvider): Promise<HrmsCon
   // dependency edge exists — see integrations/identityDeactivationProcessor.ts.
   const identityDeactivation = createIdentityDeactivationProcessor({ db, rbac });
 
-  return { users, organisation, sessions, rbac, audit, orgContainer, workflow, lifecycle, onboarding, probation, employmentChange, offboarding, approval, identityDeactivation };
+  const svegipBridgeSecret = await loadSvegipBridgeSecret(secrets);
+  const trustedOrigins = loadTrustedOrigins();
+
+  return { users, organisation, sessions, rbac, audit, orgContainer, workflow, lifecycle, onboarding, probation, employmentChange, offboarding, approval, identityDeactivation, svegipBridgeSecret, trustedOrigins };
 }

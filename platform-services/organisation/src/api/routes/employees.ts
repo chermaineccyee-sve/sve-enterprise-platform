@@ -9,8 +9,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { OrganisationContainer } from "../../composition/container.ts";
 import { sendSuccess, sendError, readJsonBody } from "../../../../identity/src/api/middleware/envelope.ts";
 import { requireActor, clientIp } from "../middleware/actor.ts";
-import { SessionInvalidError, AccountDisabledError, ForbiddenError } from "../../../../identity/src/domain/errors.ts";
-import { NotFoundError, ValidationError } from "../../domain/errors.ts";
+import { SessionInvalidError, AccountDisabledError, ForbiddenError, IdentityNotProvisionedError } from "../../../../identity/src/domain/errors.ts";
+import { NotFoundError, ValidationError, CsrfOriginRejectedError } from "../../domain/errors.ts";
 import type { EmployeeView } from "../../services/employeeService.ts";
 import type { Employee, EmploymentAssignment, EmploymentStatus } from "../../domain/employee.ts";
 
@@ -23,6 +23,8 @@ interface RouteContext {
 
 function respondError(res: ServerResponse, correlationId: string, error: unknown): void {
   if (error instanceof SessionInvalidError) return sendError(res, 401, "SESSION_INVALID", "Not authenticated.", correlationId);
+  if (error instanceof IdentityNotProvisionedError) return sendError(res, 403, "IDENTITY_NOT_PROVISIONED", error.message, correlationId);
+  if (error instanceof CsrfOriginRejectedError) return sendError(res, 403, "CSRF_ORIGIN_REJECTED", error.message, correlationId);
   if (error instanceof AccountDisabledError) return sendError(res, 403, "ACCOUNT_DISABLED", "Account is disabled.", correlationId);
   if (error instanceof NotFoundError) return sendError(res, 404, "NOT_FOUND", "Employee not found.", correlationId);
   if (error instanceof ForbiddenError) return sendError(res, 403, "FORBIDDEN", "Not authorised for this action.", correlationId);
@@ -86,6 +88,25 @@ export async function handleListEmployees(ctx: RouteContext): Promise<void> {
       search: url.searchParams.get("search") ?? undefined,
     });
     sendSuccess(ctx.res, 200, { employees: views.map(serializeView) }, ctx.correlationId);
+  } catch (error) {
+    respondError(ctx.res, ctx.correlationId, error);
+  }
+}
+
+/**
+ * PR #11: resolves the CALLING actor's own Employee Master record — the
+ * one legitimate source for a header/My Profile display name, since
+ * Identity's own /users/me deliberately stays domain-blind to
+ * Organisation. Returns `{ employee: null }` (200, not 404/403) when the
+ * caller has no active Employee Master link — an honest "not linked"
+ * state (e.g. a service/system principal, or an employee not yet
+ * onboarded into Employee Master), not an error condition.
+ */
+export async function handleGetMyEmployee(ctx: RouteContext): Promise<void> {
+  try {
+    const actor = await requireActor(ctx.req, ctx.container);
+    const view = await ctx.container.employees.getMyEmployee(toActorContext(actor, ctx.req));
+    sendSuccess(ctx.res, 200, { employee: view ? serializeView(view) : null }, ctx.correlationId);
   } catch (error) {
     respondError(ctx.res, ctx.correlationId, error);
   }

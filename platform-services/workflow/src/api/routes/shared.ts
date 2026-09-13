@@ -2,8 +2,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WorkflowContainer } from "../../composition/container.ts";
 import { sendError } from "../../../../identity/src/api/middleware/envelope.ts";
 import { clientIp } from "../middleware/actor.ts";
-import { SessionInvalidError, AccountDisabledError, ForbiddenError } from "../../../../identity/src/domain/errors.ts";
-import { NotFoundError, ValidationError, InvalidStateError } from "../../domain/errors.ts";
+import { SessionInvalidError, AccountDisabledError, ForbiddenError, IdentityNotProvisionedError } from "../../../../identity/src/domain/errors.ts";
+import { NotFoundError, ValidationError, InvalidStateError, CsrfOriginRejectedError } from "../../domain/errors.ts";
 
 export interface RouteContext {
   req: IncomingMessage;
@@ -14,6 +14,8 @@ export interface RouteContext {
 
 export function respondError(res: ServerResponse, correlationId: string, error: unknown): void {
   if (error instanceof SessionInvalidError) return sendError(res, 401, "SESSION_INVALID", "Not authenticated.", correlationId);
+  if (error instanceof IdentityNotProvisionedError) return sendError(res, 403, "IDENTITY_NOT_PROVISIONED", error.message, correlationId);
+  if (error instanceof CsrfOriginRejectedError) return sendError(res, 403, "CSRF_ORIGIN_REJECTED", error.message, correlationId);
   if (error instanceof AccountDisabledError) return sendError(res, 403, "ACCOUNT_DISABLED", "Account is disabled.", correlationId);
   if (error instanceof NotFoundError) return sendError(res, 404, "NOT_FOUND", "Not found.", correlationId);
   if (error instanceof ForbiddenError) return sendError(res, 403, "FORBIDDEN", "Not authorised for this action.", correlationId);

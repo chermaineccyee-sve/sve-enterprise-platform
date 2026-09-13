@@ -101,7 +101,7 @@ export function createEmployeeService(deps: {
     };
   }
 
-  return {
+  const service = {
     async createEmployee(
       actor: ActorContext,
       input: CreateEmployeeInput & { initialAssignment: Omit<CreateAssignmentInput, "status"> & { status?: import("../domain/employee.ts").EmploymentStatus } },
@@ -180,6 +180,22 @@ export function createEmployeeService(deps: {
         sourceUserAgent: actor.userAgent,
       });
       return employee;
+    },
+
+    /**
+     * PR #11: resolves the CALLING actor's own linked Employee Master
+     * record via the same active user_employee_links lookup getEmployee
+     * already uses internally for its self-view bypass — no new
+     * permission, no new access model, just one narrow path to what a
+     * user can already fetch about themselves (see docs/architecture/
+     * hrms-application-shell.md "API additions"). Returns null (never
+     * throws) when the caller has no active Employee Master link — an
+     * honest "not linked" state, not an error.
+     */
+    async getMyEmployee(actor: ActorContext): Promise<EmployeeView | null> {
+      const selfEmployeeId = await findActiveEmployeeIdForUser(actor.userId);
+      if (!selfEmployeeId) return null;
+      return service.getEmployee(actor, selfEmployeeId);
     },
 
     async getEmployee(actor: ActorContext, id: string): Promise<EmployeeView> {
@@ -334,6 +350,7 @@ export function createEmployeeService(deps: {
       });
     },
   };
+  return service;
 }
 
 export type EmployeeService = ReturnType<typeof createEmployeeService>;

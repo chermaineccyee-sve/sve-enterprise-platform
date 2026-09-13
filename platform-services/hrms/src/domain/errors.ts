@@ -19,3 +19,16 @@ export class InvalidTransitionError extends Error {
     this.name = "InvalidTransitionError";
   }
 }
+
+/**
+ * PR #11: thrown by src/api/middleware/actor.ts when a state-changing
+ * request authenticated via the transitional SVEGIP session-cookie
+ * bridge does not carry a trusted Origin/Referer — mirrors
+ * platform-services/organisation's own CsrfOriginRejectedError exactly.
+ */
+export class CsrfOriginRejectedError extends Error {
+  constructor() {
+    super("This request's origin could not be verified as trusted.");
+    this.name = "CsrfOriginRejectedError";
+  }
+}
