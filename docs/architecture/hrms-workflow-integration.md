@@ -107,6 +107,49 @@ worst-case failure mode is "case says PENDING_DECISION but not yet
 visibly linked to a workflow instance", which is always safely retryable
 and never produces a duplicate instance or a lost submission.
 
+**Review correction (PR #9 review): a genuine gap in that retry path.**
+The review asked for an explicit real-Postgres proof of the SEQUENTIAL
+(not concurrent) crash case: Phase 2's `WorkflowSubmissionPort.submit()`
+call itself succeeds — a real, `ACTIVE` Workflow instance commits — but
+the SEPARATE, subsequent `linkWorkflowInstance()` write never commits
+(process crash, network failure). A single caller then retries. Before
+this correction, this was **not** actually handled: `submitForApproval`'s
+own `catch` block only reconciles when a CONCURRENT winner already linked
+the case (`reconciled.workflowInstanceId` set) — here nobody ever did, so
+`instanceService.startWorkflow`'s own `UNIQUE(definition_id, subject_type,
+subject_id) WHERE status='ACTIVE'` constraint would reject the retry's
+attempt to start a SECOND instance, and the resulting `InvalidStateError`
+would propagate straight out, leaving the case permanently stuck at
+`PENDING_DECISION` with no linkage and no way forward short of manual
+database intervention.
+
+**Fixed**, entirely inside the ONE integration adapter
+(`integrations/workflowIntegration.ts`'s `WorkflowSubmissionPort.submit()`
+implementation — Workflow's own package is untouched, preserving its
+independence): catching that specific `InvalidStateError` and, instead of
+propagating it, querying `instances.listInstances(actor, { subjectType:
+'hrms.lifecycle', subjectId: caseId, status: 'ACTIVE' })` to discover the
+orphaned instance and return its reference, which `submitForApproval`
+then links exactly as if Phase 2 had succeeded the first time. The
+existing `requesterUserId === actor.userId` fast path in
+`resolveReadAccess` (unchanged) makes this instance visible to the
+retrying actor regardless of their Workflow read permissions, since they
+were also the ORIGINAL requester. This keeps the two-phase design intact
+— no cross-domain transaction was introduced to avoid this gap — and
+closes it with a small, adapter-local reconciliation step consistent with
+the design's own existing "catch a specific failure, re-discover, return
+the winner's reference" pattern.
+
+Proven by a new real-Postgres test
+(`test/integration/workflowIntegration.test.ts`, "Two-phase submission
+crash recovery"): a genuine successful submission, followed by manually
+nulling `hr_lifecycle_cases.workflow_instance_id` to reproduce the exact
+end state a crash between the two writes would leave (never fault
+injection into production code), then a retry proving exactly one
+Workflow instance ever exists, the case converges to the SAME
+`workflowInstanceId`, and the recovered linkage remains fully functional
+through to a normal approval completion.
+
 ### 3b. Approval decision → completion (Workflow → HRMS → Organisation): ONE shared Postgres transaction
 
 This is the invariant PR #7 established and PR #9 must not weaken. It is
@@ -174,6 +217,121 @@ new/rewritten Workflow-package tests
 and this PR's own HRMS-level rollback test (§10). See
 `docs/architecture/workflow-approval-foundation.md` §22a for the
 corrected failure-semantics write-up in Workflow's own doc.
+
+### 3d. Review correction (PR #9 review): execution principal & authority revalidation
+
+**The finding**: the registered SYSTEM_ACTION handler resolves the case's
+`hrOwnerUserId` as the actor for the authoritative HRMS/Organisation
+completion write (§9 explains why it is the HR owner, not the deciding
+approver). That actor's authority must hold **now**, at the moment the
+handler actually executes — which can be arbitrarily later than
+submission, after an async human approval — never merely because it held
+at case-creation/submission time. A stored `hrOwnerUserId` must never
+become a privilege trampoline: if the HR owner's account is deactivated,
+or their HRMS permission, Organisation `manage_assignment` permission,
+legal-entity access, or SK Lai & Partners privileged-tier access is
+revoked after submission but before approval, the authoritative mutation
+must not execute, and the Workflow decision/task transition triggering it
+must roll back too.
+
+**What was already correct, unchanged**: `completeCaseWithAuthoritativeWrite`
+(`lifecycleCaseService.ts`, unchanged since PR #7) already calls
+`checkAccess(deps.rbac, actor.userId, permission.base, permission.privileged,
+{ legalEntityId, recordClassification })` **fresh**, live, against
+whatever `actor` is passed, every single time `completeChange()`/
+`completeOffboarding()` runs — never a value cached from submission.
+Because `resolveHrOwnerActor` re-resolves the HR owner from the database
+on every handler invocation (never a value captured at submission time),
+and `rbac.authorize()` reads current role assignments and entity-access
+grants live, this ONE call already re-validates, at execution time:
+
+- HRMS permission (`manage_employment_change`/`manage_offboarding`, base
+  or `.privileged`) — requirement 3;
+- legal-entity access covering the case's own `legalEntityId` —
+  requirement 2;
+- classification ceiling, including SK Lai & Partners' `.privileged`
+  requirement — requirement 5.
+
+Organisation's own `createAssignment()`/`endAssignment()` (unchanged since
+PR #7) independently re-run the identical `checkAccess()` pattern against
+`employee_master.manage_assignment`, inside the SAME transaction —
+requirement 4. None of this needed duplicating; it was already the
+authoritative, live re-check the review asked to be proven.
+
+**What was genuinely missing**: existence and *active status*
+(requirement 1). `resolveHrOwnerActor`'s `findById` only proved the
+account still exists — nothing anywhere checked `status === 'active'`.
+This is a real, previously-unguarded gap: `rbacService.authorize()`
+itself never consults account status (it only reads role
+assignments/entity grants), so a disabled account whose role assignments
+were never explicitly revoked would otherwise still pass every permission
+check.
+
+**The fix** — added once, at the single authoritative domain boundary
+both the Workflow-triggered path and the pre-existing direct-HTTP
+completion routes (`POST .../complete`) already share:
+`completeCaseWithAuthoritativeWrite` now fetches the execution principal's
+own `User` row (`deps.users.findById(actor.userId)`) and throws
+`ForbiddenError` unless it exists and `status === 'active'`, immediately
+before its (unchanged) permission check. This is deliberately **not**
+duplicated inside `integrations/workflowIntegration.ts` — the adapter
+still only resolves the actor; it performs no authorization logic of its
+own, exactly as the review asked ("add it at the authoritative domain/
+service boundary rather than implementing a parallel security model
+inside the integration adapter").
+
+**Rollback**: because this check throws inside
+`completeCaseWithAuthoritativeWrite`, which the SYSTEM_ACTION handler
+calls on the shared transaction `tx`, the error propagates exactly the
+same way any other handler failure does (§3c) — the WHOLE transaction
+rolls back: no committed Workflow decision, no task transition, no
+Organisation mutation, no HRMS completion.
+
+**Audit/history attribution**: `completeCaseWithAuthoritativeWrite` gained
+an optional `executionContext: { decisionActorUserId, initiatedBySystem }`
+parameter, threaded from `workflowIntegration.ts`'s handlers using
+`ctx.recordedBy` (the Workflow decision's own deciding-actor id, already
+correctly attributed on `workflow_decisions.actor_user_id` — untouched)
+and the registered handler key. It is merged into the completion event's
+`eventData` and the audit entry's `changeAfter` alongside an explicit
+`executionPrincipalUserId` (restating `actor.userId`, the audit row's own
+existing `actor_user_id`). No new columns, no new tables, no sensitive
+payload duplication — three plain user-id/string fields recorded once,
+distinctly:
+
+| Field | Meaning |
+|---|---|
+| `workflow_decisions.actor_user_id` (unchanged) | who APPROVED |
+| `hr_lifecycle_events.recorded_by` / `security_audit_events.actor_user_id` on the completion row | whose authority EXECUTED the mutation (the execution principal) |
+| `eventData.decisionActorUserId` / `changeAfter.decisionActorUserId` | cross-reference to who approved, on the execution's own record |
+| `eventData.initiatedBySystem` / `changeAfter.initiatedBySystem` | which system/integration initiated it, e.g. `workflow:hrms.workflow.employment_change.complete` |
+
+A reader of either record alone can never misattribute the mutation to
+the approver, nor the approval to the HR owner. For a case completed
+directly (the pre-existing HTTP routes, no Workflow decision involved),
+`executionContext` is simply omitted — `decisionActorUserId`/
+`initiatedBySystem` are absent, exactly as before this PR.
+
+**Tests** (`test/integration/workflowIntegration.test.ts`, real Postgres,
+each proving the actual committed/rolled-back database state, not just
+"the call throws"): a control case (HR owner distinct from both the
+creating/submitting actor and the approver, active and fully authorised
+→ succeeds, with attribution assertions on all three records above); HR
+owner loses the HRMS permission after submission but before approval;
+loses Organisation `manage_assignment`; loses legal-entity access;
+becomes inactive; loses SK Lai & Partners privileged-tier access — each
+proves zero committed `workflow_decisions` rows, the task back at
+`PENDING`, the case still `PENDING_DECISION`, and no new Organisation
+assignment; and a retry-after-restoration test proving the earlier
+rejected attempt never partially applied and exactly one business
+completion occurs once authority is legitimately restored.
+
+**Explicitly not done** (scope discipline, per the review's own
+instruction): no HR-ownership redesign, no service-account/impersonation
+concept, no Identity deactivation implementation, no new HR module, no
+generic "revalidate everything" framework — this is the one check
+(active status) the existing model was missing, added at the one place
+it belongs.
 
 ## 4. Avoiding nested transactions
 
@@ -354,7 +512,9 @@ case-creation time, operationally the person responsible for seeing the
 case through — is the correct actor for this specific write. They must
 hold both permissions, exactly like completing directly today. **Who
 approved** remains correctly and separately attributed on
-`workflow_decisions.actor_user_id`.
+`workflow_decisions.actor_user_id`. That authority is re-validated LIVE,
+at the moment of execution, never trusted merely because it held at
+submission time — see §3d for the full review correction and its tests.
 
 Organisation only changes after this full chain succeeds and commits —
 never merely because the case was submitted.
@@ -411,6 +571,8 @@ assumed away.
 | no duplicate `identity_deactivation_requested` | same mechanism — it is appended inside the SAME single completion transaction, exactly once |
 | no duplicate Workflow decision | PR #8's `UNIQUE(task_id)` on `workflow_decisions`, unchanged |
 | no duplicate Workflow completion | PR #8's conditional `updateProgress`, unchanged |
+| a crashed submission (instance started, linkage write lost) converges to exactly one instance/linkage on retry | §3a's review correction: discover-and-reuse via `listInstances`, backstopped by Workflow's own `UNIQUE(...) WHERE status='ACTIVE'` |
+| retry after the execution principal's authority is revoked-then-restored → exactly one business completion | §3d's review correction: the rejected attempt rolls back entirely (§3c), leaving the task retryable with nothing partially applied |
 
 ## 12. Concurrency — tests and results
 
@@ -449,6 +611,16 @@ to a throwaway fixture table, then fails) lives in
 `platform-services/workflow/test/integration/postgres.test.ts` and
 additionally proves the handler's OWN write rolls back, not just
 Workflow's own tables.
+
+**Review correction (PR #9 review) — execution-principal revocation
+rollbacks**: six further forced-failure tests (§3d) prove the identical
+guarantee for every one of the five required live re-checks (HRMS
+permission, Organisation `manage_assignment`, legal-entity access,
+account active-status, SK Lai & Partners privileged-tier access), each
+revoked from the HR owner AFTER a genuine submission but BEFORE the
+approver's `decide()` call — proving zero committed `workflow_decisions`
+rows, the task back at `PENDING`, the case still `PENDING_DECISION`, and
+no Organisation mutation, in every case.
 
 ## 14. Entity / SK Lai & Partners
 
@@ -500,6 +672,17 @@ No payload is duplicated verbatim across all three — each records only
 what it owns, cross-referenced by id (`caseId`, `workflowInstanceId`)
 where useful.
 
+**Review correction (PR #9 review, §3d)**: the completion event/audit row
+itself (`employment_change_completed`/`separation_effective` on
+`hr_lifecycle_events`, and its matching `security_audit_events` row) now
+also cross-references `decisionActorUserId` (who approved, on
+`workflow_decisions`, a different table/domain entirely) and
+`initiatedBySystem`, alongside the existing `recorded_by`/`actor_user_id`
+(whose authority executed it). This is a cross-reference by id, not a
+payload copy — no HR content, no Workflow orchestration content, and no
+security-audit content crosses into another domain's own record because
+of it.
+
 ## 17. Migration
 
 `database/migrations/006_hrms_workflow_integration/migration.sql` — purely
@@ -529,7 +712,8 @@ before this PR.
 
 ## 19. Tests
 
-`platform-services/hrms` — 69 substantive tests (44 pre-existing + 25 new):
+`platform-services/hrms` — 77 substantive tests (44 pre-existing PR #7 +
+25 from the initial PR #9 build + 8 from the PR #9 review correction):
 
 - `test/unit/approvalService.test.ts` (12 tests, in-memory, against a
   fake `WorkflowSubmissionPort`) — authorisation, entity isolation,
@@ -537,28 +721,34 @@ before this PR.
   submission, REJECTED reconciliation (including "exactly once"),
   graceful degradation when the port can't see the instance, IDOR-safe
   denial, onboarding/probation correctly rejected as non-submittable.
-- `test/integration/workflowIntegration.test.ts` (11 tests, real
+- `test/integration/workflowIntegration.test.ts` (19 tests, real
   Postgres, via the REAL `createHrmsContainer` composition root) — full
   employment-change approval flow; full offboarding approval flow
   (including the Identity-untouched assertion); REJECT reconciliation;
   RETURN refused; SK Lai & Partners + System-Administrator-not-approver;
   Race A/B/C; the forced-failure rollback proof; subject-data
-  minimisation; retry-after-success non-duplication.
+  minimisation; retry-after-success non-duplication; **review correction
+  (§3d, 7 tests)**: execution-principal success-with-attribution control
+  case, HRMS-permission revocation, Organisation-permission revocation,
+  legal-entity-access revocation, account-inactive revocation, SK Lai &
+  Partners privileged-tier revocation, retry-after-restoration; **review
+  correction (§3a, 1 test)**: two-phase submission crash recovery.
 - `test/integration/http.test.ts` (+2 tests) — unauthenticated
   submit-for-approval denied; a full submit→decide→complete flow over
   real HTTP plus an IDOR-safe 404 for an unrelated caller.
 
-`platform-services/workflow` — 60 substantive tests (58 pre-existing + 2
-new, from the §3c review correction): the superseded SYSTEM_ACTION-
-failure test rewritten to assert rejection-not-false-completion, plus one
-new real-Postgres test proving full-transaction rollback including the
-handler's own write.
+`platform-services/workflow` — 60 substantive tests, unchanged by the
+review correction (58 pre-existing PR #8 + 2 from the initial PR #9
+build's §3c fix): the superseded SYSTEM_ACTION-failure test rewritten to
+assert rejection-not-false-completion, plus one real-Postgres test
+proving full-transaction rollback including the handler's own write.
 
 Fictional fixtures only throughout.
 
 ## 20. Regression
 
-Canonical substantive-test baselines immediately before this PR:
+Canonical substantive-test baselines immediately before PR #9's initial
+build:
 
 ```
 Identity       95
@@ -568,11 +758,24 @@ HRMS           44
 Workflow       58
 ```
 
-Re-run on a fresh CI-equivalent Postgres database after this PR's
-changes: Identity 95/95 (unchanged, untouched by this PR), Data Vault
-45/45 (unchanged, untouched), Organisation 65/65 (unchanged, untouched),
-Workflow 60/60 (58 + 2 from the §3c review correction), HRMS 69/69 (44 +
-25 new) — all green, zero weakened or deleted tests.
+After PR #9's initial build: Identity 95/95, Data Vault 45/45,
+Organisation 65/65 (all three unchanged, untouched), Workflow 60/60 (58 +
+2 from §3c), HRMS 69/69 (44 + 25 new).
+
+After this review correction ("Execution Principal & Authority
+Revalidation"), re-run on a fresh CI-equivalent Postgres database (raw
+`npm test` count / substantive `test()`-case count, per this codebase's
+established convention — the difference is each package's own
+non-`.test.ts` helper files, e.g. `testDb.ts`, swept up as trivial
+zero-assertion pseudo-subtests by the bare `node --test` CI runs):
+Identity 96/95, Data Vault 46/45, Organisation 66/65, Workflow 62/60 (all
+four entirely unchanged and untouched by this correction — identical to
+their PR #9 initial-build figures above), **HRMS 79/77 (69 substantive +
+8 new: 6 revocation-rollback tests + 1 success/attribution control test +
+1 two-phase crash-recovery test)** — all green, zero weakened or deleted
+tests. `workflowIntegration.test.ts` and `postgres.test.ts` (the two
+files touched or most load-bearing for this correction) were additionally
+re-run 5× consecutively each, zero flakes.
 
 ## 21. CI
 

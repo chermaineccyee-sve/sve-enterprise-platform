@@ -454,3 +454,324 @@ test("Retry after success: repeating a decide() call on an already-decided task 
     assert.equal(assignmentRows.rows[0]!.count, "2", "the initial hire plus exactly one new assignment — a retried decide() must never duplicate it");
   });
 });
+
+// --- PR #9 review correction: Execution Principal & Authority Revalidation ---
+//
+// `admin` creates and submits every case below but is never the case's
+// hrOwnerUserId — a SEPARATE `hrOwner` user (the EXECUTION PRINCIPAL the
+// registered SYSTEM_ACTION handler resolves via resolveHrOwnerActor) is
+// granted, via its OWN individually-revocable role assignments and a
+// single entity-access grant, exactly the authority
+// completeCaseWithAuthoritativeWrite requires. Revoking one of those
+// grants AFTER submitForApproval but BEFORE the approver's decide() call
+// proves the handler re-validates that authority LIVE, at execution time,
+// rather than trusting whatever held at submission time. See
+// docs/architecture/hrms-workflow-integration.md "Execution principal
+// revalidation".
+
+async function grantSingleRole(
+  db: DatabaseProvider,
+  userId: string,
+  permission: { key: string; maxClassification: "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED" | "PRIVILEGED" },
+  grantedBy: string,
+): Promise<string> {
+  const rbacRepo = createPgRbacRepository(db);
+  const role = await rbacRepo.createRole({ key: `role-${randomUUID()}`, name: "Test role (single permission)" });
+  const existing = await rbacRepo.findPermissionByKey(permission.key);
+  const perm = existing ?? (await rbacRepo.createPermission({ key: permission.key, maxClassification: permission.maxClassification }));
+  await rbacRepo.grantPermissionToRole(role.id, perm.id);
+  const assignment = await rbacRepo.assignRole({ userId, roleId: role.id, grantedBy });
+  return assignment.id;
+}
+
+async function grantSingleEntityAccess(db: DatabaseProvider, userId: string, legalEntityId: string, grantedBy: string): Promise<string> {
+  const rbacRepo = createPgRbacRepository(db);
+  const grant = await rbacRepo.grantEntityAccess({ userId, scopeType: "legal_entity", legalEntityId, grantedBy });
+  return grant.id;
+}
+
+async function revokeRole(db: DatabaseProvider, assignmentId: string, revokedBy: string): Promise<void> {
+  await createPgRbacRepository(db).revokeRoleAssignment(assignmentId, revokedBy);
+}
+
+async function revokeEntity(db: DatabaseProvider, grantId: string, revokedBy: string): Promise<void> {
+  await createPgRbacRepository(db).revokeEntityAccess(grantId, revokedBy);
+}
+
+/**
+ * Builds a case whose hrOwnerUserId is a distinct, minimally-provisioned
+ * `hrOwner` — exactly the two permissions (HRMS + Organisation) the
+ * completion write needs, each its own revocable role assignment, plus
+ * ONE shared entity-access grant (so revoking it removes entity coverage
+ * entirely, rather than leaving a second grant still covering the same
+ * entity). Submits the case (as `admin`) and returns the approver's
+ * pending task id, ready for decide().
+ */
+async function setupRevocableHrOwnerCase(container: HrmsContainer, db: DatabaseProvider, admin: { userId: string; email: string }, legalEntityId: string, emailPrefix: string) {
+  const hrOwner = actor((await container.users.createUser({ email: `${emailPrefix}.hrowner@example.test`, accountType: "employee" })).id, `${emailPrefix}.hrowner@example.test`);
+  const hrPermRoleId = await grantSingleRole(db, hrOwner.userId, { key: PERMISSIONS.MANAGE_EMPLOYMENT_CHANGE, maxClassification: "CONFIDENTIAL" }, admin.userId);
+  const orgPermRoleId = await grantSingleRole(db, hrOwner.userId, { key: ORG_PERMISSIONS.MANAGE_ASSIGNMENT, maxClassification: "CONFIDENTIAL" }, admin.userId);
+  const entityGrantId = await grantSingleEntityAccess(db, hrOwner.userId, legalEntityId, admin.userId);
+
+  const approver = actor((await container.users.createUser({ email: `${emailPrefix}.approver@example.test`, accountType: "employee" })).id, `${emailPrefix}.approver@example.test`);
+  await grantRole(db, approver.userId, [{ key: PERMISSIONS.MANAGE_EMPLOYMENT_CHANGE, maxClassification: "CONFIDENTIAL" }], { scopeType: "legal_entity", legalEntityId }, admin.userId);
+
+  const employee = await hireFictional(container, admin, legalEntityId, `Fictional ${emailPrefix} Employee`);
+  const hrCase = await container.employmentChange.createChangeCase(admin, { employeeId: employee.id, legalEntityId, hrOwnerUserId: hrOwner.userId, changeType: "promotion" });
+  const submitted = await container.approval.submitForApproval(admin, hrCase.id, EMPLOYMENT_CHANGE_INPUT);
+  const tasks = await container.workflow.tasks.listAssignedTasks(approver, { instanceId: submitted.workflowInstanceId });
+
+  return { hrOwner, approver, employee, hrCase, submitted, taskId: tasks[0]!.id, hrPermRoleId, orgPermRoleId, entityGrantId };
+}
+
+async function assertNoMutationAndNoCommittedDecision(container: HrmsContainer, db: DatabaseProvider, admin: { userId: string; email: string }, hrCaseId: string, employeeId: string, taskId: string) {
+  const decisionRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM workflow_decisions WHERE task_id = $1`, [taskId]);
+  assert.equal(decisionRows.rows[0]!.count, "0", "no Workflow decision may be committed when the execution principal's authority fails at execution time");
+  const taskRow = await db.query<{ status: string }>(`SELECT status FROM workflow_tasks WHERE id = $1`, [taskId]);
+  assert.equal(taskRow.rows[0]!.status, "PENDING", "the task transition must roll back entirely, leaving the task retryable");
+  const caseRow = await container.lifecycle.getCase(admin, hrCaseId);
+  assert.equal(caseRow.case.status, "PENDING_DECISION", "the HRMS case must not be left COMPLETED (or any other state) when the execution principal's authority failed");
+  const assignmentRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM employment_assignments WHERE employee_id = $1`, [employeeId]);
+  assert.equal(assignmentRows.rows[0]!.count, "1", "only the initial hire — no Organisation mutation may survive a failed execution-principal revalidation");
+}
+
+test("Execution principal revalidation: an HR owner who is active and fully authorised at execution time succeeds, and history attributes the approver and the execution principal distinctly", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const container = await createHrmsContainer(db);
+    const admin = await provisionAdmin(db, container, "workflow-integration.pg.execprincipal.base.admin@example.test");
+    const entities = await container.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const { hrOwner, approver, employee, hrCase, submitted, taskId } = await setupRevocableHrOwnerCase(container, db, admin, my.id, "workflow-integration.pg.execprincipal.base");
+
+    await container.workflow.tasks.decide(approver, taskId, { decision: "APPROVE" });
+
+    const finalCase = await container.lifecycle.getCase(admin, hrCase.id);
+    assert.equal(finalCase.case.status, "COMPLETED");
+    assert.ok(finalCase.case.resultingAssignmentId);
+
+    // Attribution: the Workflow decision belongs to the APPROVER...
+    const decisionRow = await db.query<{ actor_user_id: string }>(`SELECT actor_user_id FROM workflow_decisions WHERE task_id = $1`, [taskId]);
+    assert.equal(decisionRow.rows[0]!.actor_user_id, approver.userId, "the Workflow decision must be attributed to the deciding approver");
+
+    // ...while the HRMS completion event/audit attribute execution to the HR OWNER, and separately cross-reference the approver as decisionActorUserId.
+    const completedEventRow = await db.query<{ recorded_by: string; event_data: { decisionActorUserId?: string; initiatedBySystem?: string } | null }>(
+      `SELECT recorded_by, event_data FROM hr_lifecycle_events WHERE case_id = $1 AND event_type = 'employment_change_completed'`,
+      [hrCase.id],
+    );
+    assert.equal(completedEventRow.rows[0]!.recorded_by, hrOwner.userId, "the completion event's recordedBy is the EXECUTION PRINCIPAL, never the approver");
+    assert.equal(completedEventRow.rows[0]!.event_data?.decisionActorUserId, approver.userId, "the completion event must separately reference who APPROVED, never conflating it with recordedBy");
+    assert.ok(completedEventRow.rows[0]!.event_data?.initiatedBySystem?.startsWith("workflow:"), "the completion event must record which system/integration initiated it");
+
+    const auditRow = await db.query<{ actor_user_id: string; change_after: { executionPrincipalUserId?: string; decisionActorUserId?: string } | null }>(
+      `SELECT actor_user_id, change_after FROM security_audit_events WHERE resource_id = $1 AND action = 'hrms.lifecycle.employment_change_completed' ORDER BY occurred_at DESC LIMIT 1`,
+      [hrCase.id],
+    );
+    assert.equal(auditRow.rows[0]!.actor_user_id, hrOwner.userId, "the completion audit entry's actor is the EXECUTION PRINCIPAL");
+    assert.equal(auditRow.rows[0]!.change_after?.executionPrincipalUserId, hrOwner.userId);
+    assert.equal(auditRow.rows[0]!.change_after?.decisionActorUserId, approver.userId, "the audit entry must never imply the approver personally executed the Organisation mutation, nor that the HR owner approved the request — both are recorded distinctly");
+
+    const assignmentRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM employment_assignments WHERE employee_id = $1`, [employee.id]);
+    assert.equal(assignmentRows.rows[0]!.count, "2");
+    void submitted;
+  });
+});
+
+test("Execution principal revalidation: HR owner loses the HRMS permission after submission but before approval — the whole decision rolls back", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const container = await createHrmsContainer(db);
+    const admin = await provisionAdmin(db, container, "workflow-integration.pg.execprincipal.hrmsperm.admin@example.test");
+    const entities = await container.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const { hrOwner, approver, employee, hrCase, taskId, hrPermRoleId } = await setupRevocableHrOwnerCase(container, db, admin, my.id, "workflow-integration.pg.execprincipal.hrmsperm");
+
+    await revokeRole(db, hrPermRoleId, admin.userId);
+
+    await assert.rejects(() => container.workflow.tasks.decide(approver, taskId, { decision: "APPROVE" }), /manage_employment_change/);
+    await assertNoMutationAndNoCommittedDecision(container, db, admin, hrCase.id, employee.id, taskId);
+    void hrOwner;
+  });
+});
+
+test("Execution principal revalidation: HR owner loses Organisation's employee_master.manage_assignment after submission but before approval — rolls back", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const container = await createHrmsContainer(db);
+    const admin = await provisionAdmin(db, container, "workflow-integration.pg.execprincipal.orgperm.admin@example.test");
+    const entities = await container.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const { approver, employee, hrCase, taskId, orgPermRoleId } = await setupRevocableHrOwnerCase(container, db, admin, my.id, "workflow-integration.pg.execprincipal.orgperm");
+
+    await revokeRole(db, orgPermRoleId, admin.userId);
+
+    await assert.rejects(() => container.workflow.tasks.decide(approver, taskId, { decision: "APPROVE" }), /manage_assignment/);
+    await assertNoMutationAndNoCommittedDecision(container, db, admin, hrCase.id, employee.id, taskId);
+  });
+});
+
+test("Execution principal revalidation: HR owner loses legal-entity access after submission but before approval — rolls back", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const container = await createHrmsContainer(db);
+    const admin = await provisionAdmin(db, container, "workflow-integration.pg.execprincipal.entity.admin@example.test");
+    const entities = await container.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const { approver, employee, hrCase, taskId, entityGrantId } = await setupRevocableHrOwnerCase(container, db, admin, my.id, "workflow-integration.pg.execprincipal.entity");
+
+    await revokeEntity(db, entityGrantId, admin.userId);
+
+    await assert.rejects(() => container.workflow.tasks.decide(approver, taskId, { decision: "APPROVE" }), /manage_employment_change/);
+    await assertNoMutationAndNoCommittedDecision(container, db, admin, hrCase.id, employee.id, taskId);
+  });
+});
+
+test("Execution principal revalidation: HR owner's account becomes inactive after submission but before approval — no HRMS/Organisation mutation and no committed Workflow decision", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const container = await createHrmsContainer(db);
+    const admin = await provisionAdmin(db, container, "workflow-integration.pg.execprincipal.inactive.admin@example.test");
+    const entities = await container.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const { hrOwner, approver, employee, hrCase, taskId } = await setupRevocableHrOwnerCase(container, db, admin, my.id, "workflow-integration.pg.execprincipal.inactive");
+
+    // The approver themself remains entirely valid — only the execution
+    // principal (hrOwner) is deactivated. The task/decision must still be
+    // rejected: approval authority is never sufficient on its own.
+    await container.users.setStatus(hrOwner.userId, "disabled");
+
+    await assert.rejects(() => container.workflow.tasks.decide(approver, taskId, { decision: "APPROVE" }), /not active/);
+    await assertNoMutationAndNoCommittedDecision(container, db, admin, hrCase.id, employee.id, taskId);
+
+    const stillDisabled = await container.users.findById(hrOwner.userId);
+    assert.equal(stillDisabled!.status, "disabled", "the account itself is untouched by the rejected completion attempt — this test only proves the completion never executed under it");
+  });
+});
+
+test("Execution principal revalidation: HR owner loses SK Lai & Partners privileged-tier access after submission but before approval — rolls back", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const container = await createHrmsContainer(db);
+    const admin = await provisionAdmin(db, container, "workflow-integration.pg.execprincipal.skl.admin@example.test");
+    await grantRole(
+      db,
+      admin.userId,
+      [
+        { key: PERMISSIONS.CREATE_PRIVILEGED, maxClassification: "RESTRICTED" },
+        { key: PERMISSIONS.MANAGE_EMPLOYMENT_CHANGE_PRIVILEGED, maxClassification: "RESTRICTED" },
+        { key: WORKFLOW_PERMISSIONS.INSTANCE_START_PRIVILEGED, maxClassification: "RESTRICTED" },
+      ],
+      { scopeType: "group" },
+      admin.userId,
+    );
+    const entities = await container.organisation.listLegalEntities();
+    const skl = entities.find((e) => e.key === "sk-lai-partners-my")!;
+
+    const hrOwner = actor((await container.users.createUser({ email: "workflow-integration.pg.execprincipal.skl.hrowner@example.test", accountType: "employee" })).id, "workflow-integration.pg.execprincipal.skl.hrowner@example.test");
+    const hrPrivRoleId = await grantSingleRole(db, hrOwner.userId, { key: PERMISSIONS.MANAGE_EMPLOYMENT_CHANGE_PRIVILEGED, maxClassification: "RESTRICTED" }, admin.userId);
+    await grantSingleRole(db, hrOwner.userId, { key: ORG_PERMISSIONS.MANAGE_ASSIGNMENT_PRIVILEGED, maxClassification: "RESTRICTED" }, admin.userId);
+    await grantSingleEntityAccess(db, hrOwner.userId, skl.id, admin.userId);
+
+    const approver = actor((await container.users.createUser({ email: "workflow-integration.pg.execprincipal.skl.approver@example.test", accountType: "employee" })).id, "workflow-integration.pg.execprincipal.skl.approver@example.test");
+    await grantRole(db, approver.userId, [{ key: PERMISSIONS.MANAGE_EMPLOYMENT_CHANGE_PRIVILEGED, maxClassification: "RESTRICTED" }], { scopeType: "legal_entity", legalEntityId: skl.id }, admin.userId);
+
+    const employee = await hireFictional(container, admin, skl.id, "Fictional SKL Execution Principal Employee");
+    const hrCase = await container.employmentChange.createChangeCase(admin, { employeeId: employee.id, legalEntityId: skl.id, hrOwnerUserId: hrOwner.userId, changeType: "promotion" });
+    const submitted = await container.approval.submitForApproval(admin, hrCase.id, EMPLOYMENT_CHANGE_INPUT);
+    const tasks = await container.workflow.tasks.listAssignedTasks(approver, { instanceId: submitted.workflowInstanceId });
+    const taskId = tasks[0]!.id;
+
+    // Downgrade the HR owner's SKL access: revoke the PRIVILEGED role — no
+    // base-tier permission exists to fall back to, so this leaves them with
+    // NO permission capable of covering SKL's RESTRICTED ceiling.
+    await revokeRole(db, hrPrivRoleId, admin.userId);
+
+    await assert.rejects(() => container.workflow.tasks.decide(approver, taskId, { decision: "APPROVE" }), /manage_employment_change/);
+    await assertNoMutationAndNoCommittedDecision(container, db, admin, hrCase.id, employee.id, taskId);
+  });
+});
+
+test("Execution principal revalidation: retry after the HR owner's authority is legitimately restored is idempotent — exactly one business completion", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const container = await createHrmsContainer(db);
+    const admin = await provisionAdmin(db, container, "workflow-integration.pg.execprincipal.retry.admin@example.test");
+    const entities = await container.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const { employee, hrCase, approver, taskId, hrPermRoleId } = await setupRevocableHrOwnerCase(container, db, admin, my.id, "workflow-integration.pg.execprincipal.retry");
+
+    await revokeRole(db, hrPermRoleId, admin.userId);
+    await assert.rejects(() => container.workflow.tasks.decide(approver, taskId, { decision: "APPROVE" }));
+    await assertNoMutationAndNoCommittedDecision(container, db, admin, hrCase.id, employee.id, taskId);
+
+    // Authority legitimately restored (e.g. a permission grant that was
+    // only briefly lapsed, or corrected by an administrator).
+    await grantSingleRole(db, (await container.lifecycle.getCase(admin, hrCase.id)).case.hrOwnerUserId, { key: PERMISSIONS.MANAGE_EMPLOYMENT_CHANGE, maxClassification: "CONFIDENTIAL" }, admin.userId);
+
+    await container.workflow.tasks.decide(approver, taskId, { decision: "APPROVE" });
+
+    const finalCase = await container.lifecycle.getCase(admin, hrCase.id);
+    assert.equal(finalCase.case.status, "COMPLETED");
+
+    const decisionRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM workflow_decisions WHERE task_id = $1`, [taskId]);
+    assert.equal(decisionRows.rows[0]!.count, "1", "exactly one decision must ever commit for this task");
+
+    const completedEvents = await db.query<{ count: string }>(`SELECT count(*)::text FROM hr_lifecycle_events WHERE case_id = $1 AND event_type = 'employment_change_completed'`, [hrCase.id]);
+    assert.equal(completedEvents.rows[0]!.count, "1", "exactly one business completion, never duplicated by the earlier rejected attempt");
+
+    const assignmentRows = await db.query<{ count: string }>(`SELECT count(*)::text FROM employment_assignments WHERE employee_id = $1`, [employee.id]);
+    assert.equal(assignmentRows.rows[0]!.count, "2", "the initial hire plus exactly one new assignment — the earlier rejected attempt must never have partially applied");
+  });
+});
+
+test("Two-phase submission crash recovery: the Workflow instance starts successfully but the HRMS linkage write fails before commit — retry converges to exactly one instance and one linkage", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const container = await createHrmsContainer(db);
+    const admin = await provisionAdmin(db, container, "workflow-integration.pg.crashretry.admin@example.test");
+    const entities = await container.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const employee = await hireFictional(container, admin, my.id, "Fictional Crash Retry Employee A");
+    const hrCase = await container.employmentChange.createChangeCase(admin, { employeeId: employee.id, legalEntityId: my.id, hrOwnerUserId: admin.userId, changeType: "promotion" });
+
+    // Granted BEFORE the first submission: ROLE-mode candidates are
+    // resolved once, at step-activation time (PR #8 fix) — this must
+    // exist before the original startWorkflow call for the approver to be
+    // a candidate on the task that instance's activation creates.
+    const approver = actor((await container.users.createUser({ email: "workflow-integration.pg.crashretry.approver@example.test", accountType: "employee" })).id, "workflow-integration.pg.crashretry.approver@example.test");
+    await grantRole(db, approver.userId, [{ key: PERMISSIONS.MANAGE_EMPLOYMENT_CHANGE, maxClassification: "CONFIDENTIAL" }], { scopeType: "legal_entity", legalEntityId: my.id }, admin.userId);
+
+    // A normal submission first, so a real ACTIVE Workflow instance
+    // genuinely exists (Phase 2's own write, in its own transaction,
+    // really did commit).
+    const submitted = await container.approval.submitForApproval(admin, hrCase.id, EMPLOYMENT_CHANGE_INPUT);
+    const instancesBefore = await db.query<{ count: string }>(`SELECT count(*)::text FROM workflow_instances WHERE subject_type = 'hrms.lifecycle' AND subject_id = $1`, [hrCase.id]);
+    assert.equal(instancesBefore.rows[0]!.count, "1");
+
+    // Simulate the exact crash the review asked to be proven: Phase 2's
+    // OWN linkage write (deps.cases.linkWorkflowInstance, a SEPARATE
+    // statement/transaction from Workflow's own startWorkflow — see this
+    // two-phase design's doc comment) never committed, even though the
+    // Workflow instance itself did. This reproduces the identical end
+    // state a genuine crash between the two writes would leave, without
+    // needing to inject a fault into the real code path.
+    await db.query(`UPDATE hr_lifecycle_cases SET workflow_instance_id = NULL WHERE id = $1`, [hrCase.id]);
+    const orphaned = await container.lifecycle.getCase(admin, hrCase.id);
+    assert.equal(orphaned.case.status, "PENDING_DECISION");
+    assert.equal(orphaned.case.workflowInstanceId, null, "the simulated crash state: PENDING_DECISION with no linkage, exactly like a genuine Phase-2 failure");
+
+    // Retry: submitForApproval must not fail, must not create a SECOND
+    // Workflow instance (Workflow's own UNIQUE(definition_id, subject_type,
+    // subject_id) WHERE status='ACTIVE' constraint is the backstop even if
+    // it tried), and must converge the case back to referencing the SAME,
+    // original instance.
+    const retried = await container.approval.submitForApproval(admin, hrCase.id, EMPLOYMENT_CHANGE_INPUT);
+    assert.equal(retried.workflowInstanceId, submitted.workflowInstanceId, "retry must discover and reuse the SAME orphaned instance, never start a second one");
+
+    const instancesAfter = await db.query<{ count: string }>(`SELECT count(*)::text FROM workflow_instances WHERE subject_type = 'hrms.lifecycle' AND subject_id = $1`, [hrCase.id]);
+    assert.equal(instancesAfter.rows[0]!.count, "1", "exactly one Workflow instance must ever exist for this case, even across a crash-and-retry");
+
+    const recovered = await container.lifecycle.getCase(admin, hrCase.id);
+    assert.equal(recovered.case.workflowInstanceId, submitted.workflowInstanceId, "the case must converge to exactly one linkage, pointing at the original instance");
+
+    // The recovered linkage is fully functional — approval still completes normally.
+    const tasks = await container.workflow.tasks.listAssignedTasks(approver, { instanceId: submitted.workflowInstanceId });
+    assert.equal(tasks.length, 1);
+    await container.workflow.tasks.decide(approver, tasks[0]!.id, { decision: "APPROVE" });
+
+    const finalCase = await container.lifecycle.getCase(admin, hrCase.id);
+    assert.equal(finalCase.case.status, "COMPLETED");
+  });
+});

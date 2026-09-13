@@ -15,7 +15,7 @@
  */
 import type { WorkflowContainer } from "../../../workflow/src/composition/container.ts";
 import type { SystemActionContext } from "../../../workflow/src/domain/systemActionRegistry.ts";
-import { NotFoundError as WorkflowNotFoundError } from "../../../workflow/src/domain/errors.ts";
+import { NotFoundError as WorkflowNotFoundError, InvalidStateError as WorkflowInvalidStateError } from "../../../workflow/src/domain/errors.ts";
 import { createPgUserRepository } from "../../../identity/src/repositories/postgres/pgUserRepository.ts";
 import { createPgLifecycleCaseRepository } from "../repositories/postgres/pgLifecycleCaseRepository.ts";
 import { createEmploymentChangeServiceForTransaction, createOffboardingServiceForTransaction } from "../composition/transactionScope.ts";
@@ -54,6 +54,20 @@ const APPROVAL_PERMISSION_BY_TYPE = {
  * correct actor for this specific write; they must hold both permissions,
  * exactly like anyone completing a case directly. See docs/architecture/
  * hrms-workflow-integration.md "Employment Change" / "Offboarding".
+ *
+ * PR #9 review correction ("Execution Principal & Authority
+ * Revalidation"): this resolves the HR owner FRESH on every handler
+ * invocation (never a value captured at submission time) — the `findById`
+ * below only proves the account still EXISTS; the constructed
+ * ActorContext is then re-authorised for permission/entity/classification
+ * and, critically, active-status LIVE, at the authoritative domain
+ * boundary (completeCaseWithAuthoritativeWrite in lifecycleCaseService.ts)
+ * every single time completeChange()/completeOffboarding() runs. This
+ * function deliberately does NOT duplicate any of those checks itself —
+ * doing so here would create a second, parallel security model inside the
+ * integration adapter instead of relying on the one authoritative
+ * boundary both the Workflow-triggered and direct-HTTP completion paths
+ * already share.
  */
 async function resolveHrOwnerActor(ctx: SystemActionContext, hrOwnerUserId: string): Promise<ActorContext> {
   const users = createPgUserRepository(ctx.tx);
@@ -80,7 +94,11 @@ export function createHrmsWorkflowIntegration(deps: { workflow: WorkflowContaine
     const actor = await resolveHrOwnerActor(ctx, hrCase.hrOwnerUserId);
     const employmentChange = createEmploymentChangeServiceForTransaction(ctx.tx, deps.rbac);
     const assignmentInput: CreateAssignmentInput = { ...(hrCase.pendingCompletionInput as unknown as CreateAssignmentInput), legalEntityId: hrCase.legalEntityId };
-    await employmentChange.completeChange(actor, caseId, assignmentInput);
+    // decisionActorUserId = ctx.recordedBy: the Workflow decision's own
+    // actor_user_id (who APPROVED), attributed distinctly from `actor`
+    // (whose authority this completion write executes under) — never
+    // conflated. See completeCaseWithAuthoritativeWrite's executionContext.
+    await employmentChange.completeChange(actor, caseId, assignmentInput, { decisionActorUserId: ctx.recordedBy, initiatedBySystem: `workflow:${HANDLER_KEY_EMPLOYMENT_CHANGE}` });
   });
 
   deps.workflow.systemActions.register(HANDLER_KEY_OFFBOARDING, async (ctx: SystemActionContext) => {
@@ -92,19 +110,42 @@ export function createHrmsWorkflowIntegration(deps: { workflow: WorkflowContaine
     const actor = await resolveHrOwnerActor(ctx, hrCase.hrOwnerUserId);
     const input = hrCase.pendingCompletionInput as unknown as { endDate: string; status: "TERMINATED" | "RESIGNED"; changeReason?: string };
     const offboarding = createOffboardingServiceForTransaction(ctx.tx, deps.rbac);
-    await offboarding.completeOffboarding(actor, caseId, input);
+    await offboarding.completeOffboarding(actor, caseId, input, { decisionActorUserId: ctx.recordedBy, initiatedBySystem: `workflow:${HANDLER_KEY_OFFBOARDING}` });
   });
 
   return {
     async submit(actor, input) {
-      const instance = await deps.workflow.instances.startWorkflow(actor, {
-        definitionKey: input.definitionKey,
-        subjectType: "hrms.lifecycle",
-        subjectId: input.caseId,
-        legalEntityId: input.legalEntityId,
-        subjectEmployeeId: input.employeeId,
-      });
-      return { workflowInstanceId: instance.id, status: instance.status };
+      try {
+        const instance = await deps.workflow.instances.startWorkflow(actor, {
+          definitionKey: input.definitionKey,
+          subjectType: "hrms.lifecycle",
+          subjectId: input.caseId,
+          legalEntityId: input.legalEntityId,
+          subjectEmployeeId: input.employeeId,
+        });
+        return { workflowInstanceId: instance.id, status: instance.status };
+      } catch (error) {
+        // PR #9 review correction: approvalService's two-phase submission
+        // is deliberately NOT one shared transaction with this call (see
+        // docs/architecture/hrms-workflow-integration.md "Two-phase
+        // submission crash recovery") — a crash between this instance
+        // actually committing and HRMS's own linkage write committing
+        // leaves an ACTIVE instance for this case with no case reference
+        // to it. A retry lands here again and hits Workflow's own
+        // UNIQUE(definition_id, subject_type, subject_id) WHERE
+        // status='ACTIVE' constraint (surfaced as InvalidStateError by
+        // startWorkflow) rather than silently succeeding a second time.
+        // Discover and reuse that exact instance instead of leaving the
+        // caller stuck — `actor` is this case's own original submitter on
+        // every retry, so `requesterUserId === actor.userId` always makes
+        // it visible via listInstances regardless of RBAC read permission.
+        if (error instanceof WorkflowInvalidStateError && /active workflow instance already exists/i.test(error.message)) {
+          const existing = await deps.workflow.instances.listInstances(actor, { subjectType: "hrms.lifecycle", subjectId: input.caseId, status: "ACTIVE" });
+          const found = existing[0];
+          if (found) return { workflowInstanceId: found.id, status: found.status };
+        }
+        throw error;
+      }
     },
     async getStatus(actor, workflowInstanceId): Promise<WorkflowStatusResult | null> {
       try {

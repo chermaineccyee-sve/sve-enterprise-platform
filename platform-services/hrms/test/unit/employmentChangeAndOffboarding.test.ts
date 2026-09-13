@@ -14,7 +14,7 @@ const FULL_HR_PERMS = [
 
 test("a successful employment change creates the authoritative Organisation assignment and completes the case", async () => {
   const deps = await setup();
-  const hrUser = randomUUID();
+  const hrUser = (await deps.users.createUser({ email: `hr.${randomUUID()}@example.test`, accountType: "employee" })).id;
   await grantRole(deps.rbacRepo, hrUser, FULL_HR_PERMS, { scopeType: "group" });
   await grantRole(deps.rbacRepo, hrUser, [{ key: "employee_master.manage_assignment", maxClassification: "CONFIDENTIAL" }, { key: "employee_master.read.restricted", maxClassification: "CONFIDENTIAL" }], { scopeType: "group" });
   const employee = await hireFictionalEmployee(deps, deps.my.id, "Fictional Employment Change Test");
@@ -40,7 +40,7 @@ test("a successful employment change creates the authoritative Organisation assi
 
 test("an employment-change case cannot complete if the Employee Master transition fails, and is never falsely marked completed", async () => {
   const deps = await setup();
-  const hrUser = randomUUID();
+  const hrUser = (await deps.users.createUser({ email: `hr.${randomUUID()}@example.test`, accountType: "employee" })).id;
   await grantRole(deps.rbacRepo, hrUser, FULL_HR_PERMS, { scopeType: "group" });
   await grantRole(deps.rbacRepo, hrUser, [{ key: "employee_master.manage_assignment", maxClassification: "CONFIDENTIAL" }], { scopeType: "group" });
   const employee = await hireFictionalEmployee(deps, deps.my.id, "Fictional Change Failure Test");
@@ -64,7 +64,7 @@ test("an employment-change case cannot complete if the Employee Master transitio
 
 test("a successful offboarding ends the authoritative Organisation assignment and completes the case", async () => {
   const deps = await setup();
-  const hrUser = randomUUID();
+  const hrUser = (await deps.users.createUser({ email: `hr.${randomUUID()}@example.test`, accountType: "employee" })).id;
   await grantRole(deps.rbacRepo, hrUser, FULL_HR_PERMS, { scopeType: "group" });
   await grantRole(deps.rbacRepo, hrUser, [{ key: "employee_master.manage_assignment", maxClassification: "CONFIDENTIAL" }], { scopeType: "group" });
   const employee = await hireFictionalEmployee(deps, deps.my.id, "Fictional Offboarding Test");
@@ -98,7 +98,7 @@ test("a successful offboarding ends the authoritative Organisation assignment an
 
 test("an offboarding case cannot falsely complete if the Employee Master end-assignment fails", async () => {
   const deps = await setup();
-  const hrUser = randomUUID();
+  const hrUser = (await deps.users.createUser({ email: `hr.${randomUUID()}@example.test`, accountType: "employee" })).id;
   await grantRole(deps.rbacRepo, hrUser, FULL_HR_PERMS, { scopeType: "group" });
   const employee = await hireFictionalEmployee(deps, deps.my.id, "Fictional Offboarding Failure Test");
   const created = await deps.offboarding.createOffboardingCase(actor(hrUser), { employeeId: employee.id, legalEntityId: deps.my.id, hrOwnerUserId: hrUser, separationType: "termination" });
