@@ -6,8 +6,10 @@ import { getTestDatabaseUrl, withTestDb } from "./testDb.ts";
 import { createHrmsContainer } from "../../src/composition/container.ts";
 import { createHttpServer } from "../../src/api/http.ts";
 import { createPgRbacRepository } from "../../../identity/src/repositories/postgres/pgRbacRepository.ts";
+import { installHrmsWorkflowDefinitions } from "../../src/integrations/workflowIntegration.ts";
 import { PERMISSIONS } from "../../src/services/access.ts";
 import { PERMISSIONS as ORG_PERMISSIONS } from "../../../organisation/src/services/employeeService.ts";
+import { PERMISSIONS as WORKFLOW_PERMISSIONS } from "../../../workflow/src/services/access.ts";
 
 const skip: boolean | string = getTestDatabaseUrl() ? false : "DATABASE_URL not set — run against a real Postgres to exercise this suite (see CI).";
 
@@ -335,6 +337,97 @@ test("HRMS HTTP: full employment-change flow completes through real Organisation
       const eventsRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${offboardCase.id}/events`, { headers: auth });
       const events = (await eventsRes.json()).data.events as Array<{ eventType: string }>;
       assert.ok(events.some((e) => e.eventType === "identity_deactivation_requested"));
+    } finally {
+      server.close();
+    }
+  });
+});
+
+async function provisionWorkflowHr(
+  container: Awaited<ReturnType<typeof createHrmsContainer>>,
+  rbacRepo: ReturnType<typeof createPgRbacRepository>,
+  email: string,
+  adminId: string,
+) {
+  const hr = await provisionHr(container, rbacRepo, email, adminId);
+  const role = await rbacRepo.createRole({ key: `role-workflow-${randomUUID()}`, name: `Workflow role for ${email}` });
+  for (const key of [WORKFLOW_PERMISSIONS.DEFINITION_READ, WORKFLOW_PERMISSIONS.DEFINITION_CREATE, WORKFLOW_PERMISSIONS.DEFINITION_UPDATE, WORKFLOW_PERMISSIONS.DEFINITION_PUBLISH, WORKFLOW_PERMISSIONS.INSTANCE_START, WORKFLOW_PERMISSIONS.INSTANCE_READ]) {
+    const existing = await rbacRepo.findPermissionByKey(key);
+    const permission = existing ?? (await rbacRepo.createPermission({ key, maxClassification: "CONFIDENTIAL" }));
+    await rbacRepo.grantPermissionToRole(role.id, permission.id);
+  }
+  await rbacRepo.assignRole({ userId: hr.user.id, roleId: role.id, grantedBy: adminId });
+  return hr;
+}
+
+test("HRMS HTTP: submit-for-approval is denied without authentication", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const { server, baseUrl } = await startServer(db);
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${randomUUID()}/submit-for-approval`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ completionInput: {} }) });
+      assert.equal(res.status, 401);
+    } finally {
+      server.close();
+    }
+  });
+});
+
+test("HRMS HTTP: full submit-for-approval -> Workflow decision -> completion flow over real HTTP, and IDOR-safe approval status for an unrelated caller", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const { server, baseUrl, container } = await startServer(db);
+    try {
+      const rbacRepo = createPgRbacRepository(db);
+      const admin = await container.users.createUser({ email: "hrms.http.workflow.admin@example.test", accountType: "service" });
+      const { user: hrUser, token } = await provisionWorkflowHr(container, rbacRepo, "hrms.http.workflow.hr@example.test", admin.id);
+      await installHrmsWorkflowDefinitions(container.workflow, { userId: hrUser.id, email: hrUser.email });
+
+      const entities = await container.organisation.listLegalEntities();
+      const my = entities.find((e) => e.key === "sve-international-my")!;
+      const employee = await hireFictional(container, { userId: hrUser.id, email: hrUser.email }, my.id, "Fictional HTTP Approval Test");
+      const auth = { authorization: `Bearer ${token}` };
+
+      const createRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases`, {
+        method: "POST",
+        headers: { ...auth, "content-type": "application/json" },
+        body: JSON.stringify({ lifecycleType: "employment_change", employeeId: employee.id, legalEntityId: my.id, hrOwnerUserId: hrUser.id, changeType: "promotion" }),
+      });
+      const hrCase = (await createRes.json()).data.case;
+
+      const submitRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${hrCase.id}/submit-for-approval`, {
+        method: "POST",
+        headers: { ...auth, "content-type": "application/json" },
+        body: JSON.stringify({ completionInput: { employmentType: "full_time", status: "ACTIVE", startDate: "2026-09-01", effectiveFrom: "2026-09-01" } }),
+      });
+      const submitBody = await submitRes.json();
+      assert.equal(submitRes.status, 200, JSON.stringify(submitBody));
+      assert.equal(submitBody.data.case.status, "PENDING_DECISION");
+      const workflowInstanceId = submitBody.data.workflowInstanceId as string;
+      assert.ok(workflowInstanceId);
+
+      // The approver's decision itself goes through Workflow's own
+      // service layer (its own HTTP surface is Workflow's own, already
+      // covered by PR #8's own HTTP tests) — this test's own HTTP surface
+      // is HRMS's two new endpoints.
+      const tasks = await container.workflow.tasks.listAssignedTasks({ userId: hrUser.id, email: hrUser.email }, { instanceId: workflowInstanceId });
+      assert.equal(tasks.length, 1, "the HR user (holding manage_employment_change) must be resolved as the ROLE candidate");
+      await container.workflow.tasks.decide({ userId: hrUser.id, email: hrUser.email }, tasks[0]!.id, { decision: "APPROVE" });
+
+      const statusRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${hrCase.id}/approval`, { headers: auth });
+      const statusBody = await statusRes.json();
+      assert.equal(statusRes.status, 200);
+      assert.equal(statusBody.data.status, "COMPLETED");
+      assert.equal(statusBody.data.submitted, true);
+
+      // IDOR: an unrelated caller with no HRMS read access to this case
+      // must get the SAME 404 as a nonexistent case, never a 403 that
+      // would confirm the case's existence.
+      const unrelated = await container.users.createUser({ email: `hrms.http.workflow.unrelated.${randomUUID()}@example.test`, accountType: "employee" });
+      const unrelatedSession = await container.sessions.createSession({ userId: unrelated.id, mfaVerified: true });
+      const unrelatedAuth = { authorization: `Bearer ${unrelatedSession.token}` };
+      const deniedRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${hrCase.id}/approval`, { headers: unrelatedAuth });
+      const nonexistentRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${randomUUID()}/approval`, { headers: unrelatedAuth });
+      assert.equal(deniedRes.status, nonexistentRes.status);
+      assert.equal(deniedRes.status, 404);
     } finally {
       server.close();
     }

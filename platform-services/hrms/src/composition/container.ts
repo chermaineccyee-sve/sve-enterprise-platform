@@ -21,6 +21,7 @@ import { createAuditService, type AuditService } from "../../../identity/src/ser
 import type { UserRepository, OrganisationRepository } from "../../../identity/src/repositories/types.ts";
 import { createOrganisationContainer, type OrganisationContainer } from "../../../organisation/src/composition/container.ts";
 import { createEmploymentAssignmentServiceForTransaction } from "../../../organisation/src/composition/transactionScope.ts";
+import { createWorkflowContainer, type WorkflowContainer } from "../../../workflow/src/composition/container.ts";
 import { createPgLifecycleCaseRepository } from "../repositories/postgres/pgLifecycleCaseRepository.ts";
 import { createPgLifecycleEventRepository } from "../repositories/postgres/pgLifecycleEventRepository.ts";
 import { createPgLifecycleMilestoneRepository } from "../repositories/postgres/pgLifecycleMilestoneRepository.ts";
@@ -31,6 +32,8 @@ import { createOnboardingService, type OnboardingService } from "../services/onb
 import { createProbationService, type ProbationService } from "../services/probationService.ts";
 import { createEmploymentChangeService, type EmploymentChangeService } from "../services/employmentChangeService.ts";
 import { createOffboardingService, type OffboardingService } from "../services/offboardingService.ts";
+import { createApprovalService, type ApprovalService } from "../services/approvalService.ts";
+import { createHrmsWorkflowIntegration } from "../integrations/workflowIntegration.ts";
 
 export interface HrmsContainer {
   users: UserRepository;
@@ -39,11 +42,21 @@ export interface HrmsContainer {
   rbac: RbacService;
   audit: AuditService;
   orgContainer: OrganisationContainer;
+  /**
+   * The full Workflow container, sharing this SAME `db` — HRMS is the
+   * only package that ever imports it (PR #9). Exposed here mainly so
+   * the composition root and the installHrmsWorkflowDefinitions bootstrap
+   * script can reach `workflow.definitions`/`workflow.instances` directly;
+   * approvalService itself never sees this — only the narrow
+   * WorkflowSubmissionPort (see services/workflowPort.ts).
+   */
+  workflow: WorkflowContainer;
   lifecycle: LifecycleCaseService;
   onboarding: OnboardingService;
   probation: ProbationService;
   employmentChange: EmploymentChangeService;
   offboarding: OffboardingService;
+  approval: ApprovalService;
 }
 
 export async function createHrmsContainer(db: DatabaseProvider): Promise<HrmsContainer> {
@@ -62,6 +75,15 @@ export async function createHrmsContainer(db: DatabaseProvider): Promise<HrmsCon
   // repositories directly, only its service-level contracts
   // (assignments.createAssignment/endAssignment/isDirectManagerOf).
   const orgContainer = await createOrganisationContainer(db);
+
+  // Workflow is consumed as a whole container, sharing this SAME `db` —
+  // required so a registered SYSTEM_ACTION handler's own writes join the
+  // exact same Postgres transaction as the Workflow decision that
+  // triggered it (see composition/transactionScope.ts and docs/
+  // architecture/hrms-workflow-integration.md "Transaction boundary").
+  // Workflow's own composition root/tests remain entirely unaware this
+  // container exists — HRMS is the only importer.
+  const workflow = await createWorkflowContainer(db);
 
   const caseRepo = createPgLifecycleCaseRepository(db);
   const eventRepo = createPgLifecycleEventRepository(db);
@@ -91,5 +113,12 @@ export async function createHrmsContainer(db: DatabaseProvider): Promise<HrmsCon
   const employmentChange = createEmploymentChangeService({ lifecycle });
   const offboarding = createOffboardingService({ lifecycle });
 
-  return { users, organisation, sessions, rbac, audit, orgContainer, lifecycle, onboarding, probation, employmentChange, offboarding };
+  // Registers the two SYSTEM_ACTION completion handlers into `workflow`'s
+  // OWN registry and returns the narrow port approvalService depends on
+  // — see integrations/workflowIntegration.ts's header for why this is
+  // the one place HRMS -> Workflow's concrete dependency edge exists.
+  const workflowPort = createHrmsWorkflowIntegration({ workflow, rbac });
+  const approval = createApprovalService({ cases: caseRepo, organisation, rbac, audit, transactions, lifecycle, workflow: workflowPort });
+
+  return { users, organisation, sessions, rbac, audit, orgContainer, workflow, lifecycle, onboarding, probation, employmentChange, offboarding, approval };
 }

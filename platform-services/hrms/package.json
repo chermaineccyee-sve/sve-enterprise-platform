@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "SVE HRMS Employee Lifecycle foundation (onboarding/probation/employment-change/offboarding process backbone). Depends on platform-services/identity's Identity/RBAC/Audit contracts and platform-services/organisation's Employee Master/Organisation contracts (imported by source path — see README.md); does not duplicate their implementation, and neither package depends on this one.",
+  "description": "SVE HRMS Employee Lifecycle foundation (onboarding/probation/employment-change/offboarding process backbone). Depends on platform-services/identity's Identity/RBAC/Audit contracts, platform-services/organisation's Employee Master/Organisation contracts, and (PR #9) platform-services/workflow's orchestration engine for employment-change/offboarding approval (imported by source path — see README.md); does not duplicate their implementation, and none of the three depends on this one.",
   "engines": {
     "node": ">=22.6.0"
   },
@@ -13,6 +13,7 @@
     "test": "node --test --test-concurrency=1",
     "test:unit": "node --test test/unit",
     "test:integration": "node --test --test-concurrency=1 test/integration",
+    "bootstrap:workflow-definitions": "node scripts/installWorkflowDefinitions.ts",
     "dev": "node src/server.ts"
   },
   "dependencies": {},

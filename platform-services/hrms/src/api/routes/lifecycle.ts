@@ -301,6 +301,28 @@ export async function handleCompleteEmploymentChange(ctx: RouteContext, id: stri
   }
 }
 
+export async function handleSubmitForApproval(ctx: RouteContext, id: string): Promise<void> {
+  try {
+    const actor = await requireActor(ctx.req, ctx.container);
+    const body = await readJsonBody<Record<string, unknown>>(ctx.req);
+    const completionInput = typeof body.completionInput === "object" && body.completionInput !== null ? (body.completionInput as Record<string, unknown>) : null;
+    const result = await ctx.container.approval.submitForApproval(toActorContext(actor, ctx.req), id, completionInput);
+    sendSuccess(ctx.res, 200, { case: serializeCaseBase(result.case), workflowInstanceId: result.workflowInstanceId }, ctx.correlationId);
+  } catch (error) {
+    respondError(ctx.res, ctx.correlationId, error);
+  }
+}
+
+export async function handleGetApprovalStatus(ctx: RouteContext, id: string): Promise<void> {
+  try {
+    const actor = await requireActor(ctx.req, ctx.container);
+    const result = await ctx.container.approval.getApprovalStatus(toActorContext(actor, ctx.req), id);
+    sendSuccess(ctx.res, 200, result, ctx.correlationId);
+  } catch (error) {
+    respondError(ctx.res, ctx.correlationId, error);
+  }
+}
+
 export async function handleCompleteOffboarding(ctx: RouteContext, id: string): Promise<void> {
   try {
     const actor = await requireActor(ctx.req, ctx.container);

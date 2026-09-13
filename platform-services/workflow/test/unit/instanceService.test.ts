@@ -364,7 +364,19 @@ test("a SYSTEM_ACTION step executes its registered handler exactly once and adva
   assert.equal(calls, 1);
 });
 
-test("a SYSTEM_ACTION step whose handler throws marks the instance FAILED with SYSTEM_ACTION_FAILURE, never falsely COMPLETED", async () => {
+test("PR #9 review correction: a SYSTEM_ACTION step whose handler throws rejects the call rather than returning a FAILED instance", async () => {
+  // Superseded assertion: PR #8 originally had this scenario commit the
+  // instance as FAILED/SYSTEM_ACTION_FAILURE. PR #9's real, transactional
+  // HRMS integration handler proved that behaviour unsafe — see
+  // instanceEngine.ts's executeSystemActionStep and docs/architecture/
+  // workflow-approval-foundation.md §22a: a handler failure must now
+  // propagate and roll back the WHOLE enclosing transaction rather than
+  // being swallowed into a committed "FAILED" state. This in-memory test
+  // only proves the call rejects (see this package's own documented
+  // in-memory limitation: "no real rollback, in-memory unit tests
+  // exercise RBAC/domain logic, not Postgres transaction/rollback
+  // behaviour") — the real-Postgres proof that NOTHING persists is
+  // `test/integration/postgres.test.ts`'s equivalent test.
   const deps = await setup();
   const admin = randomUUID();
   await grantFullWorkflowAccess(deps, admin);
@@ -375,7 +387,37 @@ test("a SYSTEM_ACTION step whose handler throws marks the instance FAILED with S
   await deps.definitions.addStep(actor(admin), version.id, { sequenceNumber: 1, stepType: "SYSTEM_ACTION", name: "Run it", systemActionHandlerKey: "test.alwaysfails" });
   await deps.definitions.publish(actor(admin), version.id);
 
-  const instance = await deps.instances.startWorkflow(actor(admin), { definitionKey: "test.sysfail", subjectType: "test.fixture", subjectId: randomUUID(), legalEntityId: deps.my.id });
-  assert.equal(instance.status, "FAILED");
-  assert.equal(instance.failureCategory, "SYSTEM_ACTION_FAILURE");
+  await assert.rejects(
+    () => deps.instances.startWorkflow(actor(admin), { definitionKey: "test.sysfail", subjectType: "test.fixture", subjectId: randomUUID(), legalEntityId: deps.my.id }),
+    "a handler failure during step-1 activation must reject startWorkflow rather than returning a FAILED instance",
+  );
+});
+
+test("PR #9 review correction: a SYSTEM_ACTION step activated by a decision rejects decide() when its handler throws", async () => {
+  // Same in-memory-limitation caveat as the test above — the full
+  // "task stays PENDING, no decision recorded, instance unchanged" proof
+  // is `test/integration/postgres.test.ts`'s real-Postgres equivalent.
+  const deps = await setup();
+  const admin = randomUUID();
+  const approver = randomUUID();
+  await grantFullWorkflowAccess(deps, admin);
+  let attempts = 0;
+  deps.systemActions.register("test.completion.alwaysfails", async () => {
+    attempts++;
+    throw new Error("fictional cross-domain completion failure");
+  });
+  const { version } = await deps.definitions.createDefinition(actor(admin), { key: "test.sysfail.decision", name: "Decision-triggered system action failure" });
+  await deps.definitions.addStep(actor(admin), version.id, { sequenceNumber: 1, stepType: "APPROVAL", name: "Approve", assignmentMode: "USER", permittedDecisions: ["APPROVE"] });
+  await deps.definitions.addStep(actor(admin), version.id, { sequenceNumber: 2, stepType: "SYSTEM_ACTION", name: "Complete", systemActionHandlerKey: "test.completion.alwaysfails" });
+  await deps.definitions.publish(actor(admin), version.id);
+
+  const instance = await deps.instances.startWorkflow(actor(admin), { definitionKey: "test.sysfail.decision", subjectType: "test.fixture", subjectId: randomUUID(), legalEntityId: deps.my.id, stepAssignments: { 1: { userId: approver } } });
+  const tasks = await deps.tasks.listAssignedTasks(actor(approver), { instanceId: instance.id });
+  const taskId = tasks[0]!.id;
+
+  await assert.rejects(
+    () => deps.tasks.decide(actor(approver), taskId, { decision: "APPROVE" }),
+    "a handler failure triggered by this decision must reject decide() rather than silently completing the task",
+  );
+  assert.equal(attempts, 1);
 });

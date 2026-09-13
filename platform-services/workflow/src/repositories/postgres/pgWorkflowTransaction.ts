@@ -20,17 +20,20 @@ export function createPgWorkflowTransaction(db: DatabaseProvider): WorkflowTrans
   return {
     async run(fn) {
       return db.transaction(async (tx) => {
-        return fn({
-          definitions: createPgWorkflowDefinitionRepository(tx),
-          versions: createPgWorkflowDefinitionVersionRepository(tx),
-          steps: createPgWorkflowStepRepository(tx),
-          instances: createPgWorkflowInstanceRepository(tx),
-          tasks: createPgWorkflowTaskRepository(tx),
-          taskCandidates: createPgWorkflowTaskCandidateRepository(tx),
-          decisions: createPgWorkflowDecisionRepository(tx),
-          events: createPgWorkflowEventRepository(tx),
-          systemActions: createPgWorkflowSystemActionExecutionRepository(tx),
-        });
+        return fn(
+          {
+            definitions: createPgWorkflowDefinitionRepository(tx),
+            versions: createPgWorkflowDefinitionVersionRepository(tx),
+            steps: createPgWorkflowStepRepository(tx),
+            instances: createPgWorkflowInstanceRepository(tx),
+            tasks: createPgWorkflowTaskRepository(tx),
+            taskCandidates: createPgWorkflowTaskCandidateRepository(tx),
+            decisions: createPgWorkflowDecisionRepository(tx),
+            events: createPgWorkflowEventRepository(tx),
+            systemActions: createPgWorkflowSystemActionExecutionRepository(tx),
+          },
+          tx,
+        );
       });
     },
   };

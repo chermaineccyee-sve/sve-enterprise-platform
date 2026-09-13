@@ -25,6 +25,8 @@ const PROBATION_REVIEWS_PATTERN = /^\/api\/v1\/hrms\/lifecycle\/cases\/([^/]+)\/
 const PROBATION_DECISION_PATTERN = /^\/api\/v1\/hrms\/lifecycle\/cases\/([^/]+)\/probation-decision$/;
 const EMPLOYMENT_CHANGE_COMPLETE_PATTERN = /^\/api\/v1\/hrms\/lifecycle\/cases\/([^/]+)\/employment-change\/complete$/;
 const OFFBOARDING_COMPLETE_PATTERN = /^\/api\/v1\/hrms\/lifecycle\/cases\/([^/]+)\/offboarding\/complete$/;
+const SUBMIT_FOR_APPROVAL_PATTERN = /^\/api\/v1\/hrms\/lifecycle\/cases\/([^/]+)\/submit-for-approval$/;
+const APPROVAL_STATUS_PATTERN = /^\/api\/v1\/hrms\/lifecycle\/cases\/([^/]+)\/approval$/;
 
 export function createHttpServer(container: HrmsContainer) {
   return createServer(async (req, res) => {
@@ -74,6 +76,12 @@ export function createHttpServer(container: HrmsContainer) {
 
       const offboardingMatch = url.pathname.match(OFFBOARDING_COMPLETE_PATTERN);
       if (offboardingMatch && method === "POST") return await lifecycleRoutes.handleCompleteOffboarding(ctx, offboardingMatch[1]!);
+
+      const submitForApprovalMatch = url.pathname.match(SUBMIT_FOR_APPROVAL_PATTERN);
+      if (submitForApprovalMatch && method === "POST") return await lifecycleRoutes.handleSubmitForApproval(ctx, submitForApprovalMatch[1]!);
+
+      const approvalStatusMatch = url.pathname.match(APPROVAL_STATUS_PATTERN);
+      if (approvalStatusMatch && method === "GET") return await lifecycleRoutes.handleGetApprovalStatus(ctx, approvalStatusMatch[1]!);
 
       const caseMatch = url.pathname.match(CASE_PATTERN);
       if (caseMatch) {

@@ -24,6 +24,8 @@ export function createInMemoryLifecycleCaseRepository(store: InMemoryStore): Lif
         noticeDate: input.noticeDate ?? null,
         intendedLastWorkingDate: input.intendedLastWorkingDate ?? null,
         resultingAssignmentId: null,
+        workflowInstanceId: null,
+        pendingCompletionInput: null,
         createdBy: input.createdBy,
         updatedBy: input.createdBy,
         createdAt: now,
@@ -52,7 +54,15 @@ export function createInMemoryLifecycleCaseRepository(store: InMemoryStore): Lif
     },
     async updateStatus(
       id: string,
-      input: { status: LifecycleStatus; currentStage?: string | null; outcome?: string | null; effectiveDate?: string | null; resultingAssignmentId?: string | null; updatedBy: string },
+      input: {
+        status: LifecycleStatus;
+        currentStage?: string | null;
+        outcome?: string | null;
+        effectiveDate?: string | null;
+        resultingAssignmentId?: string | null;
+        pendingCompletionInput?: Record<string, unknown> | null;
+        updatedBy: string;
+      },
     ): Promise<HrLifecycleCase> {
       const record = store.cases.find((c) => c.id === id);
       if (!record) throw new Error("Lifecycle case not found.");
@@ -61,6 +71,7 @@ export function createInMemoryLifecycleCaseRepository(store: InMemoryStore): Lif
       if (input.outcome !== undefined) record.outcome = input.outcome;
       if (input.effectiveDate !== undefined) record.effectiveDate = input.effectiveDate;
       if (input.resultingAssignmentId !== undefined) record.resultingAssignmentId = input.resultingAssignmentId;
+      if (input.pendingCompletionInput !== undefined) record.pendingCompletionInput = input.pendingCompletionInput;
       record.updatedBy = input.updatedBy;
       record.updatedAt = new Date().toISOString();
       if (input.status === "COMPLETED") record.completedAt = record.updatedAt;
@@ -70,6 +81,12 @@ export function createInMemoryLifecycleCaseRepository(store: InMemoryStore): Lif
     async nextCaseNumberSeq(): Promise<number> {
       store.caseNumberSeq += 1;
       return store.caseNumberSeq;
+    },
+    async linkWorkflowInstance(id: string, workflowInstanceId: string): Promise<HrLifecycleCase> {
+      const record = store.cases.find((c) => c.id === id);
+      if (!record) throw new Error("Lifecycle case not found.");
+      record.workflowInstanceId = workflowInstanceId;
+      return record;
     },
   };
 }
