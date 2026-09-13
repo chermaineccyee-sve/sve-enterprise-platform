@@ -7,6 +7,7 @@
  * or employment-assignment fields. See docs/architecture/
  * hrms-employee-lifecycle.md "Lifecycle case model".
  */
+import type { DatabaseProvider } from "../../../../packages/shared/src/DatabaseProvider.ts";
 import type { LifecycleCaseRepository, LifecycleEventRepository, LifecycleMilestoneRepository, ProbationReviewRepository, LifecycleTransaction } from "../repositories/types.ts";
 import type { RbacService } from "../../../identity/src/services/rbacService.ts";
 import type { AuditService } from "../../../identity/src/services/auditService.ts";
@@ -16,7 +17,7 @@ import { ForbiddenError } from "../../../identity/src/domain/errors.ts";
 import { NotFoundError, ValidationError } from "../domain/errors.ts";
 import { assertValidTransition } from "../domain/stateMachine.ts";
 import { formatCaseNumber } from "../domain/caseNumber.ts";
-import type { HrLifecycleCase, HrLifecycleMilestone, HrLifecycleEvent, LifecycleStatus, LifecycleEventType, LifecycleCaseFilter, CreateLifecycleCaseInput, CreateMilestoneInput, MilestoneStatus } from "../domain/lifecycle.ts";
+import type { HrLifecycleCase, HrLifecycleMilestone, HrLifecycleEvent, LifecycleType, LifecycleStatus, LifecycleEventType, LifecycleCaseFilter, CreateLifecycleCaseInput, CreateMilestoneInput, MilestoneStatus } from "../domain/lifecycle.ts";
 import { PERMISSIONS, checkAccess, baseCeiling, restrictedCeiling, decisionCeiling, type ActorContext } from "./access.ts";
 
 export interface LifecycleCaseView {
@@ -42,6 +43,18 @@ export function createLifecycleCaseService(deps: {
   audit: AuditService;
   transactions: LifecycleTransaction;
   assignments: EmploymentAssignmentService;
+  /**
+   * Builds an EmploymentAssignmentService bound to the SAME Postgres
+   * transaction as the case-completion write it runs alongside — see
+   * completeCaseWithAuthoritativeWrite below and docs/architecture/
+   * hrms-employee-lifecycle.md "Transaction boundaries". The Postgres
+   * composition root supplies platform-services/organisation's
+   * createEmploymentAssignmentServiceForTransaction(tx, rbac); the
+   * in-memory composition root supplies a function that ignores `tx` and
+   * returns the shared in-memory Organisation service, since in-memory
+   * tests have no real transaction/rollback semantics to bind to.
+   */
+  buildTransactionScopedAssignments: (tx: DatabaseProvider) => EmploymentAssignmentService;
 }) {
   async function resolveSelfEmployeeId(userId: string): Promise<string | null> {
     const link = await deps.users.findActiveLinkByUserId(userId);
@@ -251,6 +264,99 @@ export function createLifecycleCaseService(deps: {
         sourceUserAgent: actor.userAgent,
       });
       return updated;
+    },
+
+    /**
+     * The one primitive employment-change and offboarding completion both
+     * use: runs Organisation's own authoritative assignment mutation AND
+     * this case's completion write (status + event + any additionalWrites)
+     * as ONE shared Postgres transaction — see docs/architecture/
+     * hrms-employee-lifecycle.md "Transaction boundaries". If either step
+     * throws, the whole transaction rolls back: no partially-applied
+     * Employee Master change survives a failed case write, and no case can
+     * report COMPLETED while the authoritative change failed.
+     *
+     * Concurrency/idempotency: `findByIdForUpdate` takes a row lock on the
+     * case BEFORE calling into Organisation, so a second concurrent (or
+     * repeated) completion attempt on the same case blocks until the
+     * first's transaction ends, then re-reads the now-committed status and
+     * is rejected by assertValidTransition before it ever touches
+     * Organisation — at most one authoritative assignment mutation and one
+     * case completion can ever commit for a given case.
+     *
+     * `authoritativeWrite` receives the locked case plus an
+     * EmploymentAssignmentService bound to this same transaction —
+     * `buildTransition` turns its result into the case's target
+     * status/event (computed only once the authoritative result is known,
+     * e.g. the real assignment id/effectiveFrom).
+     */
+    async completeCaseWithAuthoritativeWrite<R>(
+      actor: ActorContext,
+      caseId: string,
+      expectedLifecycleType: LifecycleType,
+      permission: { base: string; privileged: string },
+      authoritativeWrite: (lockedCase: HrLifecycleCase, scopedAssignments: EmploymentAssignmentService) => Promise<R>,
+      buildTransition: (
+        lockedCase: HrLifecycleCase,
+        result: R,
+      ) => {
+        target: { currentStage?: string | null; outcome?: string | null; effectiveDate?: string | null; resultingAssignmentId?: string | null };
+        event: { type: LifecycleEventType; data?: Record<string, unknown> | null; notes?: string | null };
+      },
+      additionalWrites?: (repos: TxRepos, lockedCase: HrLifecycleCase, result: R) => Promise<void>,
+    ): Promise<{ case: HrLifecycleCase; result: R }> {
+      const hrCase = await deps.cases.findById(caseId);
+      if (!hrCase) throw new NotFoundError("Lifecycle case");
+      if (hrCase.lifecycleType !== expectedLifecycleType) throw new ValidationError(`This case is not a ${expectedLifecycleType} case.`);
+      // Fast, pre-transaction check: reject an obviously-terminal case
+      // without paying for a transaction + row lock.
+      assertValidTransition(hrCase.status, "COMPLETED");
+
+      const legalEntity = await deps.organisation.findLegalEntityById(hrCase.legalEntityId);
+      if (!legalEntity) throw new ValidationError("Case's legalEntityId does not refer to a known legal entity.");
+      const ceiling = baseCeiling(legalEntity);
+      const access = await checkAccess(deps.rbac, actor.userId, permission.base, permission.privileged, { legalEntityId: hrCase.legalEntityId, recordClassification: ceiling });
+      if (!access.allowed) throw new ForbiddenError(permission.base);
+
+      const { updated, result } = await deps.transactions.run(async (repos, tx) => {
+        // Authoritative re-check under the row lock: a concurrent or
+        // repeated completion that raced past the check above sees the
+        // now-committed terminal status here and is rejected before
+        // Organisation is ever called.
+        const locked = await repos.cases.findByIdForUpdate(caseId);
+        if (!locked) throw new NotFoundError("Lifecycle case");
+        assertValidTransition(locked.status, "COMPLETED");
+
+        const scopedAssignments = deps.buildTransactionScopedAssignments(tx);
+        const result = await authoritativeWrite(locked, scopedAssignments);
+        const { target, event } = buildTransition(locked, result);
+
+        const updated = await repos.cases.updateStatus(caseId, {
+          status: "COMPLETED",
+          currentStage: target.currentStage,
+          outcome: target.outcome,
+          effectiveDate: target.effectiveDate,
+          resultingAssignmentId: target.resultingAssignmentId,
+          updatedBy: actor.userId,
+        });
+        await repos.events.append({ caseId, eventType: event.type, eventData: event.data ?? null, notes: event.notes ?? null, recordedBy: actor.userId });
+        if (additionalWrites) await additionalWrites(repos, locked, result);
+        return { updated, result };
+      });
+
+      await deps.audit.record({
+        actorUserId: actor.userId,
+        actorEmail: actor.email,
+        action: `hrms.lifecycle.${expectedLifecycleType}_completed`,
+        resourceType: "hr_lifecycle_case",
+        resourceId: caseId,
+        legalEntityId: hrCase.legalEntityId,
+        changeBefore: { status: hrCase.status },
+        changeAfter: { status: updated.status, outcome: updated.outcome },
+        sourceIp: actor.ip,
+        sourceUserAgent: actor.userAgent,
+      });
+      return { case: updated, result };
     },
 
     /** Generic manual completion (e.g. onboarding: all milestones done, close the case) — gated by the generic `complete` permission, not a type-specific manage_* one. */

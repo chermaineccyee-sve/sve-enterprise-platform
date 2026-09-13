@@ -62,11 +62,14 @@ export async function setup() {
   const reviewRepo = createInMemoryProbationReviewRepository(hrmsStore);
   const transactions = createInMemoryLifecycleTransaction({ cases: caseRepo, events: eventRepo, milestones: milestoneRepo, reviews: reviewRepo });
 
-  const lifecycle = createLifecycleCaseService({ cases: caseRepo, events: eventRepo, milestones: milestoneRepo, organisation, users, rbac, audit, transactions, assignments: orgAssignments });
+  // In-memory has no real Postgres transaction to bind to — reuse the
+  // shared in-memory Organisation service directly (see
+  // createInMemoryLifecycleTransaction's header comment).
+  const lifecycle = createLifecycleCaseService({ cases: caseRepo, events: eventRepo, milestones: milestoneRepo, organisation, users, rbac, audit, transactions, assignments: orgAssignments, buildTransactionScopedAssignments: () => orgAssignments });
   const onboarding = createOnboardingService({ lifecycle });
   const probation = createProbationService({ lifecycle, cases: caseRepo, reviews: reviewRepo, organisation, rbac, audit });
-  const employmentChange = createEmploymentChangeService({ lifecycle, cases: caseRepo, organisation, rbac, orgAssignments });
-  const offboarding = createOffboardingService({ lifecycle, cases: caseRepo, organisation, rbac, orgAssignments });
+  const employmentChange = createEmploymentChangeService({ lifecycle });
+  const offboarding = createOffboardingService({ lifecycle });
 
   const [sg, my, skl] = identityStore.legalEntities;
   return { identityStore, rbacRepo, organisation, users, employees, orgAssignments, lifecycle, onboarding, probation, employmentChange, offboarding, eventRepo, sg: sg!, my: my!, skl: skl! };

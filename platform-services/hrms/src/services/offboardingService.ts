@@ -6,34 +6,27 @@
  * layers this foundation deliberately does not build.
  *
  * Employment ended ≠ Identity record deleted (item 11). Completing an
- * offboarding case: (1) ends the authoritative employment assignment
- * through Organisation, (2) updates the case's own lifecycle/outcome, and
- * (3) records an `identity_deactivation_requested` EVENT — it never calls
- * any Identity mutation API and never deletes anything. Actually
- * orchestrating that follow-up action is left to a human administrator or
- * a future Workflow/Approval service; this establishes the safe boundary
- * (a durable, auditable request) without performing the deactivation
- * itself. See docs/architecture/hrms-employee-lifecycle.md "Offboarding
- * consistency with Employee Master and Identity".
+ * offboarding case runs, as ONE shared Postgres transaction (via
+ * lifecycleCaseService.completeCaseWithAuthoritativeWrite — see docs/
+ * architecture/hrms-employee-lifecycle.md "Transaction boundaries"): (1)
+ * ends the authoritative employment assignment through Organisation, (2)
+ * updates the case's own lifecycle/outcome, and (3) records an
+ * `identity_deactivation_requested` EVENT — it never calls any Identity
+ * mutation API and never deletes anything. If any step fails, all of it
+ * rolls back together: Organisation's assignment end is never left
+ * committed against a case that failed to complete. Actually
+ * orchestrating the deactivation follow-up is left to a human
+ * administrator or a future Workflow/Approval service; this establishes
+ * the safe boundary (a durable, auditable request) without performing the
+ * deactivation itself.
  */
 import type { LifecycleCaseService } from "./lifecycleCaseService.ts";
-import type { LifecycleCaseRepository } from "../repositories/types.ts";
-import { PERMISSIONS, checkAccess, baseCeiling, type ActorContext } from "./access.ts";
-import type { RbacService } from "../../../identity/src/services/rbacService.ts";
-import type { OrganisationRepository } from "../../../identity/src/repositories/types.ts";
-import type { EmploymentAssignmentService } from "../../../organisation/src/services/employmentAssignmentService.ts";
+import { PERMISSIONS, type ActorContext } from "./access.ts";
 import type { EmploymentAssignment } from "../../../organisation/src/domain/employee.ts";
-import { ForbiddenError } from "../../../identity/src/domain/errors.ts";
-import { NotFoundError, ValidationError } from "../domain/errors.ts";
+import { ValidationError } from "../domain/errors.ts";
 import type { HrLifecycleCase, CreateMilestoneInput, HrLifecycleMilestone, MilestoneStatus } from "../domain/lifecycle.ts";
 
-export function createOffboardingService(deps: {
-  lifecycle: LifecycleCaseService;
-  cases: LifecycleCaseRepository;
-  organisation: OrganisationRepository;
-  rbac: RbacService;
-  orgAssignments: EmploymentAssignmentService;
-}) {
+export function createOffboardingService(deps: { lifecycle: LifecycleCaseService }) {
   return {
     async createOffboardingCase(
       actor: ActorContext,
@@ -83,35 +76,26 @@ export function createOffboardingService(deps: {
 
     /**
      * Ends the authoritative employment assignment through Organisation,
-     * then completes the case and records an identity-deactivation
-     * REQUEST event. Never deletes or disables the Identity account
-     * itself. Same two-phase, no-false-completion transaction boundary as
-     * employmentChangeService.completeChange — see this file's header.
+     * completes the case, and records an identity-deactivation REQUEST
+     * event — all as ONE shared Postgres transaction (see this file's
+     * header). Never deletes or disables the Identity account itself.
      */
     async completeOffboarding(actor: ActorContext, caseId: string, input: { endDate: string; status: "TERMINATED" | "RESIGNED"; changeReason?: string }): Promise<{ case: HrLifecycleCase; assignment: EmploymentAssignment }> {
-      const hrCase = await deps.cases.findById(caseId);
-      if (!hrCase) throw new NotFoundError("Lifecycle case");
-      if (hrCase.lifecycleType !== "offboarding") throw new ValidationError("This case is not an offboarding case.");
-
-      const legalEntity = await deps.organisation.findLegalEntityById(hrCase.legalEntityId);
-      if (!legalEntity) throw new ValidationError("Case's legalEntityId does not refer to a known legal entity.");
-      const ceiling = baseCeiling(legalEntity);
-      const access = await checkAccess(deps.rbac, actor.userId, PERMISSIONS.MANAGE_OFFBOARDING, PERMISSIONS.MANAGE_OFFBOARDING_PRIVILEGED, { legalEntityId: hrCase.legalEntityId, recordClassification: ceiling });
-      if (!access.allowed) throw new ForbiddenError(PERMISSIONS.MANAGE_OFFBOARDING);
-
-      // Authoritative first — if this throws, the case remains untouched.
-      const assignment = await deps.orgAssignments.endAssignment(actor, hrCase.employeeId, { endDate: input.endDate, status: input.status, changeReason: input.changeReason });
-
-      const updated = await deps.lifecycle.transitionCase(
+      if (!input.endDate) throw new ValidationError("endDate is required.");
+      const { case: updated, result: assignment } = await deps.lifecycle.completeCaseWithAuthoritativeWrite(
         actor,
         caseId,
+        "offboarding",
         { base: PERMISSIONS.MANAGE_OFFBOARDING, privileged: PERMISSIONS.MANAGE_OFFBOARDING_PRIVILEGED },
-        { status: "COMPLETED", outcome: input.status, effectiveDate: input.endDate, resultingAssignmentId: assignment.id, currentStage: "separated" },
-        { type: "separation_effective", data: { status: input.status, endDate: input.endDate }, notes: input.changeReason ?? null },
-        async (repos) => {
+        async (lockedCase, scopedAssignments) => scopedAssignments.endAssignment(actor, lockedCase.employeeId, { endDate: input.endDate, status: input.status, changeReason: input.changeReason }),
+        (_lockedCase, assignment) => ({
+          target: { outcome: input.status, effectiveDate: input.endDate, resultingAssignmentId: assignment.id, currentStage: "separated" },
+          event: { type: "separation_effective", data: { status: input.status, endDate: input.endDate }, notes: input.changeReason ?? null },
+        }),
+        async (repos, lockedCase) => {
           // A durable, auditable REQUEST — never an actual Identity
           // mutation. See this file's header comment.
-          await repos.events.append({ caseId, eventType: "identity_deactivation_requested", eventData: { employeeId: hrCase.employeeId }, recordedBy: actor.userId });
+          await repos.events.append({ caseId, eventType: "identity_deactivation_requested", eventData: { employeeId: lockedCase.employeeId }, recordedBy: actor.userId });
         },
       );
       return { case: updated, assignment };

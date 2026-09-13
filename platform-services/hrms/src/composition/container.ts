@@ -20,6 +20,7 @@ import { createRbacService, type RbacService } from "../../../identity/src/servi
 import { createAuditService, type AuditService } from "../../../identity/src/services/auditService.ts";
 import type { UserRepository, OrganisationRepository } from "../../../identity/src/repositories/types.ts";
 import { createOrganisationContainer, type OrganisationContainer } from "../../../organisation/src/composition/container.ts";
+import { createEmploymentAssignmentServiceForTransaction } from "../../../organisation/src/composition/transactionScope.ts";
 import { createPgLifecycleCaseRepository } from "../repositories/postgres/pgLifecycleCaseRepository.ts";
 import { createPgLifecycleEventRepository } from "../repositories/postgres/pgLifecycleEventRepository.ts";
 import { createPgLifecycleMilestoneRepository } from "../repositories/postgres/pgLifecycleMilestoneRepository.ts";
@@ -78,11 +79,17 @@ export async function createHrmsContainer(db: DatabaseProvider): Promise<HrmsCon
     audit,
     transactions,
     assignments: orgContainer.assignments,
+    // Employment-change/offboarding completion binds Organisation's own
+    // authoritative assignment mutation to the SAME Postgres transaction
+    // as HRMS's own case-completion write — see
+    // createEmploymentAssignmentServiceForTransaction's header and docs/
+    // architecture/hrms-employee-lifecycle.md "Transaction boundaries".
+    buildTransactionScopedAssignments: (tx) => createEmploymentAssignmentServiceForTransaction(tx, rbac),
   });
   const onboarding = createOnboardingService({ lifecycle });
   const probation = createProbationService({ lifecycle, cases: caseRepo, reviews: reviewRepo, organisation, rbac, audit });
-  const employmentChange = createEmploymentChangeService({ lifecycle, cases: caseRepo, organisation, rbac, orgAssignments: orgContainer.assignments });
-  const offboarding = createOffboardingService({ lifecycle, cases: caseRepo, organisation, rbac, orgAssignments: orgContainer.assignments });
+  const employmentChange = createEmploymentChangeService({ lifecycle });
+  const offboarding = createOffboardingService({ lifecycle });
 
   return { users, organisation, sessions, rbac, audit, orgContainer, lifecycle, onboarding, probation, employmentChange, offboarding };
 }

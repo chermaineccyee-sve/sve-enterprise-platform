@@ -3,11 +3,14 @@
  * platform-services/organisation's pgEmployeeCreationTransaction.ts
  * exactly: constructs case/event/milestone/review repositories scoped to
  * the SAME transaction connection, so every write inside `fn` commits or
- * rolls back together. See docs/architecture/hrms-employee-lifecycle.md
- * "Transaction boundaries" for which operations use this and why
- * employment-change/offboarding completion deliberately do NOT try to
- * nest platform-services/organisation's own transaction inside this one
- * (DatabaseProvider.transaction() does not support nesting).
+ * rolls back together. Also passes the raw `tx` through to `fn` so a
+ * caller can bind Organisation's OWN transaction-scoped composition
+ * helper (createEmploymentAssignmentServiceForTransaction) to this exact
+ * connection — never a second, nested DatabaseProvider.transaction() call
+ * (which throws) — so employment-change/offboarding completion can run
+ * Organisation's authoritative assignment mutation and HRMS's own case
+ * completion as one shared Postgres transaction. See docs/architecture/
+ * hrms-employee-lifecycle.md "Transaction boundaries".
  */
 import type { DatabaseProvider } from "../../../../../packages/shared/src/DatabaseProvider.ts";
 import type { LifecycleTransaction } from "../types.ts";
@@ -20,12 +23,15 @@ export function createPgLifecycleTransaction(db: DatabaseProvider): LifecycleTra
   return {
     async run(fn) {
       return db.transaction(async (tx) => {
-        return fn({
-          cases: createPgLifecycleCaseRepository(tx),
-          events: createPgLifecycleEventRepository(tx),
-          milestones: createPgLifecycleMilestoneRepository(tx),
-          reviews: createPgProbationReviewRepository(tx),
-        });
+        return fn(
+          {
+            cases: createPgLifecycleCaseRepository(tx),
+            events: createPgLifecycleEventRepository(tx),
+            milestones: createPgLifecycleMilestoneRepository(tx),
+            reviews: createPgProbationReviewRepository(tx),
+          },
+          tx,
+        );
       });
     },
   };

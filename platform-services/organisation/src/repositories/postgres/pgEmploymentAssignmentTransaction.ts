@@ -46,3 +46,25 @@ export function createPgEmploymentAssignmentTransaction(db: DatabaseProvider): E
     },
   };
 }
+
+/**
+ * Same behaviour as createPgEmploymentAssignmentTransaction, for use when
+ * the caller has ALREADY opened the Postgres transaction `tx` belongs to
+ * (see platform-services/organisation/src/composition/transactionScope.ts
+ * and docs/architecture/hrms-employee-lifecycle.md "Transaction
+ * boundaries"). DatabaseProvider.transaction() does not support nesting,
+ * so this variant never calls `tx.transaction()` — it takes the same
+ * advisory lock (still transaction-scoped: released on the OUTER
+ * transaction's commit/rollback) directly against `tx` and runs `fn`
+ * against it, joining whatever outer transaction is already open.
+ */
+export function createPgEmploymentAssignmentTransactionScoped(tx: DatabaseProvider): EmploymentAssignmentTransaction {
+  return {
+    async run(options, fn) {
+      if (options.lock) {
+        await tx.query("SELECT pg_advisory_xact_lock($1)", [REPORTING_HIERARCHY_LOCK_KEY]);
+      }
+      return fn({ assignments: createPgEmploymentAssignmentRepository(tx) });
+    },
+  };
+}

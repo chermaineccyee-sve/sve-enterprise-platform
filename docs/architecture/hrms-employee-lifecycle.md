@@ -103,18 +103,35 @@ Organisation's repositories directly — HRMS only ever calls Organisation's
 session-cookie bridge exists here, for the same reason Organisation has
 none: no existing `apps/svegip` page authenticates against this API today.
 
-## 4. One additive change to Organisation
+## 4. Additive changes to Organisation
 
-`EmploymentAssignmentService` gained one new, read-only, side-effect-free
-method: `isDirectManagerOf(actorUserId, employeeId): Promise<boolean>` —
-extracted from the private helper `employeeService.ts`'s `getEmployee()`
-already used internally for its own `read.team` fallback, now exposed so
-HRMS's own manager/"team" fallback (§11) can reuse Organisation's
-authoritative reporting-line data rather than re-deriving it. Required
-adding `users: UserRepository` to `createEmploymentAssignmentService`'s
-dependencies (previously not needed by that service). This is the *only*
-change to Organisation's public surface in this PR; its own full test
-suite (66/66) was re-verified unaffected.
+Two additive changes to Organisation's public surface — both new
+capabilities, neither modifying existing behaviour; its own full test
+suite (66/66) was re-verified unaffected after each.
+
+1. `EmploymentAssignmentService` gained one new, read-only,
+   side-effect-free method: `isDirectManagerOf(actorUserId, employeeId):
+   Promise<boolean>` — extracted from the private helper
+   `employeeService.ts`'s `getEmployee()` already used internally for its
+   own `read.team` fallback, now exposed so HRMS's own manager/"team"
+   fallback (§11) can reuse Organisation's authoritative reporting-line
+   data rather than re-deriving it. Required adding `users:
+   UserRepository` to `createEmploymentAssignmentService`'s dependencies
+   (previously not needed by that service).
+2. A new composition helper,
+   `createEmploymentAssignmentServiceForTransaction(tx, rbac)`
+   (`organisation/src/composition/transactionScope.ts`), and a
+   companion repository factory,
+   `createPgEmploymentAssignmentTransactionScoped(tx)` — added during
+   review to close a transaction-atomicity gap (§13). Together they let a
+   caller that has ALREADY opened a Postgres transaction (HRMS's own
+   lifecycle-case transaction) run Organisation's full `createAssignment`/
+   `endAssignment` logic — validation, RBAC, cycle checks, and its own
+   audit write — against that SAME connection, so the two packages' writes
+   commit or roll back as one unit. Every repository factory these reuse
+   already accepted a plain `DatabaseProvider`; this adds no new
+   repository logic, only a way to hand them the caller's transaction
+   connection instead of the top-level pool.
 
 ## 5. Lifecycle case model
 
@@ -245,17 +262,15 @@ as before; this file adds no parallel validation of its own for those
 concerns.
 
 **Transaction boundary (see §13 for the full reasoning):** Organisation's
-`createAssignment()` is called *before* any HRMS-side write; if it throws,
-the case remains `IN_PROGRESS` and nothing else is recorded — verified
-directly by a test that forces the call to fail and asserts the case is
-never marked `COMPLETED`. Only once it succeeds does HRMS record its own
-completion (case status, `outcome`, `effectiveDate`, and
-`resultingAssignmentId` — a plain FK reference to the real
-`employment_assignments` row Organisation created) in one atomic HRMS-side
-transaction, alongside two events (`employment_change_authorised`,
-`employment_change_completed`) capturing the decision and its execution as
-distinct, timestamped history entries even though both happen within one
-API call.
+`createAssignment()` runs INSIDE the same Postgres transaction as HRMS's
+own completion write — a transaction-scoped `EmploymentAssignmentService`
+(§4) is called first, then the case's own completion (status, `outcome`,
+`effectiveDate`, and `resultingAssignmentId` — a plain FK reference to the
+real `employment_assignments` row Organisation created) plus two events
+(`employment_change_authorised`, `employment_change_completed`) commit in
+the same `BEGIN…COMMIT`. If either step throws, both roll back together —
+verified directly by tests that force each side to fail in turn and assert
+neither the case nor the assignment retains a partial change.
 
 ## 9. Offboarding
 
@@ -277,8 +292,9 @@ not build.
 **Employment ended ≠ Identity record deleted.** `completeOffboarding()`:
 
 1. Ends the authoritative employment assignment through Organisation
-   (`orgAssignments.endAssignment()`) — same two-phase, no-false-completion
-   transaction boundary as employment change (§8, §13).
+   (`orgAssignments.endAssignment()`) — as ONE shared Postgres transaction
+   with HRMS's own case completion, the same as employment change (§8,
+   §13).
 2. Updates the case's own lifecycle status/outcome/effective date.
 3. Records a `identity_deactivation_requested` **event** — a durable,
    auditable request that a human administrator (or a future Workflow/
@@ -406,34 +422,85 @@ atomic, never delete-after-failure compensation):
   row.
 - **Probation decision + optional extension row + event + case status**:
   same transaction wrapper, one atomic unit.
-- **Employment-change/offboarding completion**: **two-phase**, not a
-  single ACID transaction spanning both packages. `DatabaseProvider.
-  transaction()` (the same primitive Identity/Data Vault/Organisation
-  already use) explicitly does not support nesting
-  (`pgDatabaseProvider.ts`'s transactional `tx.transaction()` throws
-  "Nested transactions are not supported."), and Organisation's own
-  `createAssignment()`/`endAssignment()` already open their own real
-  transaction internally — so HRMS cannot wrap Organisation's write and
-  its own case-completion write in one shared transaction without either
-  modifying that shared, already-reviewed primitive (rejected — too broad
-  a change for this PR) or duplicating Organisation's transaction logic
-  inside HRMS (rejected — exactly the "competing assignment-history
-  logic" the brief forbids). Instead: **call Organisation first; only on
-  success does HRMS commit its own completion.** If Organisation's call
-  throws, this method propagates immediately and writes nothing — the case
-  is never left saying `COMPLETED` while the authoritative change failed.
-  Verified directly (unit and real-Postgres tests): forcing Organisation's
-  call to fail (an invalid legal entity for employment change; a missing
-  Organisation permission for offboarding) leaves the case at
-  `IN_PROGRESS` with `resultingAssignmentId` still `null`.
+- **Employment-change/offboarding completion**: **one shared Postgres
+  transaction spanning both packages** — corrected during review from an
+  earlier two-phase (Organisation-commits-then-HRMS-commits-separately)
+  design once real-transaction sharing was shown to be achievable cleanly.
+  `DatabaseProvider.transaction()` (the same primitive Identity/Data
+  Vault/Organisation already use) does not support nesting
+  (`pgDatabaseProvider.ts`'s `tx.transaction()` throws "Nested
+  transactions are not supported."), so the fix is not to nest a second
+  `BEGIN` — it is to bind Organisation's OWN repositories to the
+  transaction connection HRMS already opened, and run Organisation's own
+  service (with all its own validation/RBAC/cycle-checks/audit) against
+  that connection:
 
-**Known residual risk of the two-phase design** (documented, not hidden):
-if Organisation's write succeeds but the subsequent HRMS-side completion
-write then fails (e.g. a transient database error), the authoritative
-change has already happened but the case will not show `COMPLETED`. This
-is the *safe* failure direction — never a false `COMPLETED` — but leaves a
-recoverable inconsistency (the case under-reports its own true state)
-rather than a fully atomic guarantee across both packages. See §22.
+  - `LifecycleCaseService.completeCaseWithAuthoritativeWrite()`
+    (`services/lifecycleCaseService.ts`) opens HRMS's own
+    `LifecycleTransaction.run(fn)` as before, but `fn` now also receives
+    the raw transaction-scoped `DatabaseProvider` (`tx`), not just HRMS's
+    own bound repositories.
+  - Organisation exports a new, minimal composition helper,
+    `createEmploymentAssignmentServiceForTransaction(tx, rbac)`
+    (`organisation/src/composition/transactionScope.ts`): it constructs a
+    FULL `EmploymentAssignmentService` instance whose `employees`,
+    `assignments`, `orgStructure`, `organisation`, `users` repositories —
+    and its own audit write — are all bound to `tx`, reusing every
+    existing Postgres repository factory unchanged (each already takes a
+    plain `DatabaseProvider`, so passing `tx` instead of the top-level
+    pool is a drop-in substitution, not new plumbing). `rbac` is
+    deliberately NOT re-bound — it only reads pre-existing grants, never
+    writes, so sharing the caller's already-wired `RbacService` is
+    correct and avoids reconstructing RBAC's dependency graph. A second
+    new factory, `createPgEmploymentAssignmentTransactionScoped(tx)`
+    (alongside the existing `createPgEmploymentAssignmentTransaction`),
+    gives `createAssignment()`'s own internal cycle-check-then-write step
+    a variant that takes its advisory lock and runs directly against the
+    already-open `tx` instead of calling `tx.transaction()` again.
+  - `completeCaseWithAuthoritativeWrite` calls
+    `deps.buildTransactionScopedAssignments(tx)` to get this
+    transaction-bound service, then calls the caller-supplied
+    `authoritativeWrite(lockedCase, scopedAssignments)` callback — which
+    invokes `createAssignment()`/`endAssignment()` exactly as before —
+    BEFORE writing the case's own status/event rows, all inside the SAME
+    `BEGIN…COMMIT`. If either the authoritative write or the
+    case-completion write throws, `LifecycleTransaction.run`'s underlying
+    `db.transaction()` rolls back everything: Organisation's change and
+    HRMS's case update commit or fail together, with **no exception** —
+    not even a narrow one for a mid-transaction infrastructure error.
+  - `employmentChangeService.completeChange()` and
+    `offboardingService.completeOffboarding()` are now thin callers of
+    this one primitive; neither holds an `orgAssignments` reference of
+    its own any more, and neither can accidentally call Organisation
+    outside the shared transaction.
+
+  **Concurrency and idempotency** (verified against real Postgres, not
+  mocks): before calling into Organisation, the transaction takes a row
+  lock on the case (`LifecycleCaseRepository.findByIdForUpdate()` — a
+  plain `SELECT … FOR UPDATE`, transaction-scoped, released automatically
+  on commit/rollback) and re-validates the state transition under that
+  lock. A second concurrent (or simply repeated) completion request for
+  the same case blocks at the lock until the first transaction ends, then
+  sees the now-committed terminal status and is rejected by
+  `assertValidTransition` before it ever reaches Organisation — so at most
+  one authoritative assignment mutation and one case completion can ever
+  commit for a given case, and no duplicate completion event or
+  `identity_deactivation_requested` event can be written. This mirrors
+  PR #6's own reporting-cycle advisory-lock pattern, using a plain row
+  lock rather than an advisory one since the resource being protected
+  (the specific case) already has a natural row to lock.
+
+  Verified directly by real-Postgres integration tests (§18): a forced
+  Organisation-side failure (invalid legal entity; no current assignment
+  left to end) rolls back leaving the case untouched; a forced HRMS-side
+  failure injected AFTER Organisation's write has run inside the same
+  transaction rolls Organisation's write back too (proved by re-querying
+  `employment_assignments` after the rejection); a repeated completion
+  call creates no second assignment/no second end-date and no duplicate
+  event; two genuinely concurrent completion attempts (fired via
+  `Promise.allSettled` against the real connection pool) produce exactly
+  one commit and one rejection, with exactly one resulting
+  `employment_assignments` row change and exactly one completion event.
 
 ## 14. Audit model
 
@@ -550,7 +617,7 @@ system, exists here.
   the real assignment, completes the case, and requests (never performs)
   Identity deactivation; a forced Organisation failure leaves the
   offboarding case `IN_PROGRESS`.
-- `test/integration/postgres.test.ts` (6 real-Postgres tests) —
+- `test/integration/postgres.test.ts` (15 real-Postgres tests) —
   concurrency-safe case-number sequence draws; case creation + initial
   event atomicity with a forced-failure no-orphan-row proof;
   `hr_lifecycle_cases` CHECK constraints (`lifecycle_type`, `status`,
@@ -559,7 +626,19 @@ system, exists here.
   `sequence_number` rejection); a full SK-Lai-&-Partners privileged-tier
   end-to-end run; a completed employment-change case's
   `resultingAssignmentId` verified to reference a real, committed
-  `employment_assignments` row.
+  `employment_assignments` row. Nine tests added during review to prove
+  the shared-transaction fix (§13) against real Postgres, not mocks:
+  employment-change and offboarding each get a forced-Organisation-
+  failure rollback test, a forced-HRMS-side-failure test proving
+  Organisation's own write rolls back too (injected via a direct call to
+  `completeCaseWithAuthoritativeWrite` so the failure lands *after*
+  Organisation's write but *before* commit), a repeated-completion test
+  (no second assignment/no double end-date, no duplicate event), and a
+  genuine-concurrency test (`Promise.allSettled` over two real, separate
+  Postgres connections) proving exactly one of two simultaneous completion
+  attempts commits; offboarding additionally gets an explicit
+  successful-commit-together test. All nine were re-run five times
+  consecutively with zero flakes.
 - `test/integration/http.test.ts` (9 real-HTTP tests) — unauthenticated/
   invalid-token denial; a full onboarding flow (create → milestone →
   complete milestone → complete case) over real HTTP; a full probation
@@ -655,16 +734,17 @@ any migration to date.
 
 ## 22. Remaining risks / open questions
 
-- **The employment-change/offboarding transaction boundary is two-phase,
-  not a single cross-package ACID transaction** (§13) — a residual,
-  narrow inconsistency window exists if Organisation's write succeeds but
-  HRMS's own completion write then fails. The safe direction (never a
-  false `COMPLETED`) is guaranteed; full atomicity across both packages
-  is not, given `DatabaseProvider.transaction()`'s no-nesting constraint. A
-  future iteration could add a reconciliation job that detects a case with
-  a `resultingAssignmentId` set but status still `IN_PROGRESS` and
-  completes it, rather than solving this at the transaction-primitive
-  level.
+- **Resolved during review, no longer a residual risk**: employment-change
+  and offboarding completion originally used a two-phase (Organisation-
+  commits-then-HRMS-commits-separately) pattern, which left a narrow
+  window where Organisation's write could succeed while HRMS's own
+  completion write then failed. This is now one shared Postgres
+  transaction (§13) via
+  `createEmploymentAssignmentServiceForTransaction()` — Organisation's
+  authoritative mutation and HRMS's case completion commit or roll back
+  together, verified by real-Postgres tests that force a failure on each
+  side and confirm the other's write is rolled back with it. No
+  reconciliation job is needed for this case.
 - **Case-number format is an explicit placeholder** (§21) — no real SVE
   convention could be verified from the current codebase.
 - **`isDirectManagerOf`'s logic now exists in two places**

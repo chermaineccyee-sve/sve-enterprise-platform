@@ -88,6 +88,10 @@ export function createPgLifecycleCaseRepository(db: DatabaseProvider): Lifecycle
       const result = await db.query<CaseRow>(`SELECT ${CASE_COLUMNS} FROM hr_lifecycle_cases WHERE id = $1`, [id]);
       return result.rows[0] ? mapCase(result.rows[0]) : null;
     },
+    async findByIdForUpdate(id: string): Promise<HrLifecycleCase | null> {
+      const result = await db.query<CaseRow>(`SELECT ${CASE_COLUMNS} FROM hr_lifecycle_cases WHERE id = $1 FOR UPDATE`, [id]);
+      return result.rows[0] ? mapCase(result.rows[0]) : null;
+    },
     async list(filter: LifecycleCaseFilter): Promise<HrLifecycleCase[]> {
       const clauses: string[] = [];
       const params: unknown[] = [];

@@ -37,6 +37,10 @@ export function createInMemoryLifecycleCaseRepository(store: InMemoryStore): Lif
     async findById(id: string): Promise<HrLifecycleCase | null> {
       return store.cases.find((c) => c.id === id) ?? null;
     },
+    /** No real concurrent transactions to lock against in-memory — behaves exactly like findById (see repositories/types.ts's interface doc). */
+    async findByIdForUpdate(id: string): Promise<HrLifecycleCase | null> {
+      return store.cases.find((c) => c.id === id) ?? null;
+    },
     async list(filter: LifecycleCaseFilter): Promise<HrLifecycleCase[]> {
       return store.cases.filter((c) => {
         if (filter.employeeId && c.employeeId !== filter.employeeId) return false;
