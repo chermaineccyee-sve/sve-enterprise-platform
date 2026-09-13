@@ -37,7 +37,7 @@ async function setup() {
   const employeeCreation = createInMemoryEmployeeCreationTransaction({ employees: employeeRepo, assignments: assignmentRepo });
   const transactions = createInMemoryEmploymentAssignmentTransaction({ assignments: assignmentRepo });
   const employees = createEmployeeService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure, organisation, users, rbac, audit, employeeCreation });
-  const assignments = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure, organisation, rbac, audit, transactions });
+  const assignments = createEmploymentAssignmentService({ employees: employeeRepo, assignments: assignmentRepo, orgStructure, organisation, users, rbac, audit, transactions });
 
   const [sg, my] = identityStore.legalEntities;
   return { identityStore, store, rbacRepo, organisation, users, employees, assignments, assignmentRepo, orgStructure, sg: sg!, my: my! };

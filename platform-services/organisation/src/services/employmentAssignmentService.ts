@@ -9,7 +9,7 @@
 import type { EmployeeRepository, EmploymentAssignmentRepository, OrgStructureRepository, EmploymentAssignmentTransaction } from "../repositories/types.ts";
 import type { RbacService } from "../../../identity/src/services/rbacService.ts";
 import type { AuditService } from "../../../identity/src/services/auditService.ts";
-import type { OrganisationRepository } from "../../../identity/src/repositories/types.ts";
+import type { OrganisationRepository, UserRepository } from "../../../identity/src/repositories/types.ts";
 import { ForbiddenError } from "../../../identity/src/domain/errors.ts";
 import { NotFoundError, ValidationError } from "../domain/errors.ts";
 import type { EmploymentAssignment, CreateAssignmentInput, AssignmentFilter } from "../domain/employee.ts";
@@ -43,6 +43,7 @@ export function createEmploymentAssignmentService(deps: {
   assignments: EmploymentAssignmentRepository;
   orgStructure: OrgStructureRepository;
   organisation: OrganisationRepository;
+  users: UserRepository;
   rbac: RbacService;
   audit: AuditService;
   transactions: EmploymentAssignmentTransaction;
@@ -248,6 +249,33 @@ export function createEmploymentAssignmentService(deps: {
       });
       if (!access.allowed) throw new NotFoundError("Employee");
       return deps.assignments.list({ employeeId } satisfies AssignmentFilter);
+    },
+
+    /**
+     * Is `actorUserId` (via their own linked employee record) the direct
+     * manager of `employeeId`'s current primary assignment — the same
+     * reporting-line check `employeeService.getEmployee()`'s manager/"team"
+     * fallback already performs internally, exposed here as a small,
+     * read-only, side-effect-free capability so OTHER packages (e.g.
+     * platform-services/hrms's own read.team fallback for lifecycle cases)
+     * can reuse this package's authoritative reporting-line data without
+     * duplicating it. Returns a plain boolean — never assignment/position
+     * data — so it carries no classification concerns of its own; the
+     * caller still runs its own permission checks around the result.
+     */
+    async isDirectManagerOf(actorUserId: string, employeeId: string): Promise<boolean> {
+      const targetAssignment = await deps.assignments.findCurrentPrimary(employeeId);
+      if (!targetAssignment) return false;
+      const actorLink = await deps.users.findActiveLinkByUserId(actorUserId);
+      if (!actorLink) return false;
+      const actorAssignment = await deps.assignments.findCurrentPrimary(actorLink.employeeId);
+      if (!actorAssignment) return false;
+      if (targetAssignment.reportsToAssignmentId === actorAssignment.id) return true;
+      if (targetAssignment.positionId) {
+        const position = await deps.orgStructure.findPositionById(targetAssignment.positionId);
+        if (position?.reportsToPositionId && actorAssignment.positionId && position.reportsToPositionId === actorAssignment.positionId) return true;
+      }
+      return false;
     },
   };
 }
