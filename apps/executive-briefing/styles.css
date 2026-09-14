@@ -202,8 +202,17 @@ img{max-width:100%}
 .evidence-value{color:rgba(255,255,255,.88);line-height:1.5}
 
 .mobile-capabilities{display:none}
-.mobile-capabilities .accordion-trigger{align-items:flex-start}
-.accordion-trigger-side{display:flex;align-items:center;gap:8px;flex:none}
+/* Mobile capability accordion header: three stacked rows (title+caret,
+   status badge(s), then the one-line meaning at full width) rather than
+   the single horizontally-cramped row a generic accordion-trigger would
+   give — title, badge, caret and description no longer compete for the
+   same line. Scoped to .capability-trigger only, so Screen 03's own
+   mobile layer accordion (plain .accordion-trigger) is untouched. */
+.capability-trigger{display:block;padding:14px 16px}
+.capability-trigger-row1{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.capability-trigger-row1 h3{font-size:14px;flex:1;min-width:0}
+.capability-trigger-status{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.capability-trigger-meaning{display:block;margin-top:6px;font-size:12px;line-height:1.55;color:var(--muted);width:100%}
 .mobile-capabilities .built-detail-grid{grid-template-columns:1fr}
 .mobile-capabilities .built-detail-block p,.mobile-capabilities .evidence-value,.mobile-capabilities .evidence-label{color:var(--ink)}
 .mobile-capabilities .built-detail-label{color:var(--sve-purple2)}
@@ -233,7 +242,7 @@ img{max-width:100%}
  .capability-grid,.built-detail-desktop{display:none}
  .built .layer-connector{display:none}
  .mobile-capabilities{display:block}
- .foundation-hub{padding:26px 20px}
+ .foundation-hub{padding:21px 20px}
 }
 
 /* ===== Reduced motion ===== */

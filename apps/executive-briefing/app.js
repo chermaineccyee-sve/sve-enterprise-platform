@@ -751,15 +751,13 @@ function renderScreenBuilt() {
       const open = activeCapabilityIndex === index;
       return `
         <div class="accordion-item ${open ? "open" : ""}">
-          <button class="accordion-trigger" data-action="capability" data-index="${index}" aria-expanded="${open}">
-            <div class="layer-toggle-text">
+          <button class="accordion-trigger capability-trigger" data-action="capability" data-index="${index}" aria-expanded="${open}">
+            <span class="capability-trigger-row1">
               <h3>${esc(cap.name)}</h3>
-              <span class="layer-blurb">${esc(cap.meaning)}</span>
-            </div>
-            <span class="accordion-trigger-side">
-              ${statusPillHtml(cap.status, cap.caveat)}
               <span class="accordion-caret">&#9662;</span>
             </span>
+            <span class="capability-trigger-status">${statusPillHtml(cap.status, cap.caveat)}</span>
+            <span class="capability-trigger-meaning">${esc(cap.meaning)}</span>
           </button>
           <div class="accordion-body">
             <div class="accordion-body-inner">
@@ -780,7 +778,7 @@ function renderScreenBuilt() {
         </div>
         <div class="foundation-hub">
           <h3>Operational Foundation Established</h3>
-          <p>Seven implemented capabilities now form the reusable foundation for SVE's next operational systems.</p>
+          <p>Seven implemented capabilities now form a reusable foundation for SVE's next operational systems.</p>
         </div>
         <div class="layer-connector ${anySelected ? "flowing" : ""}"><span class="connector-line"></span><span class="connector-arrow">&darr;</span><span class="connector-line"></span></div>
         <div class="capability-grid">${tiles}</div>
