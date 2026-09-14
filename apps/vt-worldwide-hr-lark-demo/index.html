@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VT Worldwide · HR Workflow Implementation on Lark (Concept)</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="appshell" id="appshell">
+
+  <!-- LEFT SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">VT</div>
+      <div>
+        <div class="brand-title">VT Worldwide</div>
+        <div class="brand-sub">Workplace &middot; Concept</div>
+      </div>
+    </div>
+    <nav class="nav" id="mainNav"></nav>
+    <div class="side-foot">
+      <div class="conceptual-tag">Conceptual Lark Workflow Visualisation</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" title="Toggle menu" onclick="UI.toggleSidebar()">&#9776;</button>
+        <div class="searchbox">
+          <span class="search-icon">&#8981;</span>
+          <input type="text" placeholder="Search HR Services, policies, requests&hellip;" readonly>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="workshop-toggle" id="workshopToggleBtn" onclick="UI.toggleWorkshopMode()">Workshop Mode</button>
+        <div class="notif-wrap">
+          <button class="icon-btn" id="notifBtn" onclick="UI.toggleNotifPanel()" title="Notifications">
+            &#128276;<span class="notif-dot hidden" id="notifDot"></span>
+          </button>
+          <div class="notif-panel hidden" id="notifPanel"></div>
+        </div>
+        <div class="profile-chip" id="profileChip"></div>
+      </div>
+    </header>
+
+    <!-- PERSONA SWITCHER -->
+    <div class="persona-bar">
+      <span class="persona-label">Demo Persona:</span>
+      <div class="persona-switch" id="personaSwitch"></div>
+      <span class="persona-hint">Switch roles to see what each person sees in Lark</span>
+    </div>
+
+    <main class="content" id="content"></main>
+
+    <footer class="disclaimer-bar">
+      Conceptual workflow visualisation prepared by SVE International for discussion with VT Worldwide. Final workflow configuration is subject to validation against VT Worldwide's operational requirements and available Lark functionality.
+    </footer>
+  </div>
+
+  <!-- RIGHT SIDE PANEL (workflow stage detail / approval status / audit) -->
+  <aside class="rightpanel hidden" id="rightPanel"></aside>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+<div class="modal-overlay hidden" id="modalOverlay"><div class="modal-box" id="modalBox"></div></div>
+
+<script src="data.js"></script>
+<script src="workflow.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
