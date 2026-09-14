@@ -1,10 +1,11 @@
 /**
  * SVE Group Enterprise Platform — Executive Briefing
- * Phase 1: Screens 01–03 only. Vanilla JS, no build step, no framework —
- * matches apps/svegip's own convention. This app is fully isolated from
- * apps/svegip: it does not import, fetch, or link to anything there.
+ * Phase 1: Screens 01–03. Phase 2: Screen 04. Vanilla JS, no build step, no
+ * framework — matches apps/svegip's own convention. This app is fully
+ * isolated from apps/svegip: it does not import, fetch, or link to
+ * anything there.
  *
- * SCREENS is an ordered registry so Screens 04–15 can be appended later
+ * SCREENS is an ordered registry so Screens 05–15 can be appended later
  * without redesigning navigation, keyboard handling, or the progress chrome.
  */
 
@@ -147,10 +148,138 @@ const LAYERS = [
   },
 ];
 
+/**
+ * Screen 04 content — the seven capability groups that make up the
+ * "Operational Foundation Established" evidence screen. Every group here
+ * is Working/Implemented (Data Vault carries its "UI integration pending"
+ * caveat, as it does on Screens 02/03) — this screen exists to demonstrate
+ * what already exists, not to preview Payroll/iClaims/Accounting Pro or
+ * any other future module. "enablesNext" text names future systems this
+ * foundation is designed to support; it never claims they are built.
+ * evidence.* fields feed the secondary "View Build Evidence" disclosure —
+ * plain-language, no PR numbers or raw internal identifiers.
+ */
+const BUILT_DATA = [
+  {
+    id: "controlled-access",
+    name: "Controlled Access",
+    meaning: "Access can be controlled according to authorised role, SVE entity, information classification and responsibility.",
+    status: "working",
+    whatExists: "A tested identity and access foundation — user accounts, roles, permissions, sessions and multi-factor authentication.",
+    whyItMatters: "System Administrator status does not automatically grant Human Resources, Finance, management or privileged legal access — each must be separately authorised.",
+    enablesNext: "Extending the same controlled-access model to Payroll, Finance and future management systems as they are built.",
+    evidence: {
+      service: "SVE Identity & Access foundation",
+      foundation: "A dedicated database foundation covering users, roles, permissions and sessions.",
+      tests: "Covered by an automated test suite, including multi-factor authentication and access-control scenarios.",
+      experience: "Runs independently of SVEGIP's existing sign-in today.",
+      milestone: "Identity & Access Foundation",
+    },
+  },
+  {
+    id: "organisation-employee-master",
+    name: "Organisation & Employee Master",
+    meaning: "A governed organisational and employee-record foundation now exists for legal entity, organisational structure, position, assignment and reporting relationships.",
+    status: "working",
+    whatExists: "A tested organisation and Employee Master foundation covering legal entity, business unit, department, position, and effective-dated employment assignments.",
+    whyItMatters: "Every future Human Resources, Payroll or Finance system can build on one governed employee record instead of each keeping its own copy.",
+    enablesNext: "Payroll, iClaims, and future reporting-line-aware management tools.",
+    evidence: {
+      service: "Organisation & Employee Master",
+      foundation: "A dedicated database foundation for organisational structure and employee records.",
+      tests: "Covered by an automated test suite, including reporting-structure integrity checks.",
+      experience: "Powers the Employee Directory and employee profile in My SVE.",
+      milestone: "Organisation & Employee Master Foundation",
+    },
+  },
+  {
+    id: "hr-lifecycle",
+    name: "Human Resources Lifecycle",
+    meaning: "Employee lifecycle processes now have a controlled foundation covering onboarding, probation, confirmation or extension, employment change and offboarding.",
+    status: "working",
+    whatExists: "A tested lifecycle-case foundation governing onboarding, probation, confirmation/extension, employment change and offboarding.",
+    whyItMatters: "Each lifecycle stage now follows one controlled, auditable process instead of ad hoc handling.",
+    enablesNext: "Leave, attendance and other Human Resources processes, which are not yet built.",
+    evidence: {
+      service: "HRMS Employee Lifecycle foundation",
+      foundation: "A dedicated database foundation for lifecycle cases, milestones and probation reviews.",
+      tests: "Covered by an automated test suite across each lifecycle stage.",
+      experience: "Powers the People / HR Lifecycle screens in SVEGIP.",
+      milestone: "HRMS Employee Lifecycle Foundation",
+    },
+  },
+  {
+    id: "workflow-approvals",
+    name: "Workflow & Approvals",
+    meaning: "A reusable approval and decision-routing foundation now exists rather than approval logic needing to be rebuilt independently for every future module.",
+    status: "working",
+    whatExists: "A reusable workflow and approval engine.",
+    whyItMatters: "Approval controls can be reused rather than rebuilt separately for each SVE system.",
+    enablesNext: "Leave, claims, payroll approvals, finance workflows and future management processes.",
+    evidence: {
+      service: "Workflow & Approval engine",
+      foundation: "A dedicated database foundation for workflow definitions, routing and decisions.",
+      tests: "Covered by an automated test suite, including approval-routing and escalation scenarios.",
+      experience: "Already used today to route HRMS employment-change and offboarding approvals.",
+      milestone: "Workflow & Approval Foundation, integrated with HRMS",
+    },
+  },
+  {
+    id: "security-revocation",
+    name: "Security & Access Revocation",
+    meaning: "Offboarding can trigger controlled Identity access deactivation and session revocation while preserving historical records.",
+    status: "working",
+    whatExists: "A tested integration where completing an employee's offboarding automatically deactivates their Identity access and revokes active sessions.",
+    whyItMatters: "Access is removed in a controlled way the moment employment ends, rather than depending on a separate manual step — while historical records are preserved, not deleted. This is distinct from Controlled Access: Controlled Access governs who receives access; this governs how access is removed when authority ends.",
+    enablesNext: "The same controlled-revocation pattern applied to future Payroll, Finance and system-administration access.",
+    evidence: {
+      service: "Identity Access Revocation & Offboarding integration",
+      foundation: "Builds on the Identity and HRMS foundations already in place.",
+      tests: "Covered by an automated test suite verifying access is revoked exactly when offboarding completes.",
+      experience: "Triggered automatically from the offboarding lifecycle case in People / HR.",
+      milestone: "Identity Offboarding & Revocation integration",
+    },
+  },
+  {
+    id: "my-sve-people",
+    name: "My SVE & People",
+    meaning: "Employees and Human Resources now have a usable application experience over the Employee Master, lifecycle and approval foundations.",
+    status: "working",
+    whatExists: "A working employee and Human Resources experience — profile, employee directory, lifecycle cases and approvals — built on the foundations above.",
+    whyItMatters: "The underlying platform foundations are not just backend services; people already use them through a real application experience today.",
+    enablesNext: "Extending the same experience to Payroll, Leave and future Human Resources self-service.",
+    evidence: {
+      service: "SVEGIP People / My SVE application experience",
+      foundation: "Built directly on the Organisation, HRMS and Workflow foundations — no separate data store of its own.",
+      tests: "Covered by an automated test suite, including a check that no Human Resources data is stored in the browser.",
+      experience: "The People, My SVE and Employee Directory screens in SVEGIP today.",
+      milestone: "HRMS Application Shell, Employee Master / My SVE, and HR Lifecycle & Approval experience",
+    },
+  },
+  {
+    id: "data-vault-foundation",
+    name: "Data Vault Foundation",
+    meaning: "A newer server-backed information-control foundation has been implemented and tested.",
+    status: "working",
+    caveat: "UI integration pending",
+    whatExists: "A tested, server-backed information-control service with its own access rules.",
+    whyItMatters: "Confidential information can now be governed by a real, database-backed service, rather than depending on what happens to be stored in a single browser.",
+    enablesNext: "Connecting the existing Data Vault workspace to this foundation, and extending it to broader management intelligence.",
+    evidence: {
+      service: "Data Vault (server-backed foundation)",
+      foundation: "A dedicated database foundation for Data Vault records and access rules.",
+      tests: "Covered by an automated test suite, including entity- and classification-based access checks.",
+      experience: "Not yet connected to the visible Data Vault workspace, which still runs on its original design.",
+      milestone: "Data Vault server-side remediation",
+    },
+  },
+];
+
 const SCREENS = [
   { id: "opening", number: 1, title: "Executive Opening", render: renderScreenOpening },
   { id: "prototype-to-platform", number: 2, title: "From Prototype to Platform", render: renderScreenProgression },
   { id: "architecture", number: 3, title: "Enterprise Platform Architecture", render: renderScreenArchitecture },
+  { id: "what-built", number: 4, title: "What Has Already Been Built", render: renderScreenBuilt },
 ];
 
 let currentIndex = 0;
@@ -160,6 +289,10 @@ let selectedModule = null; // { layerIndex, moduleIndex } | null
 // collapsed (-1) so the architecture reads as four connected blocks before
 // any module is revealed — progressive disclosure, not a wall of modules.
 let openAccordionLayerIndex = -1;
+// Screen 04: which capability (if any) is expanded, shared by desktop's
+// tile+detail layout and mobile's accordion — same convention as Screen 03.
+let activeCapabilityIndex = -1;
+let buildEvidenceOpen = false;
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -276,6 +409,39 @@ function toggleAccordion(layerIndex) {
   // showing for a layer that's no longer expanded.
   selectedModule = null;
   render();
+}
+
+function getBuiltCapabilities() {
+  return BUILT_DATA;
+}
+
+function getActiveCapabilityIndex() {
+  return activeCapabilityIndex;
+}
+
+function selectCapability(index) {
+  activeCapabilityIndex = activeCapabilityIndex === index ? -1 : index;
+  // A fresh selection (or closing the current one) always collapses the
+  // build-evidence disclosure — it should never persist open for a
+  // capability that is no longer the one in view.
+  buildEvidenceOpen = false;
+  render();
+}
+
+function getBuildEvidenceOpen() {
+  return buildEvidenceOpen;
+}
+
+function toggleBuildEvidence() {
+  if (activeCapabilityIndex === -1) return;
+  buildEvidenceOpen = !buildEvidenceOpen;
+  render();
+}
+
+/** Convenience lookup by stable id, used by tests and safe against reordering. */
+function getCapabilityStatus(id) {
+  const cap = BUILT_DATA.find((c) => c.id === id);
+  return cap ? cap.status : null;
 }
 
 /* ===================== Rendering ===================== */
@@ -497,6 +663,133 @@ function renderScreenArchitecture() {
     </div>`;
 }
 
+function capabilityEvidenceHtml(cap) {
+  const ev = cap.evidence;
+  const rows = [
+    ["Underlying service", ev.service],
+    ["Database foundation", ev.foundation],
+    ["Test coverage", ev.tests],
+    ["Application experience", ev.experience],
+    ["Implementation milestone", ev.milestone],
+  ];
+  return `
+    <div class="build-evidence">
+      ${rows
+        .map(
+          ([label, value]) => `
+        <div class="evidence-row">
+          <span class="evidence-label">${esc(label)}</span>
+          <span class="evidence-value">${esc(value)}</span>
+        </div>`
+        )
+        .join("")}
+    </div>`;
+}
+
+/**
+ * The "What exists / Why it matters / Enables next" disclosure shared by
+ * desktop's detail panel and mobile's expanded accordion row — identical
+ * markup either way so the executive content is consistent across
+ * breakpoints even though the surrounding layout differs.
+ */
+function capabilityDetailBodyHtml(cap, index) {
+  const evidenceOpen = activeCapabilityIndex === index && buildEvidenceOpen;
+  return `
+    <div class="built-detail-grid">
+      <div class="built-detail-block" style="animation-delay:.05s">
+        <span class="built-detail-label">What exists</span>
+        <p>${esc(cap.whatExists)}</p>
+      </div>
+      <div class="built-detail-block" style="animation-delay:.15s">
+        <span class="built-detail-label">Why it matters</span>
+        <p>${esc(cap.whyItMatters)}</p>
+      </div>
+      <div class="built-detail-block" style="animation-delay:.25s">
+        <span class="built-detail-label">Enables next</span>
+        <p>${esc(cap.enablesNext)}</p>
+      </div>
+    </div>
+    <button class="evidence-toggle" data-action="evidence" aria-expanded="${evidenceOpen}">
+      ${evidenceOpen ? "Hide Build Evidence" : "View Build Evidence"} <span class="evidence-caret">&#9662;</span>
+    </button>
+    ${evidenceOpen ? capabilityEvidenceHtml(cap) : ""}`;
+}
+
+function renderScreenBuilt() {
+  const capabilities = BUILT_DATA;
+  const anySelected = activeCapabilityIndex !== -1;
+
+  const tiles = capabilities
+    .map((cap, index) => {
+      const isSelected = activeCapabilityIndex === index;
+      return `
+        <button class="capability-tile ${isSelected ? "selected" : ""}" data-action="capability" data-index="${index}" aria-pressed="${isSelected}">
+          ${statusPillHtml(cap.status, cap.caveat)}
+          <span class="capability-tile-name">${esc(cap.name)}</span>
+          <span class="capability-tile-meaning">${esc(cap.meaning)}</span>
+        </button>`;
+    })
+    .join("");
+
+  const detail =
+    activeCapabilityIndex === -1
+      ? `<div class="module-detail-empty">Select a capability above to see what exists, why it matters, and what it enables next.</div>`
+      : (() => {
+          const cap = capabilities[activeCapabilityIndex];
+          return `
+            <div class="module-detail built-detail">
+              <div class="module-detail-head">
+                <h4>${esc(cap.name)}</h4>
+                ${statusPillHtml(cap.status, cap.caveat)}
+              </div>
+              ${capabilityDetailBodyHtml(cap, activeCapabilityIndex)}
+            </div>`;
+        })();
+
+  const mobileCapabilities = capabilities
+    .map((cap, index) => {
+      const open = activeCapabilityIndex === index;
+      return `
+        <div class="accordion-item ${open ? "open" : ""}">
+          <button class="accordion-trigger" data-action="capability" data-index="${index}" aria-expanded="${open}">
+            <div class="layer-toggle-text">
+              <h3>${esc(cap.name)}</h3>
+              <span class="layer-blurb">${esc(cap.meaning)}</span>
+            </div>
+            <span class="accordion-trigger-side">
+              ${statusPillHtml(cap.status, cap.caveat)}
+              <span class="accordion-caret">&#9662;</span>
+            </span>
+          </button>
+          <div class="accordion-body">
+            <div class="accordion-body-inner">
+              ${capabilityDetailBodyHtml(cap, index)}
+            </div>
+          </div>
+        </div>`;
+    })
+    .join("");
+
+  return `
+    <div class="built">
+      <div class="section-wrap">
+        <div class="built-head">
+          <div class="eyebrow">What Has Already Been Built</div>
+          <h2>What Has Already Been Built</h2>
+          <p>SVE Group's platform is no longer only an information portal. Core operational foundations — identity, organisation, employee lifecycle and workflow approvals — are already built, tested and being progressively connected into one SVE environment.</p>
+        </div>
+        <div class="foundation-hub">
+          <h3>Operational Foundation Established</h3>
+          <p>Seven implemented capabilities now form the reusable foundation for SVE's next operational systems.</p>
+        </div>
+        <div class="layer-connector ${anySelected ? "flowing" : ""}"><span class="connector-line"></span><span class="connector-arrow">&darr;</span><span class="connector-line"></span></div>
+        <div class="capability-grid">${tiles}</div>
+        <div class="built-detail-desktop">${detail}</div>
+        <div class="mobile-capabilities">${mobileCapabilities}</div>
+      </div>
+    </div>`;
+}
+
 /* ===================== Shell / init ===================== */
 
 function renderApp() {
@@ -528,6 +821,8 @@ function onAppClick(e) {
   else if (action === "stage") selectStage(Number(el.dataset.stage));
   else if (action === "module") selectModule(Number(el.dataset.layer), Number(el.dataset.module));
   else if (action === "accordion") toggleAccordion(Number(el.dataset.layer));
+  else if (action === "capability") selectCapability(Number(el.dataset.index));
+  else if (action === "evidence") toggleBuildEvidence();
 }
 
 let touchStartX = null;

@@ -163,6 +163,55 @@ img{max-width:100%}
 .module-row:last-child{border-bottom:0}
 .module-row-name{font-size:13px;font-weight:700;flex:1;background:none;border:0;text-align:left;cursor:pointer;color:var(--ink)}
 
+/* ===== Screen 04 — What Has Already Been Built ===== */
+.built{padding:56px 0 20px}
+.built-head{max-width:760px}
+.built-head .eyebrow{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--sve-purple2)}
+.built-head h2{font-size:clamp(24px,3.4vw,36px);margin:10px 0 12px;line-height:1.15}
+.built-head p{color:var(--muted);font-size:15px;line-height:1.65;max-width:660px}
+
+/* The central management message of this screen — visually distinct from
+   both the page headline above and the capability tiles below, so it
+   reads as the one thing to remember even at a glance. */
+.foundation-hub{margin-top:30px;background:linear-gradient(135deg,#f4effb,#ece2f8);border:1px solid #e1d2f2;border-radius:20px;padding:32px 30px;text-align:center}
+.foundation-hub h3{font-size:clamp(20px,2.6vw,27px);color:var(--sve-purple)}
+.foundation-hub p{margin:10px 0 0;color:#5b4e70;font-size:14px;max-width:560px;margin-left:auto;margin-right:auto}
+
+.capability-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-top:0}
+.capability-tile{display:flex;flex-direction:column;align-items:flex-start;gap:9px;text-align:left;background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;cursor:pointer;box-shadow:var(--shadow);transition:transform var(--motion-fast) var(--ease),box-shadow var(--motion-fast) var(--ease),border-color var(--motion-fast) var(--ease)}
+.capability-tile:hover,.capability-tile:focus-visible{transform:translateY(-2px);box-shadow:var(--shadow-lg);border-color:#c8b9df}
+.capability-tile.selected{background:#2c195f;border-color:#2c195f}
+.capability-tile-name{font-size:14.5px;font-weight:800}
+.capability-tile.selected .capability-tile-name{color:#fff}
+.capability-tile-meaning{font-size:12px;line-height:1.55;color:var(--muted)}
+.capability-tile.selected .capability-tile-meaning{color:rgba(255,255,255,.82)}
+
+.built-detail{margin-top:24px}
+.built-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
+.built-detail-block{opacity:0;transform:translateY(8px);animation:reveal var(--motion-med) var(--ease) forwards}
+.built-detail-label{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#c9b6ec;margin-bottom:6px}
+.built-detail-block p{margin:0;font-size:13.5px;line-height:1.6;color:rgba(255,255,255,.9)}
+
+.evidence-toggle{margin-top:22px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);color:#fff;border-radius:999px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:background var(--motion-fast) var(--ease)}
+.evidence-toggle:hover{background:rgba(255,255,255,.18)}
+.evidence-caret{transition:transform var(--motion-fast) var(--ease)}
+.evidence-toggle[aria-expanded="true"] .evidence-caret{transform:rotate(180deg)}
+.build-evidence{margin-top:16px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:14px 16px;display:grid;gap:9px;animation:expandIn var(--motion-med) var(--ease)}
+.evidence-row{display:grid;grid-template-columns:170px 1fr;gap:12px;font-size:12.5px}
+.evidence-label{font-weight:700;color:#d9c9f2}
+.evidence-value{color:rgba(255,255,255,.88);line-height:1.5}
+
+.mobile-capabilities{display:none}
+.mobile-capabilities .accordion-trigger{align-items:flex-start}
+.accordion-trigger-side{display:flex;align-items:center;gap:8px;flex:none}
+.mobile-capabilities .built-detail-grid{grid-template-columns:1fr}
+.mobile-capabilities .built-detail-block p,.mobile-capabilities .evidence-value,.mobile-capabilities .evidence-label{color:var(--ink)}
+.mobile-capabilities .built-detail-label{color:var(--sve-purple2)}
+.mobile-capabilities .evidence-toggle{background:#f2edf9;border-color:#e1d2f2;color:var(--sve-purple)}
+.mobile-capabilities .evidence-toggle:hover{background:#eae0f7}
+.mobile-capabilities .build-evidence{background:#faf9fc;border-color:var(--line)}
+.mobile-capabilities .evidence-label{color:#6c4f9b}
+
 /* ===== Responsive ===== */
 @media(max-width:1024px){
  .layer-stack{display:block}
@@ -181,6 +230,10 @@ img{max-width:100%}
  .layer-stack{display:none}
  .mobile-architecture{display:block}
  .opening-inner{padding:52px 18px}
+ .capability-grid,.built-detail-desktop{display:none}
+ .built .layer-connector{display:none}
+ .mobile-capabilities{display:block}
+ .foundation-hub{padding:26px 20px}
 }
 
 /* ===== Reduced motion ===== */
