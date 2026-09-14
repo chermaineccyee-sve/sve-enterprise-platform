@@ -1,5 +1,5 @@
 /**
- * Covers: all four screens reachable, previous/next navigation, keyboard
+ * Covers: all five screens reachable, previous/next navigation, keyboard
  * navigation — exercised against the real, unmodified app.js via
  * test/loadApp.mjs, not a reimplementation of the navigation rules.
  */
@@ -7,10 +7,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { loadApp } from "./loadApp.mjs";
 
-test("all four screens (Phase 1 + Screen 04) are registered, in order", () => {
+test("all five screens (Phase 1 + Screens 04-05) are registered, in order", () => {
   const app = loadApp();
   const screens = app.getScreens();
-  assert.equal(screens.length, 4);
+  assert.equal(screens.length, 5);
   // screens is created inside a separate vm realm, so its Array is not the
   // same constructor as this file's Array — compare via JSON rather than
   // assert.deepEqual/deepStrictEqual, which treats that as inequality.
@@ -21,6 +21,7 @@ test("all four screens (Phase 1 + Screen 04) are registered, in order", () => {
       "From Prototype to Platform",
       "Enterprise Platform Architecture",
       "What Has Already Been Built",
+      "People / HRMS",
     ])
   );
 });
@@ -36,25 +37,27 @@ test("nextScreen()/prevScreen() move sequentially and clamp at both ends", () =>
   app.nextScreen();
   assert.equal(app.getCurrentIndex(), 2);
   app.nextScreen();
-  assert.equal(app.getCurrentIndex(), 3, "Screen 04 is now reachable via Next");
+  assert.equal(app.getCurrentIndex(), 3);
   app.nextScreen();
-  assert.equal(app.getCurrentIndex(), 3, "must not go past the last screen");
+  assert.equal(app.getCurrentIndex(), 4, "Screen 05 is now reachable via Next");
+  app.nextScreen();
+  assert.equal(app.getCurrentIndex(), 4, "must not go past the last screen");
 
   app.prevScreen();
-  assert.equal(app.getCurrentIndex(), 2);
+  assert.equal(app.getCurrentIndex(), 3);
 });
 
-test("goToScreen() jumps directly to Screen 04 and clamps out-of-range indexes", () => {
+test("goToScreen() jumps directly to Screen 05 and clamps out-of-range indexes", () => {
   const app = loadApp();
-  app.goToScreen(3);
-  assert.equal(app.getCurrentIndex(), 3);
+  app.goToScreen(4);
+  assert.equal(app.getCurrentIndex(), 4);
   app.goToScreen(99);
-  assert.equal(app.getCurrentIndex(), 3);
+  assert.equal(app.getCurrentIndex(), 4);
   app.goToScreen(-5);
   assert.equal(app.getCurrentIndex(), 0);
 });
 
-test("keyboard ArrowRight/ArrowLeft drive the same navigation as the buttons, all the way to Screen 04", () => {
+test("keyboard ArrowRight/ArrowLeft drive the same navigation as the buttons, all the way to Screen 05", () => {
   const app = loadApp();
   app.handleKeydown({ key: "ArrowRight" });
   assert.equal(app.getCurrentIndex(), 1);
@@ -62,8 +65,10 @@ test("keyboard ArrowRight/ArrowLeft drive the same navigation as the buttons, al
   assert.equal(app.getCurrentIndex(), 2);
   app.handleKeydown({ key: "ArrowRight" });
   assert.equal(app.getCurrentIndex(), 3);
+  app.handleKeydown({ key: "ArrowRight" });
+  assert.equal(app.getCurrentIndex(), 4);
   app.handleKeydown({ key: "ArrowLeft" });
-  assert.equal(app.getCurrentIndex(), 2);
+  assert.equal(app.getCurrentIndex(), 3);
   app.handleKeydown({ key: "Tab" });
-  assert.equal(app.getCurrentIndex(), 2, "unrelated keys must not move the screen");
+  assert.equal(app.getCurrentIndex(), 3, "unrelated keys must not move the screen");
 });

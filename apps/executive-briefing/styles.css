@@ -45,6 +45,7 @@ img{max-width:100%}
 .nav-btn.primary{background:var(--sve-purple);color:#fff;border-color:var(--sve-purple)}
 .nav-btn.primary:hover{background:var(--sve-purple2)}
 
+.status-pill-group{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
 .status-pill{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:999px}
 .status-working{background:var(--status-working-bg);color:var(--status-working-fg)}
 .status-architecture{background:var(--status-architecture-bg);color:var(--status-architecture-fg)}
@@ -221,6 +222,71 @@ img{max-width:100%}
 .mobile-capabilities .build-evidence{background:#faf9fc;border-color:var(--line)}
 .mobile-capabilities .evidence-label{color:#6c4f9b}
 
+/* ===== Screen 05 — People / HRMS ===== */
+.people{padding:56px 0 20px}
+.people-head{max-width:760px}
+.people-head .eyebrow{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--sve-purple2)}
+.people-head h2{font-size:clamp(24px,3.4vw,36px);margin:10px 0 12px;line-height:1.15}
+.people-head p{color:var(--muted);font-size:15px;line-height:1.65;max-width:660px}
+
+/* Reuses .stage-track/.stage-node verbatim from Screen 02 (already a
+   4-column grid, exactly JOIN/PROBATION/MOVEMENT/EXIT) — the same journey
+   interaction language, not a new component. .stage-node-tag carries each
+   stage's underlying system term (e.g. "Employment Change" under
+   "MOVEMENT") using the exact slot Screen 02 already uses for its own tag. */
+.people-stage-track{margin-top:34px}
+.people-track-connector{margin-top:4px}
+.people-detail-system{font-size:13px;font-weight:500;opacity:.7;margin-left:2px}
+
+/* "What happens / What connects / Why it matters / [qualification] /
+   Application experience" is a vertical stack, not Screen 04's 3-column
+   grid — these blocks vary too much in height (a short paragraph next to a
+   multi-step chain and a preview card) to share equal-width columns
+   cleanly, on desktop or mobile alike. */
+.people-detail-grid{grid-template-columns:1fr;gap:22px}
+
+.journey-chain{margin-top:4px}
+.journey-chain-step h5{font-size:13.5px;font-weight:800;color:#fff;margin:0 0 4px}
+.mobile-capabilities .journey-chain-step h5{color:var(--ink)}
+.journey-connector{display:flex;flex-direction:column;align-items:center;gap:1px;height:22px;margin-left:2px}
+.journey-connector .connector-line{background:rgba(255,255,255,.28)}
+.mobile-capabilities .journey-connector .connector-line{background:var(--line)}
+.journey-connector .connector-arrow{color:rgba(255,255,255,.6);font-size:11px}
+.mobile-capabilities .journey-connector .connector-arrow{color:var(--muted)}
+
+/* A callout that stays visually distinct (its own opaque amber surface)
+   regardless of the purple detail panel or white mobile accordion body
+   around it, so the EXIT scheduling qualification — and JOIN/PROBATION's
+   Workflow-connection qualification — reads clearly in either context and
+   is never mistaken for ordinary explanatory copy. */
+.stage-qualification{background:#fff6ed;border:1px solid #f3d9b8;border-radius:12px;padding:13px 15px;opacity:0;transform:translateY(8px);animation:reveal var(--motion-med) var(--ease) forwards;animation-delay:.3s}
+.stage-qualification-label{display:block;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#9a5b12;margin-bottom:5px}
+.stage-qualification p{margin:0;font-size:13px;line-height:1.55;color:#7c4a12}
+
+/* Presentation-native application preview: a white, tangible card inside
+   the purple detail panel (or the mobile accordion body) — recreates the
+   real People application's own field-list / Current-Proposed / status-
+   badge conventions as new, independent markup, never a live SVEGIP
+   screenshot or embed. All content is fictional. */
+.app-preview-card{background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 8px 24px rgba(20,10,45,.18)}
+.app-preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.app-preview-head h4{font-size:14px;color:var(--ink);letter-spacing:.01em}
+.app-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:800;letter-spacing:.04em;padding:5px 10px;border-radius:999px;white-space:nowrap}
+.app-badge.tone-good{background:var(--status-working-bg);color:var(--status-working-fg)}
+.app-badge.tone-info{background:var(--status-architecture-bg);color:var(--status-architecture-fg)}
+.app-badge.tone-pending{background:var(--status-planned-bg);color:var(--status-planned-fg)}
+.app-field-list{display:grid;gap:9px;margin:10px 0 0}
+.app-field-list div{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.app-field-list div:last-child{border-bottom:0}
+.app-field-list dt{color:var(--muted);font-weight:600}
+.app-field-list dd{margin:0;font-weight:700;color:var(--ink);text-align:right}
+.app-preview-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
+.app-preview-col h5{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--sve-purple2);margin:0 0 6px}
+.app-outcome-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.app-outcome-chip{font-size:11px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.app-outcome-chip.selected{background:var(--status-working-bg);color:var(--status-working-fg);border-color:transparent}
+.app-preview-note{margin:12px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}
+
 /* ===== Responsive ===== */
 @media(max-width:1024px){
  .layer-stack{display:block}
@@ -243,6 +309,10 @@ img{max-width:100%}
  .built .layer-connector{display:none}
  .mobile-capabilities{display:block}
  .foundation-hub{padding:21px 20px}
+ .people-stage-track{display:none}
+ .people-track-connector{display:none}
+ .app-preview-compare{grid-template-columns:1fr;gap:14px}
+ .app-field-list div{flex-wrap:wrap}
 }
 
 /* ===== Reduced motion ===== */

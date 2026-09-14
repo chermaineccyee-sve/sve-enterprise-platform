@@ -11,15 +11,17 @@ brand assets. It has no backend, no authentication, and no database.
 
 ## Status
 
-**Phase 1 + Phase 2 (Screen 04).** Four screens are implemented:
+**Phase 1 + Phase 2 (Screen 04) + Phase 3 (Screen 05).** Five screens are
+implemented:
 
 1. Executive Opening
 2. From Prototype to Platform
 3. Enterprise Platform Architecture
 4. What Has Already Been Built
+5. People / HRMS
 
-Screens 05–15 (People/HRMS, Payroll, Governance, Deployment, Roadmap, etc.) are
-directional only (see the root `SVEGIP_ENTERPRISE_ASSESSMENT.md` and
+Screens 06–15 (Workflow & Approvals, Payroll, Governance, Deployment, Roadmap,
+etc.) are directional only (see the root `SVEGIP_ENTERPRISE_ASSESSMENT.md` and
 `docs/architecture/`) and are **not** built here. The navigation chrome
 (`SCREENS` array in `app.js`) is structured so they can be appended later
 without a redesign — see `app.js`'s top comment.
@@ -37,6 +39,24 @@ the underlying service, database foundation, test coverage, application
 experience and milestone in plain language — no PR numbers, no raw internal
 identifiers, no schema-level detail.
 
+Screen 05 ("People / HRMS") is the first detailed operational showcase: a
+four-stage employee journey — JOIN, PROBATION, MOVEMENT, EXIT — each mapped to
+its real underlying repository capability (Onboarding, Probation &
+Confirmation, Employment Change, Offboarding). "Movement" is a presentation
+label over Employment Change only; the underlying terminology is preserved
+and shown alongside it. JOIN and PROBATION are explicitly qualified as not
+yet Workflow-connected; MOVEMENT shows the real Employee Master → HR
+Lifecycle → Workflow & Approval → Organisation → History chain; EXIT shows
+the real Offboarding → Approval → Employment Ends → Access Withdrawal
+Requested → Identity Deactivation Processing → Account & Sessions Revoked →
+History Preserved sequence, with its "automated scheduling is not yet
+configured" qualification kept visible in the main stage experience, never
+buried. Each stage includes a presentation-native, entirely fictional
+application-preview card (a single illustrative employee, "Aisha Rahman",
+carried across all four stages) recreating the real People application's own
+visual conventions — never a live SVEGIP screenshot, iframe, or API call, and
+never real employee data of any kind.
+
 ## Stack
 
 Vanilla HTML/CSS/JS. No framework, no bundler, no build step — matches
@@ -48,15 +68,15 @@ Vanilla HTML/CSS/JS. No framework, no bundler, no build step — matches
 ```
 index.html     entry point
 styles.css     design tokens (values copied from apps/svegip, not imported) + layout/motion
-app.js         screen registry, navigation, Screen 02/03/04 interaction logic, rendering
+app.js         screen registry, navigation, Screen 02/03/04/05 interaction logic, rendering
 assets/        copied brand assets (sve-logo.jpeg)
 test/          node:test suites, run with `npm test`
 ```
 
 ## Status-tag system
 
-Every module/capability on Screens 02, 03 and 04 is tagged with exactly one of
-four states, so the briefing stays credible under technical due diligence:
+Every module/capability on Screens 02, 03, 04 and 05 is tagged with exactly one
+of four states, so the briefing stays credible under technical due diligence:
 
 - **Working / Implemented** — real, running, tested code exists today.
 - **Architecture Defined** — a documented contract/boundary exists (an
