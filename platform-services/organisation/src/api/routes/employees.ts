@@ -50,7 +50,7 @@ function serializeDirectory(employee: Employee, assignment: EmploymentAssignment
   };
 }
 
-function serializeRestricted(employee: Employee, assignment: EmploymentAssignment | null) {
+function serializeRestricted(employee: Employee, assignment: EmploymentAssignment | null, managerDisplay: { name: string; title: string | null } | null) {
   return {
     personalEmail: employee.personalEmail,
     status: employee.status,
@@ -64,17 +64,61 @@ function serializeRestricted(employee: Employee, assignment: EmploymentAssignmen
           endDate: assignment.endDate,
           effectiveFrom: assignment.effectiveFrom,
           effectiveTo: assignment.effectiveTo,
-          reportsToAssignmentId: assignment.reportsToAssignmentId,
+          // reportsToAssignmentId is deliberately NOT serialized — an
+          // internal assignment id is never sent to a frontend; managerDisplay
+          // below is the one supported representation of this edge.
           changeReason: assignment.changeReason,
         }
       : null,
+    // PR #12: "Reports To" as a human-readable name/title, never a raw id
+    // — see employeeService.ts's resolveManagerDisplay for the
+    // cross-entity classification guard behind this. null means either
+    // "no manager" or "not visible to you"; the caller shows "Not
+    // assigned" for both, by design (see docs/architecture/organisation-
+    // employee-master.md "Manager display resolution").
+    managerDisplay,
+  };
+}
+
+/**
+ * PR #12 security review: the assignment-history list (feeding the
+ * Employee Profile's History tab) was returning raw EmploymentAssignment
+ * domain objects — including this row's own id, employeeId,
+ * reportsToAssignmentId, and createdBy/updatedBy (Identity user ids) —
+ * straight over HTTP with no serializer at all. None of these are ever
+ * rendered or used by the frontend (see apps/svegip/app.js's
+ * hrmsProfileHistoryEvents, which reads only effectiveFrom/effectiveTo/
+ * changeReason). This mirrors serializeRestricted's own field set for a
+ * single current assignment, applied to every historical row: only
+ * display-relevant fields, never an internal identifier of any kind. The
+ * endpoint's access control (EmploymentAssignmentService.listAssignments'
+ * own READ_RESTRICTED check) is unchanged — this only narrows what a
+ * caller who already passed that check receives.
+ */
+function serializeAssignmentHistory(assignment: EmploymentAssignment) {
+  return {
+    legalEntityId: assignment.legalEntityId,
+    businessUnitId: assignment.businessUnitId,
+    departmentId: assignment.departmentId,
+    positionId: assignment.positionId,
+    employmentType: assignment.employmentType,
+    status: assignment.status,
+    startDate: assignment.startDate,
+    confirmationDate: assignment.confirmationDate,
+    probationEndDate: assignment.probationEndDate,
+    endDate: assignment.endDate,
+    effectiveFrom: assignment.effectiveFrom,
+    effectiveTo: assignment.effectiveTo,
+    workLocation: assignment.workLocation,
+    workArrangement: assignment.workArrangement,
+    changeReason: assignment.changeReason,
   };
 }
 
 function serializeView(view: EmployeeView) {
   return {
     ...serializeDirectory(view.employee, view.currentAssignment),
-    restricted: view.canReadRestricted ? serializeRestricted(view.employee, view.currentAssignment) : null,
+    restricted: view.canReadRestricted ? serializeRestricted(view.employee, view.currentAssignment, view.managerDisplay) : null,
   };
 }
 
@@ -177,7 +221,7 @@ export async function handleListAssignments(ctx: RouteContext, employeeId: strin
   try {
     const actor = await requireActor(ctx.req, ctx.container);
     const assignments = await ctx.container.assignments.listAssignments(toActorContext(actor, ctx.req), employeeId);
-    sendSuccess(ctx.res, 200, { assignments }, ctx.correlationId);
+    sendSuccess(ctx.res, 200, { assignments: assignments.map(serializeAssignmentHistory) }, ctx.correlationId);
   } catch (error) {
     respondError(ctx.res, ctx.correlationId, error);
   }

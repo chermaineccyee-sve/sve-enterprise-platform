@@ -41,6 +41,12 @@ export function createInMemoryEmploymentAssignmentRepository(store: InMemoryStor
     async findCurrentPrimary(employeeId: string): Promise<EmploymentAssignment | null> {
       return store.employmentAssignments.find((a) => a.employeeId === employeeId && a.effectiveTo === null && a.isPrimary) ?? null;
     },
+    async findEffectiveAsOf(employeeId: string, asOfDate: string): Promise<EmploymentAssignment | null> {
+      const candidates = store.employmentAssignments
+        .filter((a) => a.employeeId === employeeId && a.isPrimary && a.effectiveFrom <= asOfDate && (a.effectiveTo === null || a.effectiveTo >= asOfDate))
+        .sort((x, y) => (x.effectiveFrom < y.effectiveFrom ? 1 : x.effectiveFrom > y.effectiveFrom ? -1 : 0));
+      return candidates[0] ?? null;
+    },
     async list(filter: AssignmentFilter): Promise<EmploymentAssignment[]> {
       return store.employmentAssignments.filter((a) => {
         if (filter.employeeId && a.employeeId !== filter.employeeId) return false;

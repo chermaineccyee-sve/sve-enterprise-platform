@@ -54,11 +54,18 @@ async function checkAccess(rbac: RbacService, userId: string, baseKey: string, p
   return rbac.authorize({ userId, permissionKey: privilegedKey, target });
 }
 
+/** Today's date as YYYY-MM-DD (UTC) — the "as of" date for calendar-current assignment resolution (see EmploymentAssignmentRepository.findEffectiveAsOf). Isolated to one call site so a future need to inject a fixed clock for testing has exactly one place to do it. */
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export interface EmployeeView {
   employee: Employee;
   currentAssignment: import("../domain/employee.ts").EmploymentAssignment | null;
   /** Whether restricted-HR fields (status, dates, probation, termination, history) may be shown for this employee — directory-level fields are always included once this view is returned at all. */
   canReadRestricted: boolean;
+  /** PR #12: this employee's manager, already resolved to a display name/title — see resolveManagerDisplay. null both when there is no manager AND when the caller lacks visibility into the manager's own record; the caller cannot distinguish the two, by design. Only ever populated alongside canReadRestricted (never independently more exposed). */
+  managerDisplay: { name: string; title: string | null } | null;
 }
 
 export function createEmployeeService(deps: {
@@ -74,6 +81,60 @@ export function createEmployeeService(deps: {
   async function findActiveEmployeeIdForUser(userId: string): Promise<string | null> {
     const link = await deps.users.findActiveLinkByUserId(userId);
     return link?.employeeId ?? null;
+  }
+
+  /**
+   * PR #12: resolves a "Reports To" edge into a human-readable
+   * name/title — NEVER a raw assignment/employee id — for the Employee
+   * Profile's Organisation & Reporting section and My SVE's Employment
+   * Summary. Deliberately independent of isDirectManagerOf/
+   * resolveDirectManagerUserId below (PR #8, Workflow-facing, must not be
+   * touched or reused here — see docs/architecture/organisation-employee-
+   * master.md "Manager display resolution vs. Workflow manager routing").
+   *
+   * Cross-entity guard: showing a manager's name is itself a directory-
+   * level disclosure of the MANAGER's own record, so it is gated by the
+   * same base READ check that would apply to viewing the manager
+   * directly (e.g. a manager at SK Lai & Partners cannot be named to a
+   * caller without RESTRICTED-tier access, even for a report the caller
+   * can otherwise see) — never inferred merely from being able to see
+   * the report. `bypassClassification` is true only for a caller viewing
+   * their OWN manager (My SVE / getMyEmployee), mirroring the existing
+   * self-view bypass for the employee's own record.
+   */
+  async function resolveManagerDisplay(
+    actor: ActorContext,
+    assignment: import("../domain/employee.ts").EmploymentAssignment | null,
+    opts: { bypassClassification: boolean },
+  ): Promise<{ name: string; title: string | null } | null> {
+    if (!assignment) return null;
+    let managerAssignment: import("../domain/employee.ts").EmploymentAssignment | null = null;
+    if (assignment.reportsToAssignmentId) {
+      managerAssignment = await deps.assignments.findById(assignment.reportsToAssignmentId);
+    } else if (assignment.positionId) {
+      const position = await deps.orgStructure.findPositionById(assignment.positionId);
+      if (position?.reportsToPositionId) {
+        const holders = await deps.assignments.findByPositionId(position.reportsToPositionId, true);
+        managerAssignment = holders[0] ?? null;
+      }
+    }
+    if (!managerAssignment) return null;
+
+    const managerEmployee = await deps.employees.findById(managerAssignment.employeeId);
+    if (!managerEmployee) return null;
+
+    if (!opts.bypassClassification) {
+      const managerLegalEntity = await deps.organisation.findLegalEntityById(managerAssignment.legalEntityId);
+      const managerCeiling = managerLegalEntity ? classificationCeilingForEntity(managerLegalEntity) : "INTERNAL";
+      const access = await checkAccess(deps.rbac, actor.userId, PERMISSIONS.READ, PERMISSIONS.READ_PRIVILEGED, {
+        legalEntityId: managerAssignment.legalEntityId,
+        recordClassification: managerCeiling,
+      });
+      if (!access.allowed) return null;
+    }
+
+    const title = managerAssignment.positionId ? ((await deps.orgStructure.findPositionById(managerAssignment.positionId))?.title ?? null) : null;
+    return { name: managerEmployee.preferredName || managerEmployee.legalName, title };
   }
 
   async function isDirectManagerOf(actorUserId: string, targetAssignment: import("../domain/employee.ts").EmploymentAssignment): Promise<boolean> {
@@ -201,11 +262,16 @@ export function createEmployeeService(deps: {
     async getEmployee(actor: ActorContext, id: string): Promise<EmployeeView> {
       const employee = await deps.employees.findById(id);
       if (!employee) throw new NotFoundError("Employee");
-      const assignment = await deps.assignments.findCurrentPrimary(id);
+      // Calendar-current, not "still open in the pipeline" — see
+      // EmploymentAssignmentRepository.findEffectiveAsOf. A future-dated
+      // transfer must not appear as this employee's current assignment
+      // before its own effective date arrives.
+      const assignment = await deps.assignments.findEffectiveAsOf(id, todayIsoDate());
 
       const selfEmployeeId = await findActiveEmployeeIdForUser(actor.userId);
       if (selfEmployeeId === id) {
-        return { employee, currentAssignment: assignment, canReadRestricted: true };
+        const managerDisplay = await resolveManagerDisplay(actor, assignment, { bypassClassification: true });
+        return { employee, currentAssignment: assignment, canReadRestricted: true, managerDisplay };
       }
 
       const targets = await classificationTargetsFor(assignment);
@@ -248,19 +314,26 @@ export function createEmployeeService(deps: {
         });
       }
 
-      return { employee, currentAssignment: assignment, canReadRestricted: restrictedAllowed.allowed };
+      const managerDisplay = restrictedAllowed.allowed ? await resolveManagerDisplay(actor, assignment, { bypassClassification: false }) : null;
+      return { employee, currentAssignment: assignment, canReadRestricted: restrictedAllowed.allowed, managerDisplay };
     },
 
     async listEmployees(actor: ActorContext, filter: EmployeeFilter): Promise<EmployeeView[]> {
       const candidates = await deps.employees.list(filter);
       const views: EmployeeView[] = [];
+      const asOfDate = todayIsoDate();
       for (const employee of candidates) {
-        const assignment = await deps.assignments.findCurrentPrimary(employee.id);
+        const assignment = await deps.assignments.findEffectiveAsOf(employee.id, asOfDate);
         const targets = await classificationTargetsFor(assignment);
         const baseAllowed = await checkAccess(deps.rbac, actor.userId, PERMISSIONS.READ, PERMISSIONS.READ_PRIVILEGED, targets.base);
         if (!baseAllowed.allowed) continue;
         const restrictedAllowed = await checkAccess(deps.rbac, actor.userId, PERMISSIONS.READ_RESTRICTED, PERMISSIONS.READ_RESTRICTED_PRIVILEGED, targets.restricted);
-        views.push({ employee, currentAssignment: assignment, canReadRestricted: restrictedAllowed.allowed });
+        // managerDisplay is intentionally omitted here (always null) — the
+        // Employee Directory never shows "Reports To"; resolving it per
+        // row would be an unnecessary N+1 lookup for a field never
+        // rendered. Only getEmployee/getMyEmployee (single-record views)
+        // resolve it.
+        views.push({ employee, currentAssignment: assignment, canReadRestricted: restrictedAllowed.allowed, managerDisplay: null });
       }
       return views;
     },

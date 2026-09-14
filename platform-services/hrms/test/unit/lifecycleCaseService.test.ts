@@ -212,3 +212,58 @@ test("sensitive HR notes never leak into the generic security audit log", async 
   const serialized = JSON.stringify(auditRows);
   assert.equal(serialized.includes(confidentialText), false, "decision notes must never appear in the generic security audit log");
 });
+
+// PR #12 final security verification: the Employee Profile's Lifecycle
+// and History tabs are populated via GET /hrms/lifecycle/cases?employeeId=,
+// which calls listCases with an employeeId filter. This must independently
+// authorise EACH candidate case server-side (the same resolveAccess()
+// getCase already uses) and silently EXCLUDE any case the caller cannot
+// see — never include it and rely on the frontend to hide it. This is the
+// list-path analogue of the existing "MY entity access does not imply SG
+// entity access" / SKL getCase tests above, which only ever exercised the
+// single-case path.
+test("listCases (employeeId-filtered) independently authorises each case and excludes ones the caller cannot see, rather than trusting the employeeId filter alone", async () => {
+  const deps = await setup();
+  const hrUser = randomUUID();
+  await grantRole(deps.rbacRepo, hrUser, FULL_HR_PERMS, { scopeType: "group" });
+  await grantRole(
+    deps.rbacRepo,
+    hrUser,
+    [
+      { key: PERMISSIONS.CREATE_PRIVILEGED, maxClassification: "RESTRICTED" as const },
+      { key: PERMISSIONS.READ_PRIVILEGED, maxClassification: "RESTRICTED" as const },
+    ],
+    { scopeType: "group" },
+  );
+
+  const employee = await hireFictionalEmployee(deps, deps.skl.id, "Fictional Listing SKL Test");
+  const created = await deps.onboarding.createOnboardingCase(actor(hrUser), { employeeId: employee.id, legalEntityId: deps.skl.id, hrOwnerUserId: hrUser });
+
+  // Group-wide, CONFIDENTIAL-tier only — enough to list/read ordinary
+  // cases, but not enough for an SK Lai & Partners (RESTRICTED) one.
+  const groupWideNonPrivileged = randomUUID();
+  await grantRole(deps.rbacRepo, groupWideNonPrivileged, [{ key: PERMISSIONS.READ, maxClassification: "CONFIDENTIAL" }], { scopeType: "group" });
+
+  const filteredViews = await deps.lifecycle.listCases(actor(groupWideNonPrivileged), { employeeId: employee.id });
+  assert.equal(filteredViews.length, 0, "a case the caller cannot read must be excluded from the list, not merely left for the frontend to hide");
+
+  // Sanity: the SAME case, listed by a privileged caller, IS present —
+  // proving the emptiness above is an authorisation exclusion, not a
+  // broken employeeId filter or a fixture error.
+  const privilegedViews = await deps.lifecycle.listCases(actor(hrUser), { employeeId: employee.id });
+  assert.ok(privilegedViews.some((v) => v.case.id === created.id));
+});
+
+test("listCases excludes an unauthorised MY-scoped caller from another employee's SG case, mirroring getCase's own cross-entity denial", async () => {
+  const deps = await setup();
+  const hrUser = randomUUID();
+  await grantRole(deps.rbacRepo, hrUser, FULL_HR_PERMS, { scopeType: "group" });
+  const employee = await hireFictionalEmployee(deps, deps.sg.id, "Fictional Listing SG Test");
+  await deps.onboarding.createOnboardingCase(actor(hrUser), { employeeId: employee.id, legalEntityId: deps.sg.id, hrOwnerUserId: hrUser });
+
+  const myOnlyUser = randomUUID();
+  await grantRole(deps.rbacRepo, myOnlyUser, [{ key: PERMISSIONS.READ, maxClassification: "CONFIDENTIAL" }], { scopeType: "legal_entity", legalEntityId: deps.my.id });
+
+  const views = await deps.lifecycle.listCases(actor(myOnlyUser), { employeeId: employee.id });
+  assert.equal(views.length, 0, "MY-scoped access must not reach an SG employee's case via the list endpoint either");
+});
