@@ -1,0 +1,9 @@
+{
+  "name": "sve-executive-briefing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Interactive executive briefing on the SVE Group Enterprise Platform. Static HTML/CSS/JS, no build step, fully isolated from apps/svegip.",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
