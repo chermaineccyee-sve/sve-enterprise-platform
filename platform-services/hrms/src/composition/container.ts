@@ -31,6 +31,7 @@ import { createOrganisationContainer, type OrganisationContainer } from "../../.
 import { createEmploymentAssignmentServiceForTransaction } from "../../../organisation/src/composition/transactionScope.ts";
 import { createWorkflowContainer, type WorkflowContainer } from "../../../workflow/src/composition/container.ts";
 import { createPgLifecycleCaseRepository } from "../repositories/postgres/pgLifecycleCaseRepository.ts";
+import { createPgIdentityDeactivationRequestRepository } from "../repositories/postgres/pgIdentityDeactivationRequestRepository.ts";
 import { createPgLifecycleEventRepository } from "../repositories/postgres/pgLifecycleEventRepository.ts";
 import { createPgLifecycleMilestoneRepository } from "../repositories/postgres/pgLifecycleMilestoneRepository.ts";
 import { createPgProbationReviewRepository } from "../repositories/postgres/pgProbationReviewRepository.ts";
@@ -131,7 +132,7 @@ export async function createHrmsContainer(db: DatabaseProvider, opts?: { secrets
   const onboarding = createOnboardingService({ lifecycle });
   const probation = createProbationService({ lifecycle, cases: caseRepo, reviews: reviewRepo, organisation, rbac, audit });
   const employmentChange = createEmploymentChangeService({ lifecycle });
-  const offboarding = createOffboardingService({ lifecycle, users });
+  const offboarding = createOffboardingService({ lifecycle, users, deactivationRequests: createPgIdentityDeactivationRequestRepository(db) });
 
   // Registers the two SYSTEM_ACTION completion handlers into `workflow`'s
   // OWN registry and returns the narrow port approvalService depends on

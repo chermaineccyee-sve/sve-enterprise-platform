@@ -30,6 +30,10 @@ export function createInMemoryIdentityDeactivationRequestRepository(store: InMem
     async findByIdForUpdate(id: string): Promise<HrIdentityDeactivationRequest | null> {
       return store.deactivationRequests.find((r) => r.id === id) ?? null;
     },
+    async findByCaseId(caseId: string): Promise<HrIdentityDeactivationRequest | null> {
+      const matches = store.deactivationRequests.filter((r) => r.caseId === caseId);
+      return matches[matches.length - 1] ?? null;
+    },
     async listByStatus(status: DeactivationRequestStatus): Promise<HrIdentityDeactivationRequest[]> {
       return store.deactivationRequests.filter((r) => r.status === status);
     },

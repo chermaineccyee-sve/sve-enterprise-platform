@@ -95,6 +95,19 @@ export interface HrIdentityDeactivationRequestRepository {
   findById(id: string): Promise<HrIdentityDeactivationRequest | null>;
   /** Row-level `SELECT ... FOR UPDATE` lock on the real Postgres implementation — serializes two workers processing the SAME request (Race A). In-memory behaves exactly like findById. */
   findByIdForUpdate(id: string): Promise<HrIdentityDeactivationRequest | null>;
+  /**
+   * PR #13: the one request row (if any) created by THIS case's own
+   * offboarding completion — never a list, since offboardingService
+   * creates at most one per case (a case completes at most once; see
+   * domain/stateMachine.ts's terminal-status rule). Read-only, no lock —
+   * exists so a caller who can already read the case (via
+   * lifecycleCaseService.resolveAccess) can project a deactivation status
+   * (not requested/requested/completed) without a new permission model of
+   * its own. Returns null when the employee had no active Identity link
+   * at completion time (offboardingService never creates a request in
+   * that case).
+   */
+  findByCaseId(caseId: string): Promise<HrIdentityDeactivationRequest | null>;
   listByStatus(status: DeactivationRequestStatus): Promise<HrIdentityDeactivationRequest[]>;
   markCompleted(id: string): Promise<HrIdentityDeactivationRequest>;
   /**

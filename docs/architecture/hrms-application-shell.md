@@ -393,3 +393,267 @@ covers only the SVEGIP-side presentation changes.
 - No new SVEGIP↔platform-services API surface was added beyond the fields
   already present on the existing `/employees/:id` and `/employees/me`
   responses (`managerDisplay`); no new Netlify proxy routes were needed.
+
+## 14. PR #13: HR Lifecycle & Approval Experience
+
+Closes the two gaps §10 explicitly deferred: HR Lifecycle case-detail was
+read-only, and none of the four type-specific completion/decision
+endpoints were wired to a real UI action. This PR turns the four
+lifecycle areas into a genuine operational process — Submit/Prepare →
+Workflow Approval → Approve/Reject/Return → HR Completion → Organisation
+mutation where applicable → Employee Profile/History reflects the result
+— using only `organisation`/`hrms`/`workflow`'s existing capabilities.
+Domain ownership is unchanged and non-negotiable: HRMS owns cases/events/
+milestones/probation; Workflow owns approval orchestration; Organisation
+owns the Employee Master and effective-dating; Identity owns account
+deactivation. SVEGIP remains presentation/integration only — no new
+workflow engine, no duplicated validation.
+
+### 14.1 Visible vs authoritative — the UI boundary
+
+Every field this PR shows is read from a backend response at the moment
+of rendering; nothing is computed, cached across a decision, or assumed.
+Concretely:
+
+- The case-detail screen's data (`loadHrmsCaseDetailData`) is fetched
+  fresh on every `goHrmsCase()` navigation and after every action that
+  changes state (a decision, a probation outcome) — never patched
+  optimistically in the DOM. `hrmsCaseDataCache` holds only the last
+  fetch for the currently-open case, purely to avoid a second network
+  round-trip when switching tabs.
+- The Employment Change case's "Current" position/department/entity
+  comes from `/employees/:id`'s `currentAssignment`, which is already
+  effective-dated as of today (PR #12's fix, `organisation-employee-
+  master.md` §21.1) — this PR added no new date logic. "Proposed" comes
+  from the new `proposedChange` projection (§14.6) and is never merged
+  into "Current" regardless of how close its effective date is; it moves
+  to "Current" only once the underlying assignment actually takes effect,
+  observed the next time `/employees/:id` is fetched.
+- A probation, employment-change, or offboarding decision/completion
+  action always calls the real backend endpoint and re-renders from its
+  response (or from a follow-up `GET`) — there is no "optimistic complete"
+  anywhere in this PR.
+
+### 14.2 Lifecycle list and case detail
+
+The existing shared list/detail pair (§3) is extended, not replaced,
+across all four `lifecycleType`s:
+
+- **List columns** (`renderHrmsLifecycleList`) are limited to what the
+  backend actually returns per case: Employee (resolved via
+  `hrmsEmployeeNameLookup`, never a raw id), Process (humanized
+  `lifecycleType`), Current Status/Stage, Initiated Date, and — only for
+  `employment_change`/`offboarding` (the two `SUBMITTABLE_TYPES`, unchanged
+  from PR #9) — an Approval Status column via `hrmsApprovalStatusLabel`,
+  itself a live read of `GET /hrms/lifecycle/cases/:id/approval`, never a
+  cached or inferred value. Onboarding/probation never show a fabricated
+  Approval Status, since neither type is ever submitted to Workflow.
+- **Case detail tabs are type-aware** (`HRMS_CASE_TABS_BY_TYPE`), not a
+  one-size-fits-all set — Approvals appears only for the two submittable
+  types (the only ones with a real Workflow relationship); Milestones
+  appears only for onboarding/offboarding (the only types with a real
+  milestone concept in HRMS's own domain model). No empty decorative tab
+  is ever rendered, per the brief's explicit instruction.
+  - **Onboarding**: Overview / Process Details (milestones checklist +
+    manual complete) / Milestones / History.
+  - **Probation & Confirmation**: Overview / Process Details (period,
+    reviewer, review status, decision, recommendation, decision date) /
+    History — the strongest flow, as the brief required, driven entirely
+    by `HrProbationReview` records already modelled in PR #7
+    (`hrms-employee-lifecycle.md` §7).
+  - **Employment Change**: Overview / Process Details (Current vs
+    Proposed, §14.1) / Approvals / History.
+  - **Offboarding**: Overview / Process Details (last working day,
+    assignment end-state, Identity deactivation status, §14.6) /
+    Approvals / Milestones / History.
+- **History** (`hrmsCaseHistoryTab`) is a human-readable chronological
+  merge of the case's own lifecycle events and milestones (`GET .../
+  events`, `GET .../milestones`) — humanized via the same `hrmsLabel()`
+  enum-to-title-case convention already used across Employee Profile
+  (§13), never a raw `eventType`/internal event name. No new event store
+  was introduced; this reuses exactly what PR #7 already records.
+
+### 14.3 Probation review — the real decision action
+
+`recordHrmsProbationDecision` is the one genuinely operational action this
+PR wires for onboarding/probation cases: it calls the real
+`POST /cases/:id/probation-decision`, then re-fetches the case (never a
+client-side "recorded" flip). Decision controls (confirm/extend/
+unsuccessful) render only while the current review's `reviewStatus` is
+`PENDING` (per HRMS's own state machine, `hrms-employee-lifecycle.md`
+§7) — once decided, the UI reflects the backend's own resulting state
+(confirmed/extended-with-a-new-period/unsuccessful-and-completed) rather
+than implying a decision is still open.
+
+### 14.4 Approval experience — real Workflow tasks, never optimistic
+
+Approvals (the existing nav item) and each case's Approvals tab both
+render live Workflow task/decision data — no duplicated authority model.
+`decideHrmsTask` (existing from PR #11, hardened in this PR):
+
+- Calls the real `POST /workflow/tasks/:id/decide` and always re-renders
+  from the backend afterward (`renderSection()`), including on failure —
+  a task the backend reports as already decided, cancelled, or otherwise
+  stale is reflected honestly rather than left showing a stale "Pending"
+  state or forcing a browser-held status.
+- Gained a duplicate-submission guard (`hrmsPendingDecisions`, a `Set`
+  keyed by task id): a second click on the same task while the first
+  request is still in flight is a client-side no-op, purely a UX
+  courtesy — the authoritative guard against a genuine double-decision
+  remains Workflow's own compare-and-swap `transitionStatus` (proven
+  under real concurrency in `platform-services/workflow`'s
+  "two concurrent decisions on the same task produce exactly one
+  committed decision" test).
+- Never pre-validates `permittedDecisions` client-side (unchanged
+  from PR #11, §7) — an impermissible decision surfaces as the backend's
+  own error text.
+- **My Tasks** stays a personal cross-process queue (existing screen,
+  unchanged authority model) — it does not duplicate Approvals' own
+  candidate/eligibility resolution; it lists exactly what
+  `GET /workflow/tasks` (candidate-scoped to the caller) returns, and
+  refreshes the same way after a decision.
+
+### 14.5 HR execution principal vs decision actor vs business approver vs target employee
+
+PR #9's distinction (`hrms-workflow-integration.md` §3d) is never
+collapsed in this UI. Concretely:
+
+- The Approvals tab and Approvals/My Tasks screens show only the
+  **decision** (who approved/rejected/returned, and when, is available
+  from Workflow's own decision record) framed as a process outcome —
+  never the internal **execution principal** (the HR user whose
+  authority the completion write runs under, re-resolved fresh server-
+  side at execution time) and never the **target employee** conflated
+  with either. A reviewer sees "Approved" / "Rejected" / "Returned" with
+  a timestamp, not a security-principal identifier.
+- No screen in this PR ever asks the browser to assert which principal a
+  write should run as — every completion call identifies only the case
+  id; HRMS resolves `hrOwnerUserId` and revalidates authority live at its
+  own authoritative boundary (`completeCaseWithAuthoritativeWrite`),
+  exactly as before this PR.
+
+### 14.6 Employment Change and Offboarding — no direct Organisation/Identity mutation
+
+Both screens are strictly a view over cases already flowing through
+HRMS→Workflow→HRMS-completion→Organisation-mutation
+(`hrms-workflow-integration.md` §3b) — this PR adds no button that calls
+Organisation or Identity directly.
+
+- **Employment Change**: "Current" vs "Proposed" (§14.1) is built from
+  two small, additive backend read paths, both allowlisted rather than
+  exposing HRMS's internal free-form completion-input bag verbatim:
+  `HrLifecycleCase.pendingCompletionInput` is now serialized as
+  `proposedChange` on the case's restricted-tier response, through an
+  explicit `PROPOSED_CHANGE_ALLOWED_KEYS` allowlist (`hrms/src/api/
+  routes/lifecycle.ts`) that deliberately excludes
+  `reportsToAssignmentId` and any unrecognized key — defense-in-depth
+  against a caller having stuffed something internal into that bag. A
+  case not yet submitted shows an honest "not yet submitted" state
+  rather than inventing values.
+- **Offboarding**: deactivation status is a new read-only projection,
+  `GET /cases/:id/deactivation-status` (`offboardingService
+  .getDeactivationStatus`, gated by the exact same `lifecycle.getCase`
+  access check as the case itself), humanized in the UI as one of
+  **not requested / requested / retry pending / completed** — never the
+  raw `hr_identity_deactivation_requests.status` enum, never sensitive
+  free-text. This is a pure read over PR #10's existing
+  offboarding-completed→deactivation-request→Identity-processor→
+  disable+revoke+audit chain (`identity-offboarding-revocation.md`); no
+  code path in this PR calls Identity, and none creates or resolves a
+  deactivation request — that remains exclusively `completeOffboarding`'s
+  job, unchanged.
+
+Both of these are the only two backend additions in this PR (see
+`hrms-employee-lifecycle.md` §15 and `hrms-workflow-integration.md` §18
+for their exact route/service documentation) — every other screen in
+this PR consumes routes that already existed.
+
+### 14.7 Permissions, self-view, and sensitive content
+
+No new permission or access model was introduced; every screen continues
+to rely on `organisation`/`hrms`/`workflow`'s own existing RBAC/
+classification enforcement (§9), extended only insofar as it now renders
+write actions, not just reads. In particular:
+
+- **Self-view stays conservative**: an employee viewing their own record
+  does not gain visibility into every case, decision note, or event —
+  HRMS's own `resolveAccess` self-view bypass (unchanged) already limits
+  self-access to base+restricted tiers, never the decision tier
+  (`hrms-employee-lifecycle.md` §12); this PR invents no broader
+  self-view than that. My SVE continues to show employment outcomes only
+  through the Employee Master, post-completion — this PR added no
+  employee-facing case/decision feed.
+- **Manager/Approver** sees only assigned-decision information (their own
+  Workflow tasks) — never the fuller HR administrative view of a case.
+- **No sensitive free-text** (termination/disciplinary/probation notes)
+  is rendered in any list or the Approvals tab; only structured,
+  already-classification-controlled fields the backend serializes for
+  the caller's tier are shown, unchanged from HRMS's existing
+  three-tier model (§12 of `hrms-employee-lifecycle.md`).
+- Entity/SK Lai & Partners segregation, Group-HQ non-implication, and the
+  System-Administrator/Finance-get-no-automatic-lifecycle-access rules
+  are all enforced identically to §4/§9 above — this PR adds no
+  exception.
+
+### 14.8 Stale/concurrent behaviour
+
+The UI treats the backend as authoritative in every case, per §14.1/
+14.4: an already-decided task, an already-completed case, a returned
+task, a lost permission, or an actor disabled mid-screen are handled
+entirely by `hrms`/`workflow`'s existing checks
+(`requireActiveAccount`, the CAS `transitionStatus`, `resolveAccess`)
+and surfaced to the user as the backend's own honest response — this PR
+adds no client-side prediction of any of those outcomes, and the
+`hrmsPendingDecisions` guard (§14.4) is UX-only, not a substitute for
+that server-side compare-and-swap.
+
+### 14.9 Mobile and accessibility
+
+Reuses the existing responsive/table-to-card and drawer-nav conventions
+(§8) for every new lifecycle list, case-detail tab set, and approval
+action — no squeezed desktop table. Case-detail tabs use the existing
+accessible tab pattern from Employee Profile (§13): keyboard-navigable,
+labelled, with visible focus states; status is always paired with text
+(never colour alone), and every decision control (Approve/Reject/Return,
+probation decision buttons) is a real `<button>`, operable without a
+mouse.
+
+### 14.10 What PR #13 intentionally does not implement
+
+- No new workflow engine, no generic event bus, no generic notification
+  framework — unchanged exclusions from §10, still out of scope.
+- No new aggregation API for HR Dashboard — the dashboard's lifecycle-
+  area links (added in this PR) reuse the same client-computed counts
+  approach as §7, never a fabricated total.
+- No "Submitted by"/decision-actor display-name resolution beyond what
+  already existed (§10) — Approvals still shows a decision outcome, not
+  a resolved approver name, consistent with §14.5's masking.
+- Leave, Attendance, Payroll, Payslips, iClaims, Accounting Pro,
+  Performance Management, Training, Recruitment/ATS, salary/compensation
+  data, native mobile app, SSO/passkeys, AWS/server deployment, or a
+  Netlify production cutover — none of this PR's screens assume or
+  depend on any of them; a future Leave/Attendance module would extend
+  HRMS's own case model the same way this PR extended its UI, not
+  require any change here.
+
+### 14.11 Regression
+
+`platform-services/hrms`: 92 → 97 (+5: `getDeactivationStatus`
+projection tests and `proposedChange` allowlist assertions in
+`test/integration/identityDeactivation.test.ts` and `http.test.ts`).
+`platform-services/identity` (105), `data-vault` (47), `organisation`
+(84), and `workflow` (70) are unaffected by this PR and unchanged in
+count. `apps/svegip`: 8 → 29 (+21: `test/employeeMaster.test.mjs`
+unaffected at 9; `test/hrLifecycleUI.test.mjs` new, 12 tests covering HR
+Dashboard, lifecycle list, all four case-detail tab sets, probation
+decision-button visibility, Employment Change Current/Proposed
+separation, offboarding deactivation status, Approvals-tab actor
+masking, and the duplicate-submission guard). All packages green against
+a real Postgres database (`--test-concurrency=1` for every
+`platform-services/*` integration suite, per the shared-database
+convention documented in `hrms-employee-lifecycle.md` §18/§19 and
+reaffirmed here — running these suites' files in parallel against one
+physical database causes cross-file interference from each file's own
+reset-on-start `withTestDb`, which is a known artifact of that shared-
+schema convention, not an application defect). No existing test was
+weakened, skipped, or deleted.

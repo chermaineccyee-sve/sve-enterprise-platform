@@ -23,6 +23,7 @@ import { createPgLifecycleEventRepository } from "../../src/repositories/postgre
 import { createPgLifecycleMilestoneRepository } from "../../src/repositories/postgres/pgLifecycleMilestoneRepository.ts";
 import { createPgProbationReviewRepository } from "../../src/repositories/postgres/pgProbationReviewRepository.ts";
 import { createPgLifecycleTransaction } from "../../src/repositories/postgres/pgLifecycleTransaction.ts";
+import { createPgIdentityDeactivationRequestRepository } from "../../src/repositories/postgres/pgIdentityDeactivationRequestRepository.ts";
 import { createLifecycleCaseService } from "../../src/services/lifecycleCaseService.ts";
 import { createOnboardingService } from "../../src/services/onboardingService.ts";
 import { createProbationService } from "../../src/services/probationService.ts";
@@ -69,7 +70,7 @@ function buildContainer(db: Parameters<typeof createPgUserRepository>[0]) {
   const onboarding = createOnboardingService({ lifecycle });
   const probation = createProbationService({ lifecycle, cases: caseRepo, reviews: reviewRepo, organisation, rbac, audit });
   const employmentChange = createEmploymentChangeService({ lifecycle });
-  const offboarding = createOffboardingService({ lifecycle, users });
+  const offboarding = createOffboardingService({ lifecycle, users, deactivationRequests: createPgIdentityDeactivationRequestRepository(db) });
 
   return { users, organisation, rbacRepo, rbac, audit, employees, orgAssignments, caseRepo, eventRepo, reviewRepo, lifecycle, onboarding, probation, employmentChange, offboarding };
 }

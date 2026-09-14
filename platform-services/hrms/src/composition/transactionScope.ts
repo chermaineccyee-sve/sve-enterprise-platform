@@ -28,6 +28,7 @@ import { createPgOrganisationRepository } from "../../../identity/src/repositori
 import { createPgAuditRepository } from "../../../identity/src/repositories/postgres/pgAuditRepository.ts";
 import { createEmploymentAssignmentServiceForTransaction } from "../../../organisation/src/composition/transactionScope.ts";
 import { createPgLifecycleCaseRepository } from "../repositories/postgres/pgLifecycleCaseRepository.ts";
+import { createPgIdentityDeactivationRequestRepository } from "../repositories/postgres/pgIdentityDeactivationRequestRepository.ts";
 import { createPgLifecycleEventRepository } from "../repositories/postgres/pgLifecycleEventRepository.ts";
 import { createPgLifecycleMilestoneRepository } from "../repositories/postgres/pgLifecycleMilestoneRepository.ts";
 import { createPgProbationReviewRepository } from "../repositories/postgres/pgProbationReviewRepository.ts";
@@ -64,5 +65,5 @@ export function createEmploymentChangeServiceForTransaction(tx: DatabaseProvider
 }
 
 export function createOffboardingServiceForTransaction(tx: DatabaseProvider, rbac: RbacService): OffboardingService {
-  return createOffboardingService({ lifecycle: createLifecycleCaseServiceForTransaction(tx, rbac), users: createPgUserRepository(tx) });
+  return createOffboardingService({ lifecycle: createLifecycleCaseServiceForTransaction(tx, rbac), users: createPgUserRepository(tx), deactivationRequests: createPgIdentityDeactivationRequestRepository(tx) });
 }

@@ -28,8 +28,11 @@ import type { EmploymentAssignment } from "../../../organisation/src/domain/empl
 import type { UserRepository } from "../../../identity/src/repositories/types.ts";
 import { ValidationError } from "../domain/errors.ts";
 import type { HrLifecycleCase, CreateMilestoneInput, HrLifecycleMilestone, MilestoneStatus } from "../domain/lifecycle.ts";
+import type { HrIdentityDeactivationRequestRepository } from "../repositories/types.ts";
 
-export function createOffboardingService(deps: { lifecycle: LifecycleCaseService; users: UserRepository }) {
+export type DeactivationStatusProjection = "not_requested" | "requested" | "retry_pending" | "completed";
+
+export function createOffboardingService(deps: { lifecycle: LifecycleCaseService; users: UserRepository; deactivationRequests: HrIdentityDeactivationRequestRepository }) {
   return {
     async createOffboardingCase(
       actor: ActorContext,
@@ -119,6 +122,27 @@ export function createOffboardingService(deps: { lifecycle: LifecycleCaseService
         executionContext,
       );
       return { case: updated, assignment };
+    },
+
+    /**
+     * PR #13: the smallest safe projection of PR #10's deactivation-request
+     * state for the Offboarding case-detail UI — never a generic
+     * "everything about this request" endpoint. Gated by the SAME
+     * access check as the case itself (lifecycle.getCase): a caller who
+     * cannot read this case's restricted tier gets `status: null`, not an
+     * error and not the real value. This file still never mutates
+     * Identity — see this file's header; the deactivation processor
+     * remains the only writer of hr_identity_deactivation_requests rows.
+     */
+    async getDeactivationStatus(actor: ActorContext, caseId: string): Promise<{ status: DeactivationStatusProjection | null; requestedAt: string | null; completedAt: string | null }> {
+      const view = await deps.lifecycle.getCase(actor, caseId);
+      if (view.case.lifecycleType !== "offboarding") throw new ValidationError("This case is not an offboarding case.");
+      if (!view.canReadRestricted) return { status: null, requestedAt: null, completedAt: null };
+
+      const request = await deps.deactivationRequests.findByCaseId(caseId);
+      if (!request) return { status: "not_requested", requestedAt: null, completedAt: null };
+      const status: DeactivationStatusProjection = request.status === "COMPLETED" ? "completed" : request.attemptCount > 0 ? "retry_pending" : "requested";
+      return { status, requestedAt: request.requestedAt, completedAt: request.completedAt };
     },
   };
 }

@@ -564,11 +564,34 @@ Attendance, or Performance routes.
 | POST | `/cases/:id/probation-decision` | Record a probation decision (confirm/extend/unsuccessful) |
 | POST | `/cases/:id/employment-change/complete` | Execute the change through Organisation and complete the case |
 | POST | `/cases/:id/offboarding/complete` | End the assignment through Organisation and complete the case |
+| GET | `/cases/:id/deactivation-status` | (PR #13) Read-only projection of an offboarding case's Identity deactivation request — see below |
 
 Every route allowlists exactly the client fields it accepts — `id`,
 `caseNumber`, and `status` are always server-assigned, verified by a
 mass-assignment integration test that a spoofed `id`/`caseNumber`/`status`
 in a create request is never honoured.
+
+**PR #13 additions** (both small, safe read-only projections added for
+SVEGIP's HR Lifecycle UI, `hrms-application-shell.md` §14.6 — neither
+changes any write path):
+
+- `GET /cases/:id/deactivation-status` — `offboardingService
+  .getDeactivationStatus(actor, caseId)`, gated by the identical
+  `lifecycle.getCase` access check the case itself uses. Added
+  `HrIdentityDeactivationRequestRepository.findByCaseId` (Postgres:
+  `ORDER BY requested_at DESC LIMIT 1`; in-memory: last matching entry)
+  since no such lookup previously existed — a case completes offboarding
+  at most once, so at most one request row can ever exist per case.
+  Returns `status: null` for base-tier-only access, or one of
+  `not_requested` / `requested` / `retry_pending` / `completed` for
+  restricted-tier access — never the raw processor row shape.
+- `proposedChange` on the case's restricted-tier serialization —
+  `pendingCompletionInput` (caller-supplied at submission time, never
+  validated beyond required-key presence) is now projected through an
+  explicit `PROPOSED_CHANGE_ALLOWED_KEYS` allowlist
+  (`src/api/routes/lifecycle.ts`), deliberately excluding
+  `reportsToAssignmentId` and any unrecognized key, so a caller cannot
+  smuggle an internal field into the client-visible response.
 
 ## 16. Manager and employee self-service boundaries
 

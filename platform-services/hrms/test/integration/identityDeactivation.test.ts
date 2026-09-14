@@ -159,6 +159,46 @@ test("identityDeactivation.processOne disables the target account, revokes sessi
   });
 });
 
+test("PR #13: offboarding.getDeactivationStatus projects not_requested -> requested -> completed, and denies a caller without restricted access", { skip }, async () => {
+  await withTestDb(async (db) => {
+    const container = await createHrmsContainer(db);
+    const hr = await provisionHr(db, container, "iddeactivation.status.hr@example.test");
+    // getDeactivationStatus is gated behind the SAME restricted-tier check
+    // as the case itself — provisionHr's baseline grant has no read
+    // permission at all, so grant it explicitly for this test.
+    await grantRole(db, hr.userId, [{ key: PERMISSIONS.READ, maxClassification: "CONFIDENTIAL" }, { key: PERMISSIONS.READ_RESTRICTED, maxClassification: "CONFIDENTIAL" }], { scopeType: "group" }, hr.userId);
+    const system = await provisionSystemPrincipal(db, container, "iddeactivation.status.system@example.test", hr.userId);
+    const entities = await container.organisation.listLegalEntities();
+    const my = entities.find((e) => e.key === "sve-international-my")!;
+    const employee = await hireFictional(container, hr, my.id, "Fictional Deactivation Status Employee");
+    const identityUser = await container.users.createUser({ email: "iddeactivation.status.target@example.test", accountType: "employee" });
+    await container.users.linkEmployee({ userId: identityUser.id, employeeId: employee.id, linkedBy: hr.userId });
+
+    const hrCase = await container.offboarding.createOffboardingCase(hr, { employeeId: employee.id, legalEntityId: my.id, hrOwnerUserId: hr.userId, separationType: "resignation" });
+    const beforeCompletion = await container.offboarding.getDeactivationStatus(hr, hrCase.id);
+    assert.deepEqual(beforeCompletion, { status: "not_requested", requestedAt: null, completedAt: null });
+
+    await container.offboarding.completeOffboarding(hr, hrCase.id, OFFBOARDING_INPUT);
+    const afterCompletion = await container.offboarding.getDeactivationStatus(hr, hrCase.id);
+    assert.equal(afterCompletion.status, "requested");
+    assert.equal(afterCompletion.completedAt, null);
+
+    const requestRow = (await db.query<{ id: string }>(`SELECT id FROM hr_identity_deactivation_requests WHERE case_id = $1`, [hrCase.id])).rows[0]!;
+    await container.identityDeactivation.processOne(system, requestRow.id);
+    const afterProcessing = await container.offboarding.getDeactivationStatus(hr, hrCase.id);
+    assert.equal(afterProcessing.status, "completed");
+    assert.ok(afterProcessing.completedAt);
+
+    // A caller who can see this case's base tier but lacks restricted
+    // access gets status: null, not the real value and not an error —
+    // mirroring how every other restricted-tier field on this case behaves.
+    const baseOnlyUser = await container.users.createUser({ email: "iddeactivation.status.baseonly@example.test", accountType: "employee" });
+    await grantRole(db, baseOnlyUser.id, [{ key: PERMISSIONS.READ, maxClassification: "CONFIDENTIAL" }], { scopeType: "group" }, hr.userId);
+    const baseOnlyStatus = await container.offboarding.getDeactivationStatus(actor(baseOnlyUser.id, baseOnlyUser.email), hrCase.id);
+    assert.equal(baseOnlyStatus.status, null, "a caller without restricted access to this case must not see its real deactivation status");
+  });
+});
+
 test("identityDeactivation.processAllPending processes every REQUESTED row exactly once", { skip }, async () => {
   await withTestDb(async (db) => {
     const container = await createHrmsContainer(db);

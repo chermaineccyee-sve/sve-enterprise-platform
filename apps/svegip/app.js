@@ -786,6 +786,13 @@ function loadHrmsOrgReference(){
  return hrmsOrgRefCache;
 }
 function hrmsNameLookup(list){const m=new Map((list||[]).map(x=>[x.id,x.name||x.title||x.key]));return id=>id&&m.has(id)?m.get(id):"—"}
+function hrmsEmployeeNameLookup(list){const m=new Map((list||[]).map(e=>[e.id,e.preferredName||e.legalName]));return id=>id&&m.has(id)?m.get(id):"—"}
+/** PR #13: only employment_change/offboarding ever go through Workflow approval (see docs/architecture/hrms-workflow-integration.md) — onboarding/probation never show an Approval Status column, since the backend genuinely has no such concept for them. */
+const HRMS_SUBMITTABLE_TYPES=new Set(["employment_change","offboarding"]);
+function hrmsApprovalStatusLabel(caseRow){
+ if(!HRMS_SUBMITTABLE_TYPES.has(caseRow.lifecycleType))return null;
+ return {IN_PROGRESS:"Not submitted",PENDING_DECISION:"Pending approval",COMPLETED:"Approved",CANCELLED:"Cancelled"}[caseRow.status]||hrmsLabel(caseRow.status);
+}
 /** Converts a raw backend enum ("full_time", "IN_PROGRESS", "ON_LEAVE") into a professional display label. Only changes what is SHOWN — never the value passed into statusBadge's own colour logic, so existing colour rules keep working unchanged. */
 function hrmsLabel(value){
  if(value===null||value===undefined||value==="")return "—";
@@ -929,13 +936,36 @@ function hrmsTaskActions(t){
  </div>`;
 }
 /** Submits a REAL Workflow decision (POST /workflow/tasks/:id/decide) — never a client-side-only status change. A decision the current step does not permit is rejected by the backend and shown here as an honest error, rather than being pre-validated/guessed client-side. */
+/**
+ * Submits a REAL Workflow decision — never an optimistic local status
+ * change. On EITHER outcome the task list is re-rendered from a fresh
+ * backend fetch, never left showing stale Approve/Reject/Return buttons:
+ * a success naturally reflects the new state; a failure (already decided
+ * by someone else, the case moved on, the actor's own access changed
+ * mid-screen) is exactly the "stale/already-decided task" case the
+ * backend is authoritative for — refreshing shows the true current state
+ * rather than leaving the browser's outdated view in place. The 409
+ * InvalidStateError/403 the backend returns for a lost race is shown
+ * honestly, never silently retried or guessed at client-side.
+ */
+// UX-level duplicate-submission guard (the backend's own compare-and-swap
+// status transition is the authoritative guard — see taskService.decide's
+// transitionStatus(taskId,"PENDING",...) — this only prevents a same-
+// button double-click from firing two requests while the first is still
+// in flight, before the re-render below removes the buttons).
+const hrmsPendingDecisions=new Set();
 async function decideHrmsTask(taskId,decision){
+ if(hrmsPendingDecisions.has(taskId))return;
+ hrmsPendingDecisions.add(taskId);
  const comment=decision==="REJECT"||decision==="RETURN"?prompt(`Optional comment for this ${decision.toLowerCase()} decision:`)||undefined:undefined;
  try{
    await svegipApiFetch(`/api/v1/workflow/tasks/${encodeURIComponent(taskId)}/decide`,{method:"POST",body:JSON.stringify({decision,comment})});
    renderSection();
  }catch(e){
-   alert(e.message||"Unable to record this decision.");
+   alert(e.message||"Unable to record this decision. The task may already have been decided — refreshing to show its current state.");
+   renderSection();
+ }finally{
+   hrmsPendingDecisions.delete(taskId);
  }
 }
 function myTasks(c){
@@ -967,8 +997,10 @@ function renderHrDashboard(d){
    ${metric("Offboarding",d.offboarding.length,"Currently offboarding")}
  </div>
  <div class="section grid g2">
-   <div class="card"><h3>Onboarding</h3><div class="list">${d.onboarding.slice(0,5).map(hrmsCaseListItem).join("")||hrmsEmptyPanel("No onboarding cases in progress.")}</div></div>
-   <div class="card"><h3>Offboarding</h3><div class="list">${d.offboarding.slice(0,5).map(hrmsCaseListItem).join("")||hrmsEmptyPanel("No offboarding cases in progress.")}</div></div>
+   <div class="card"><div class="panel-head"><div><h3>Onboarding</h3></div><button class="btn ghost" onclick="goHrmsLifecycle('onboarding')">View all →</button></div><div class="list">${d.onboarding.slice(0,5).map(hrmsCaseListItem).join("")||hrmsEmptyPanel("No onboarding cases in progress.")}</div></div>
+   <div class="card"><div class="panel-head"><div><h3>Probation & Confirmation</h3></div><button class="btn ghost" onclick="goHrmsLifecycle('probation')">View all →</button></div><div class="list">${d.probation.slice(0,5).map(hrmsCaseListItem).join("")||hrmsEmptyPanel("No probation cases in progress.")}</div></div>
+   <div class="card"><div class="panel-head"><div><h3>Employment Changes</h3></div><button class="btn ghost" onclick="goHrmsLifecycle('employment_change')">View all →</button></div><div class="list">${d.employmentChange.slice(0,5).map(hrmsCaseListItem).join("")||hrmsEmptyPanel("No employment changes pending.")}</div></div>
+   <div class="card"><div class="panel-head"><div><h3>Offboarding</h3></div><button class="btn ghost" onclick="goHrmsLifecycle('offboarding')">View all →</button></div><div class="list">${d.offboarding.slice(0,5).map(hrmsCaseListItem).join("")||hrmsEmptyPanel("No offboarding cases in progress.")}</div></div>
  </div>`;
 }
 function hrmsCaseListItem(caseRow){
@@ -1143,13 +1175,24 @@ function hrmsEmployeeProfile(c){
 // ---- HR Lifecycle (onboarding/probation/employment change/offboarding) ----
 function goHrmsLifecycle(lifecycleType){hrmsLifecycleType=lifecycleType;secureGo("hrmsLifecycle")}
 async function loadHrmsLifecycleListData(){
- const data=await svegipApiFetch(`/api/v1/hrms/lifecycle/cases?lifecycleType=${encodeURIComponent(hrmsLifecycleType)}`);
- return data.cases||[];
+ const [data,employeesData]=await Promise.all([
+   svegipApiFetch(`/api/v1/hrms/lifecycle/cases?lifecycleType=${encodeURIComponent(hrmsLifecycleType)}`),
+   svegipApiFetch("/api/v1/employees").then(d=>d.employees||[]).catch(()=>[]),
+ ]);
+ return {cases:data.cases||[],employeeName:hrmsEmployeeNameLookup(employeesData)};
 }
-function renderHrmsLifecycleList(cases){
+function renderHrmsLifecycleList(data){
+ const {cases,employeeName}=data;
  if(!cases.length)return hrmsEmptyPanel(`No ${(HRMS_LIFECYCLE_LABELS[hrmsLifecycleType]||"").toLowerCase()} cases on record.`);
- const desktop=`<div class="table-wrap desktop-register"><table><thead><tr><th>Case</th><th>Status</th><th>Initiated</th><th></th></tr></thead><tbody>${cases.map(x=>`<tr><td><strong>${esc(x.caseNumber)}</strong></td><td>${hrmsStatusBadge(x.status)}</td><td>${fmtDate(x.initiatedAt.slice(0,10))}</td><td><button class="btn ghost" onclick="goHrmsCase('${x.id}')">Open →</button></td></tr>`).join("")}</tbody></table></div>`;
- const mobile=`<div class="mobile-record-list">${cases.map(x=>`<article class="mobile-record-card"><h4>${esc(x.caseNumber)}</h4><dl><div><dt>Status</dt><dd>${hrmsStatusBadge(x.status)}</dd></div><div><dt>Initiated</dt><dd>${fmtDate(x.initiatedAt.slice(0,10))}</dd></div></dl><button class="btn ghost" onclick="goHrmsCase('${x.id}')">Open →</button></article>`).join("")}</div>`;
+ const showApproval=HRMS_SUBMITTABLE_TYPES.has(hrmsLifecycleType);
+ const stageOf=x=>x.restricted&&x.restricted.currentStage?esc(hrmsLabel(x.restricted.currentStage)):"—";
+ const desktop=`<div class="table-wrap desktop-register"><table><thead><tr><th>Employee</th><th>Status</th><th>Current Stage</th><th>Initiated</th>${showApproval?"<th>Approval Status</th>":""}<th></th></tr></thead><tbody>${cases.map(x=>`<tr class="hrms-case-list-item" onclick="goHrmsCase('${x.id}')"><td><strong>${esc(employeeName(x.employeeId))}</strong><br><small>${esc(x.caseNumber)}</small></td><td>${hrmsStatusBadge(x.status)}</td><td>${stageOf(x)}</td><td>${fmtDate(x.initiatedAt.slice(0,10))}</td>${showApproval?`<td>${esc(hrmsApprovalStatusLabel(x))}</td>`:""}<td><button class="btn ghost" onclick="event.stopPropagation();goHrmsCase('${x.id}')">Open →</button></td></tr>`).join("")}</tbody></table></div>`;
+ const mobile=`<div class="mobile-record-list">${cases.map(x=>`<article class="mobile-record-card"><h4>${esc(employeeName(x.employeeId))}</h4><p>${esc(x.caseNumber)}</p><dl>
+   <div><dt>Status</dt><dd>${hrmsStatusBadge(x.status)}</dd></div>
+   <div><dt>Current Stage</dt><dd>${stageOf(x)}</dd></div>
+   <div><dt>Initiated</dt><dd>${fmtDate(x.initiatedAt.slice(0,10))}</dd></div>
+   ${showApproval?`<div><dt>Approval Status</dt><dd>${esc(hrmsApprovalStatusLabel(x))}</dd></div>`:""}
+ </dl><button class="btn ghost" onclick="goHrmsCase('${x.id}')">Open →</button></article>`).join("")}</div>`;
  return desktop+mobile;
 }
 function hrmsLifecycleList(c){
@@ -1158,30 +1201,179 @@ function hrmsLifecycleList(c){
 }
 
 // ---- HR Lifecycle case detail ----
-function goHrmsCase(caseId){hrmsSelectedCaseId=caseId;secureGo("hrmsCase")}
+// PR #13: a real, type-aware case-detail pattern — Overview always;
+// Process Details always (its content branches per lifecycleType);
+// Approvals only for employment_change/offboarding (the only types that
+// ever go through Workflow); Milestones only for onboarding/offboarding
+// (the only types with a milestone concept at all); History always. A
+// type that has no genuine backend concept for a tab simply never gets
+// that tab — never an empty decorative one. See docs/architecture/
+// hrms-employee-lifecycle.md and hrms-workflow-integration.md for what
+// each type's backend actually supports.
+const HRMS_CASE_TABS_BY_TYPE={
+ onboarding:[{key:"overview",label:"Overview"},{key:"process",label:"Process Details"},{key:"milestones",label:"Milestones"},{key:"history",label:"History"}],
+ probation:[{key:"overview",label:"Overview"},{key:"process",label:"Process Details"},{key:"history",label:"History"}],
+ employment_change:[{key:"overview",label:"Overview"},{key:"process",label:"Process Details"},{key:"approvals",label:"Approvals"},{key:"history",label:"History"}],
+ offboarding:[{key:"overview",label:"Overview"},{key:"process",label:"Process Details"},{key:"approvals",label:"Approvals"},{key:"milestones",label:"Milestones"},{key:"history",label:"History"}],
+};
+let hrmsCaseTab="overview";
+let hrmsCaseDataCache=null;
+function goHrmsCase(caseId){hrmsSelectedCaseId=caseId;hrmsCaseTab="overview";hrmsCaseDataCache=null;secureGo("hrmsCase")}
 async function loadHrmsCaseDetailData(){
  const id=hrmsSelectedCaseId;
- const [caseData,eventsData]=await Promise.all([
-   svegipApiFetch(`/api/v1/hrms/lifecycle/cases/${encodeURIComponent(id)}`),
-   svegipApiFetch(`/api/v1/hrms/lifecycle/cases/${encodeURIComponent(id)}/events`).catch(()=>({events:[]})),
+ const caseData=await svegipApiFetch(`/api/v1/hrms/lifecycle/cases/${encodeURIComponent(id)}`);
+ const x=caseData.case;
+ const isSubmittable=HRMS_SUBMITTABLE_TYPES.has(x.lifecycleType);
+ const [eventsData,milestonesData,employeeData,ref,reviewsData,approval,deactivation]=await Promise.all([
+   svegipApiFetch(`/api/v1/hrms/lifecycle/cases/${id}/events`).catch(()=>({events:[]})),
+   (x.lifecycleType==="onboarding"||x.lifecycleType==="offboarding")?svegipApiFetch(`/api/v1/hrms/lifecycle/cases/${id}/milestones`).catch(()=>({milestones:[]})):Promise.resolve({milestones:[]}),
+   svegipApiFetch(`/api/v1/employees/${encodeURIComponent(x.employeeId)}`).catch(()=>({employee:null})),
+   loadHrmsOrgReference().catch(()=>null),
+   x.lifecycleType==="probation"?svegipApiFetch(`/api/v1/hrms/lifecycle/cases/${id}/probation-reviews`).catch(()=>({reviews:[]})):Promise.resolve({reviews:[]}),
+   isSubmittable?svegipApiFetch(`/api/v1/hrms/lifecycle/cases/${id}/approval`).catch(()=>null):Promise.resolve(null),
+   x.lifecycleType==="offboarding"?svegipApiFetch(`/api/v1/hrms/lifecycle/cases/${id}/deactivation-status`).catch(()=>null):Promise.resolve(null),
  ]);
- return {caseRow:caseData.case,events:eventsData.events||[]};
+ return {caseRow:x,events:eventsData.events||[],milestones:milestonesData.milestones||[],employee:employeeData.employee,ref,reviews:reviewsData.reviews||[],approval,deactivation};
+}
+function hrmsSwitchCaseTab(tab){
+ hrmsCaseTab=tab;
+ const body=document.getElementById("hrmsCaseBody");
+ if(body&&hrmsCaseDataCache)body.innerHTML=renderHrmsCaseDetail(hrmsCaseDataCache);
 }
 function renderHrmsCaseDetail(data){
+ hrmsCaseDataCache=data;
+ const x=data.caseRow;
+ const tabs=HRMS_CASE_TABS_BY_TYPE[x.lifecycleType]||HRMS_CASE_TABS_BY_TYPE.onboarding;
+ const employeeName=data.employee?esc(data.employee.preferredName||data.employee.legalName):"—";
+ const header=`<div class="identity hrms-workspace-identity"><div><div class="eyebrow">${HRMS_LIFECYCLE_LABELS[x.lifecycleType]||esc(x.lifecycleType)}</div><h2>${employeeName}</h2><p>${esc(x.caseNumber)}</p></div>${hrmsStatusBadge(x.status)}</div>`;
+ const tabNav=`<div class="tabs hrms-profile-tabs" role="tablist">${tabs.map(t=>`<button class="tab ${hrmsCaseTab===t.key?"active":""}" role="tab" aria-selected="${hrmsCaseTab===t.key}" onclick="hrmsSwitchCaseTab('${t.key}')">${esc(t.label)}</button>`).join("")}</div>`;
+ const activeTab=tabs.some(t=>t.key===hrmsCaseTab)?hrmsCaseTab:"overview";
+ const body={overview:hrmsCaseOverviewTab,process:hrmsCaseProcessTab,approvals:hrmsCaseApprovalsTab,milestones:hrmsCaseMilestonesTab,history:hrmsCaseHistoryTab}[activeTab](data);
+ return header+tabNav+body;
+}
+function hrmsCaseOverviewTab(data){
  const x=data.caseRow,r=x.restricted;
- const stageLabel=r&&r.currentStage?r.currentStage:hrmsLabel(x.status);
- return `<div class="identity hrms-workspace-identity"><div><div class="eyebrow">${HRMS_LIFECYCLE_LABELS[x.lifecycleType]||esc(x.lifecycleType)}</div><h2>${esc(x.caseNumber)}</h2><p>${hrmsStatusBadge(x.status)}${r&&r.currentStage?` · ${esc(r.currentStage)}`:""}</p></div></div>
- <div class="section hrms-lifecycle-flow"><div><span>1</span><strong>Case Opened</strong></div><b>→</b><div><span>2</span><strong>${esc(stageLabel)}</strong></div><b>→</b><div><span>3</span><strong>Approval</strong></div><b>→</b><div><span>4</span><strong>Complete</strong></div></div>
- <div class="section grid g2">
-   <div class="card"><h3>Case</h3><dl class="hrms-field-list">
-     <div><dt>Status</dt><dd>${hrmsStatusBadge(x.status)}</dd></div>
-     <div><dt>Current Stage</dt><dd>${r?esc(r.currentStage||"—"):"Restricted — no access"}</dd></div>
-     <div><dt>Effective Date</dt><dd>${r&&r.effectiveDate?fmtDate(r.effectiveDate):"—"}</dd></div>
-     <div><dt>Initiated</dt><dd>${fmtDate(x.initiatedAt.slice(0,10))}</dd></div>
+ const employeeName=data.employee?esc(data.employee.preferredName||data.employee.legalName):"—";
+ return `<div class="section"><div class="card"><dl class="hrms-field-list">
+   <div><dt>Employee</dt><dd>${employeeName}</dd></div>
+   <div><dt>Process</dt><dd>${HRMS_LIFECYCLE_LABELS[x.lifecycleType]||esc(x.lifecycleType)}</dd></div>
+   <div><dt>Status</dt><dd>${hrmsStatusBadge(x.status)}</dd></div>
+   ${r&&r.currentStage?`<div><dt>Current Stage</dt><dd>${esc(hrmsLabel(r.currentStage))}</dd></div>`:""}
+   <div><dt>Initiated Date</dt><dd>${fmtDate(x.initiatedAt.slice(0,10))}</dd></div>
+ </dl></div></div>`;
+}
+function hrmsCaseProcessTab(data){
+ const byType={onboarding:hrmsCaseProcessOnboarding,probation:hrmsCaseProcessProbation,employment_change:hrmsCaseProcessEmploymentChange,offboarding:hrmsCaseProcessOffboarding};
+ return (byType[data.caseRow.lifecycleType]||hrmsCaseProcessOnboarding)(data);
+}
+function hrmsCaseProcessOnboarding(data){
+ const e=data.employee;
+ const names=e?hrmsOrgFieldNames({employee:e,ref:data.ref}):null;
+ const a=e&&e.restricted?e.restricted.currentAssignment:null;
+ return `<div class="section"><div class="card"><dl class="hrms-field-list">
+   <div><dt>Employment Start Date</dt><dd>${a&&a.startDate?fmtDate(a.startDate):"—"}</dd></div>
+   <div><dt>Legal Entity</dt><dd>${names?names.legalEntity:"—"}</dd></div>
+   <div><dt>Department</dt><dd>${names?names.department:"—"}</dd></div>
+   <div><dt>Position</dt><dd>${names?names.position:"—"}</dd></div>
+   <div><dt>Manager</dt><dd>${e?hrmsReportsToDisplay(e):"—"}</dd></div>
+ </dl></div></div>`;
+}
+function hrmsCaseProcessProbation(data){
+ const x=data.caseRow;
+ const reviews=[...data.reviews].sort((a,b)=>a.sequenceNumber-b.sequenceNumber);
+ const current=reviews[reviews.length-1];
+ const canDecide=x.status==="IN_PROGRESS"&&current&&current.reviewStatus==="PENDING";
+ return `<div class="section"><div class="card"><dl class="hrms-field-list">
+   ${current?`
+   <div><dt>Probation Start</dt><dd>${fmtDate(current.periodStart)}</dd></div>
+   <div><dt>Review Due Date</dt><dd>${fmtDate(current.expectedReviewDate)}</dd></div>
+   <div><dt>Review Status</dt><dd>${hrmsStatusBadge(current.reviewStatus)}</dd></div>
+   ${current.decision?`<div><dt>Outcome</dt><dd>${esc(hrmsLabel(current.decision))}</dd></div>`:""}
+   ${current.recommendation?`<div><dt>Recommendation</dt><dd>${esc(current.recommendation)}</dd></div>`:""}
+   ${current.decisionDate?`<div><dt>Decision Date</dt><dd>${fmtDate(current.decisionDate)}</dd></div>`:""}
+   `:hrmsEmptyPanel("No probation review on record.")}
+ </dl>${canDecide?`<div class="toolbar hrms-task-actions">
+   <button class="btn primary" onclick="recordHrmsProbationDecision('CONFIRMED')">Confirm</button>
+   <button class="btn secondary" onclick="recordHrmsProbationDecision('EXTENDED')">Extend</button>
+   <button class="btn danger" onclick="recordHrmsProbationDecision('UNSUCCESSFUL')">Mark Unsuccessful</button>
+ </div>`:""}</div></div>
+ ${reviews.length>1?`<div class="section"><h3>Review History</h3><div class="table-wrap"><table><thead><tr><th>Period</th><th>Review Due</th><th>Status</th><th>Outcome</th></tr></thead><tbody>${reviews.map(rv=>`<tr><td>${fmtDate(rv.periodStart)}</td><td>${fmtDate(rv.expectedReviewDate)}</td><td>${hrmsStatusBadge(rv.reviewStatus)}</td><td>${rv.decision?esc(hrmsLabel(rv.decision)):"—"}</td></tr>`).join("")}</tbody></table></div></div>`:""}`;
+}
+/** Calls the REAL probation-decision endpoint — never a client-side-only status change. Extend collects the next period's dates from the caller (the backend assumes no universal probation duration, see probationService.ts); a returned validation error is shown honestly rather than pre-guessed here. */
+async function recordHrmsProbationDecision(decision){
+ const id=hrmsSelectedCaseId;
+ let extension;
+ if(decision==="EXTENDED"){
+   const periodStart=prompt("New probation period start date (YYYY-MM-DD):");
+   if(!periodStart)return;
+   const expectedReviewDate=prompt("New review due date (YYYY-MM-DD):");
+   if(!expectedReviewDate)return;
+   extension={periodStart,expectedReviewDate};
+ }
+ const recommendation=prompt("Optional recommendation notes:")||undefined;
+ try{
+   await svegipApiFetch(`/api/v1/hrms/lifecycle/cases/${encodeURIComponent(id)}/probation-decision`,{method:"POST",body:JSON.stringify({decision,decisionDate:new Date().toISOString().slice(0,10),recommendation,extension})});
+   hrmsCaseDataCache=null;
+   renderSection();
+ }catch(e){
+   alert(e.message||"Unable to record this decision.");
+ }
+}
+function hrmsCaseProcessEmploymentChange(data){
+ const e=data.employee,r=data.caseRow.restricted;
+ const currentNames=e?hrmsOrgFieldNames({employee:e,ref:data.ref}):null;
+ const proposed=r&&r.proposedChange;
+ const positionName=data.ref?hrmsNameLookup(data.ref.positions):()=>"—";
+ const departmentName=data.ref?hrmsNameLookup(data.ref.departments):()=>"—";
+ const businessUnitName=data.ref?hrmsNameLookup(data.ref.businessUnits):()=>"—";
+ return `<div class="section grid g2">
+   <div class="card"><h3>Current</h3><dl class="hrms-field-list">
+     <div><dt>Legal Entity</dt><dd>${currentNames?currentNames.legalEntity:"—"}</dd></div>
+     <div><dt>Business Unit</dt><dd>${currentNames?currentNames.businessUnit:"—"}</dd></div>
+     <div><dt>Department</dt><dd>${currentNames?currentNames.department:"—"}</dd></div>
+     <div><dt>Position</dt><dd>${currentNames?currentNames.position:"—"}</dd></div>
    </dl></div>
-   <div class="card"><h3>History</h3><div class="audit-timeline">${data.events.map(ev=>`<div class="audit-event"><div class="audit-dot"></div><div><strong>${esc(hrmsLabel(ev.eventType))}</strong><p>${fmtDate(ev.occurredAt.slice(0,10))}</p></div></div>`).join("")||hrmsEmptyPanel("No history recorded yet.")}</div></div>
- </div>
- <div class="section callout">Any decision required from you on this case will appear under My Tasks.</div>`;
+   <div class="card"><h3>Proposed</h3><dl class="hrms-field-list">
+     ${proposed?`
+     <div><dt>Employment Type</dt><dd>${esc(hrmsLabel(proposed.employmentType))}</dd></div>
+     <div><dt>Business Unit</dt><dd>${businessUnitName(proposed.businessUnitId)}</dd></div>
+     <div><dt>Department</dt><dd>${departmentName(proposed.departmentId)}</dd></div>
+     <div><dt>Position</dt><dd>${positionName(proposed.positionId)}</dd></div>
+     <div><dt>Effective Date</dt><dd>${proposed.effectiveFrom?fmtDate(proposed.effectiveFrom):(proposed.startDate?fmtDate(proposed.startDate):"—")}</dd></div>
+     `:hrmsEmptyPanel("Proposed details are not available until this change is submitted for approval.")}
+   </dl></div>
+ </div>`;
+}
+function hrmsCaseProcessOffboarding(data){
+ const x=data.caseRow,r=x.restricted;
+ const deactivationLabel={not_requested:"Not requested",requested:"Requested",retry_pending:"Retry pending",completed:"Completed"};
+ const deactivation=data.deactivation;
+ return `<div class="section"><div class="card"><dl class="hrms-field-list">
+   ${r&&r.noticeDate?`<div><dt>Notice Date</dt><dd>${fmtDate(r.noticeDate)}</dd></div>`:""}
+   ${r&&r.intendedLastWorkingDate?`<div><dt>Last Working Day</dt><dd>${fmtDate(r.intendedLastWorkingDate)}</dd></div>`:""}
+   <div><dt>Status</dt><dd>${hrmsStatusBadge(x.status)}</dd></div>
+   ${r&&r.outcome?`<div><dt>Separation Outcome</dt><dd>${esc(hrmsLabel(r.outcome))}</dd></div>`:""}
+   ${r&&r.effectiveDate?`<div><dt>Effective End Date</dt><dd>${fmtDate(r.effectiveDate)}</dd></div>`:""}
+   ${deactivation&&deactivation.status?`<div><dt>Identity Deactivation</dt><dd>${esc(deactivationLabel[deactivation.status]||hrmsLabel(deactivation.status))}</dd></div>`:""}
+ </dl></div></div>`;
+}
+/** Never names the individual approver (no safe Identity name-resolution path is exposed to SVEGIP — see docs/architecture/hrms-application-shell.md §14.5 "HR execution principal vs decision actor vs business approver vs target employee"); shows the recorded decision/status only, mirroring the existing "An SVE employee" masking convention used for Workflow requesters elsewhere in this file. */
+function hrmsCaseApprovalsTab(data){
+ const a=data.approval;
+ if(!a||!a.submitted)return `<div class="section"><div class="card">${hrmsEmptyPanel("Not yet submitted for approval.")}</div></div>`;
+ if(!a.visible)return `<div class="section">${hrmsDeniedPanel("You are not authorised to view this case's approval details.")}</div>`;
+ return `<div class="section"><div class="card"><dl class="hrms-field-list">
+   <div><dt>Approval Status</dt><dd>${a.status?hrmsStatusBadge(a.status):"—"}</dd></div>
+   ${a.outcome?`<div><dt>Decision</dt><dd>${esc(hrmsLabel(a.outcome))}</dd></div>`:""}
+ </dl></div></div>`;
+}
+function hrmsCaseMilestonesTab(data){
+ const milestones=data.milestones;
+ if(!milestones.length)return `<div class="section"><div class="card">${hrmsEmptyPanel("No milestones recorded for this case.")}</div></div>`;
+ return `<div class="section"><div class="card"><div class="list">${milestones.map(m=>`<div class="list-item"><div><div class="list-title">${esc(hrmsLabel(m.milestoneType))}</div>${m.dueDate?`<div class="list-meta">Due ${fmtDate(m.dueDate)}</div>`:""}</div>${hrmsStatusBadge(m.status)}</div>`).join("")}</div></div></div>`;
+}
+function hrmsCaseHistoryTab(data){
+ return `<div class="section"><div class="card"><div class="audit-timeline">${data.events.map(ev=>`<div class="audit-event"><div class="audit-dot"></div><div><strong>${esc(hrmsLabel(ev.eventType))}</strong><p>${fmtDate(ev.occurredAt.slice(0,10))}</p></div></div>`).join("")||hrmsEmptyPanel("No history recorded yet.")}</div></div></div>`;
 }
 function hrmsCaseDetail(c){
  if(!hrmsSelectedCaseId){c.innerHTML=hrmsEmptyPanel("No case selected.");return}
