@@ -112,7 +112,7 @@ const VT_DATA = {
       {name:'Sarah Lim', dept:'Finance', status:'Acknowledged', timeline:['Assigned','Notification Sent','Opened','Acknowledged'], date:'11 Sep 2026 · 14:02'},
       {name:'Jason Lee', dept:'Sales', status:'Opened – Not Acknowledged', timeline:['Assigned','Notification Sent','Opened'], date:'Opened 12 Sep 2026 · 08:15'},
       {name:'Melissa Wong', dept:'IT', status:'Not Opened', timeline:['Assigned','Notification Sent'], date:'Assigned 9 Sep 2026'},
-      {name:'David Chan', dept:'Operations', status:'Overdue', timeline:['Assigned','Reminder','Reminder','Overdue','HR Follow-Up'], date:'Overdue since 13 Sep 2026'}
+      {name:'David Chan', dept:'Operations', status:'Overdue', timeline:['Assigned','Reminder Sent','Reminder Sent','Overdue','HR Follow-Up'], date:'Overdue since 13 Sep 2026'}
     ]
   },
 

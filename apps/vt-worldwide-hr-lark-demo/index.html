@@ -36,6 +36,23 @@
         </div>
       </div>
       <div class="topbar-right">
+        <div class="presentation-badge"><b>Proposed Future-State Workflow</b><span>Prepared by SVE International</span></div>
+        <select class="pres-jump" id="presJump" onchange="UI.goPage(this.value)" title="Jump to page">
+          <option value="home">Home</option>
+          <option value="ot-demo">Overtime Workflow</option>
+          <option value="ot-exception">OT Exception Route</option>
+          <option value="policy-demo">Policy Acknowledgement</option>
+          <option value="leave-demo">Leave Application</option>
+          <option value="medical-demo">Medical Leave</option>
+          <option value="attendance-demo">Attendance Correction</option>
+          <option value="performance-demo">Performance Review</option>
+          <option value="probation-demo">Probation Review</option>
+          <option value="offboarding-demo">Offboarding</option>
+          <option value="live-workflow">Live Workflow</option>
+          <option value="policy-to-lark">Policy &rarr; Lark Workflow</option>
+        </select>
+        <button class="workshop-toggle pres-exit" onclick="UI.togglePresentationMode()">Exit Presentation Mode</button>
+        <button class="workshop-toggle" id="presentationToggleBtn" onclick="UI.togglePresentationMode()">Presentation Mode</button>
         <button class="workshop-toggle" id="workshopToggleBtn" onclick="UI.toggleWorkshopMode()">Workshop Mode</button>
         <div class="notif-wrap">
           <button class="icon-btn" id="notifBtn" onclick="UI.toggleNotifPanel()" title="Notifications">

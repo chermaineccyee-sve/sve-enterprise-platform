@@ -20,21 +20,24 @@ const STATE = {
   page: 'home',
   sidebarOpen: false,
   workshopMode: false,
+  presentationMode: false,
   notifications: [...VT_DATA.notificationsSeed],
   notifPanelOpen: false,
   rightPanel: null,
+  guided: { open:false, pageKey:null, stepIndex:0 },
 
-  ot: { step:'form', form:null },
-  otx: { step:'employee' },
-  policy: { step:'notify', checked:false, record:null },
-  leave: { step:'form', form:null, balance: VT_DATA.leave.balance },
-  medical: { step:'form', form:null },
-  attendance: { step:'log', form:null },
+  ot: { step:'form', form:null, history:[] },
+  otx: { step:'employee', history:[] },
+  policy: { step:'notify', checked:false, record:null, history:[] },
+  leave: { step:'form', form:null, balance: VT_DATA.leave.balance, history:[] },
+  medical: { step:'form', form:null, history:[] },
+  attendance: { step:'log', form:null, history:[] },
   performance: { localView:'EMPLOYEE', empRating: VT_DATA.performance.kpi.empRating, mgrRating: VT_DATA.performance.kpi.mgrRating, stageIndex:0 },
-  probation: { outcome:null },
+  probation: { outcome:null, history:[] },
   offboarding: { started:false, tasks: JSON.parse(JSON.stringify(VT_DATA.offboarding.tasks)) },
   cvp: {},
-  workshop: {}
+  workshop: {},
+  workshopNotes: {}
 };
 
 /* ===================== UI CORE ===================== */
@@ -59,6 +62,13 @@ const UI = {
     UI.render();
   },
 
+  togglePresentationMode(){
+    STATE.presentationMode = !STATE.presentationMode;
+    document.getElementById('appshell').classList.toggle('presentation-mode', STATE.presentationMode);
+    document.getElementById('presentationToggleBtn').classList.toggle('active', STATE.presentationMode);
+    UI.render();
+  },
+
   toggleNotifPanel(){
     STATE.notifPanelOpen = !STATE.notifPanelOpen;
     UI.renderNotifPanel();
@@ -80,8 +90,11 @@ const UI = {
   render(){
     UI.renderShell();
     const content = document.getElementById('content');
-    content.innerHTML = STATE.workshopMode ? Pages.workshop() : (Pages[STATE.page] ? Pages[STATE.page]() : Pages.home());
+    const html = (STATE.workshopMode && STATE.page !== 'workshop-summary') ? Pages.workshop() : (Pages[STATE.page] ? Pages[STATE.page]() : Pages.home());
+    content.innerHTML = `<div class="page-fade">${html}</div>`;
     UI.renderRightPanel();
+    const jump = document.getElementById('presJump');
+    if (jump && [...jump.options].some(o => o.value === STATE.page)) jump.value = STATE.page;
   },
 
   renderShell(){
@@ -191,6 +204,63 @@ function nowStamp(){
   return { date: d.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}), time: d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) };
 }
 
+/* ===================== GUIDED DEMO ===================== */
+const GUIDED = {
+  scripts: {
+    'ot-demo': [
+      'Employee submits an overtime claim.',
+      'The Department Head verifies that the overtime was required and performed.',
+      'Human Resources verifies eligibility, attendance and working-hour controls.',
+      'The approved claim becomes a payroll input.',
+      'The completed workflow becomes part of the audit record.'
+    ],
+    'policy-demo': [
+      'Employee receives a notification that a new policy requires acknowledgement.',
+      'Employee opens and reads the policy.',
+      'Employee confirms the acknowledgement statement and submits.',
+      'Human Resources monitors acknowledgement completion across all assigned employees.',
+      'Outstanding and overdue acknowledgements are followed up by Human Resources.'
+    ]
+  },
+  toggleBtn(pageKey){
+    if (!GUIDED.scripts[pageKey]) return '';
+    const isOpen = STATE.guided.open && STATE.guided.pageKey === pageKey;
+    return `<button class="btn ${isOpen?'btn-primary':''}" onclick="${isOpen? 'GUIDED.exit()' : `GUIDED.start('${pageKey}')`}">${isOpen ? 'Exit Guided Demo' : 'Guided Demo'}</button>`;
+  },
+  start(pageKey){
+    STATE.guided = { open:true, pageKey, stepIndex:0 };
+    UI.render();
+  },
+  exit(){
+    STATE.guided = { open:false, pageKey:null, stepIndex:0 };
+    UI.render();
+  },
+  next(){
+    const steps = GUIDED.scripts[STATE.guided.pageKey] || [];
+    STATE.guided.stepIndex = Math.min(steps.length - 1, STATE.guided.stepIndex + 1);
+    UI.render();
+  },
+  prev(){
+    STATE.guided.stepIndex = Math.max(0, STATE.guided.stepIndex - 1);
+    UI.render();
+  },
+  render(pageKey){
+    if (!STATE.guided.open || STATE.guided.pageKey !== pageKey) return '';
+    const steps = GUIDED.scripts[pageKey] || [];
+    if (!steps.length) return '';
+    const i = STATE.guided.stepIndex;
+    return `<div class="guided-bar">
+      <div class="guided-meta">STEP ${i+1} OF ${steps.length}</div>
+      <div class="guided-text">${steps[i]}</div>
+      <div class="guided-actions">
+        <button class="btn" ${i===0?'disabled':''} onclick="GUIDED.prev()">Previous</button>
+        ${i < steps.length-1 ? `<button class="btn btn-primary" onclick="GUIDED.next()">Continue</button>` : `<button class="btn btn-primary" onclick="GUIDED.exit()">Finish</button>`}
+        <button class="btn" onclick="GUIDED.exit()">Exit Guided Demo</button>
+      </div>
+    </div>`;
+  }
+};
+
 /* ===================== PAGES ===================== */
 const Pages = {};
 
@@ -222,9 +292,12 @@ Pages.home = function(){
 
     <h3 style="margin:26px 0 12px">Client Presentation Views</h3>
     <div class="grid grid-3">
+      <div class="tile" onclick="UI.goPage('live-workflow')"><div class="tile-icon">&#128225;</div><h4>Live Workflow</h4><p>The cleanest high-level view of an active request, moving in real time.</p></div>
       <div class="tile" onclick="UI.goPage('policy-to-lark')"><div class="tile-icon">&#128279;</div><h4>Policy &rarr; Lark Workflow</h4><p>How an HR policy translates into a configured Lark workflow.</p></div>
       <div class="tile" onclick="UI.goPage('current-vs-proposed')"><div class="tile-icon">&#9878;</div><h4>Current vs Proposed</h4><p>Mark items during the onsite working session.</p></div>
       <div class="tile" onclick="UI.toggleWorkshopMode()"><div class="tile-icon">&#128221;</div><h4>Workshop Mode</h4><p>Simplified board for live discussion &mdash; not saved.</p></div>
+      <div class="tile" onclick="UI.goPage('workshop-summary')"><div class="tile-icon">&#128203;</div><h4>Workshop Summary</h4><p>Auto-summarised markers from the Workshop Mode session.</p></div>
+      <div class="tile" onclick="UI.togglePresentationMode()"><div class="tile-icon">&#128250;</div><h4>Presentation Mode</h4><p>Meeting-room view: only the essentials, larger proportions.</p></div>
     </div>
   `;
 };
@@ -402,41 +475,47 @@ Pages['hr-admin'] = function(){
    DEMO 1 — OVERTIME (the most complete demonstration)
    ========================================================= */
 const OT = {
-  reset(){ STATE.ot = { step:'form', form:null }; },
+  reset(){ STATE.ot = { step:'form', form:null, history:[] }; },
 
   stages(){
     const step = STATE.ot.step;
-    const s = (key,label,doneIf,activeIf,exceptionIf,detail) => ({
+    const s = (key,label,doneIf,activeIf,exceptionIf,statusLabel,detail) => ({
       key,label,
       status: exceptionIf ? 'exception' : (doneIf ? 'done' : (activeIf ? 'active' : 'pending')),
+      statusLabel,
       ...detail
     });
     return [
-      s('employee','Employee', step!=='form', step==='form', false, {
+      s('employee','Employee', step!=='form', step==='form', false,
+        step==='form' ? 'Drafting&hellip;' : '&#10003; Submitted', {
         responsible:'Employee (Alex Tan)', sees:'Submit OT Claim form in HR Services.',
         action:'Complete OT date, hours, reason and supporting document, then submit.',
         recorded:'OT claim draft with employee, department, date/time and reason.',
         next:'Claim moves to the employee\'s Manager / HOD for approval.'
       }),
-      s('manager','Manager/HOD', ['sentToHR','hrReview','completed'].includes(step), ['pendingManager','managerReview'].includes(step), step==='returned'||step==='rejected', {
+      s('manager','Manager/HOD', ['sentToHR','hrReview','hrReturned','escalated','completed'].includes(step), ['pendingManager','managerReview'].includes(step), step==='returned'||step==='rejected',
+        step==='returned' ? '! Returned' : (step==='rejected' ? '! Rejected' : (['pendingManager','managerReview'].includes(step) ? '&#9679; Pending Approval' : (step==='form' ? '&#9675; Waiting' : '&#10003; Approved'))), {
         responsible:'Manager / HOD (Priya Nair)', sees:'Pending approval card with attendance record, submitted hours, reason and evidence.',
         action:'Approve, return for amendment, or reject the claim.',
         recorded:'Manager decision, timestamp and any comments.',
         next: step==='returned' ? 'Returned to employee for amendment.' : (step==='rejected' ? 'Claim closed as rejected.' : 'Approved claim moves to Human Resources for verification.')
       }),
-      s('hr','Human Resources', step==='completed', ['sentToHR','hrReview'].includes(step), step==='hrReturned'||step==='escalated', {
+      s('hr','Human Resources', step==='completed', ['sentToHR','hrReview'].includes(step), step==='hrReturned'||step==='escalated',
+        step==='hrReturned' ? '! Returned' : (step==='escalated' ? '! Escalated' : (['sentToHR','hrReview'].includes(step) ? '&#9679; Verification Required' : (step==='completed' ? '&#10003; Verified' : '&#9675; Waiting'))), {
         responsible:'Human Resources (Michelle Goh)', sees:'OT Verification checklist: eligibility, manager approval, attendance reconciliation, working hours, duplicate check, monthly accumulation.',
         action:'Verify & approve, return to manager, or escalate to Management.',
         recorded:'Verification checklist outcome and HR decision.',
         next: step==='escalated' ? 'Escalated to Management for review.' : 'Verified claim is sent to Payroll for processing.'
       }),
-      s('payroll','Payroll', step==='completed', false, false, {
+      s('payroll','Payroll', step==='completed', false, false,
+        step==='completed' ? '&#10003; Processed' : '&#9675; Waiting', {
         responsible:'Payroll (system-triggered)', sees:'Verified OT claim ready for processing.',
         action:'No manual action in this concept &mdash; claim is queued automatically once HR verifies.',
         recorded:'Approved OT hours applied to the next payroll cycle.',
         next:'Workflow marked Completed with a full audit record.'
       }),
-      s('completed','Completed', step==='completed', false, false, {
+      s('completed','Completed', step==='completed', false, false,
+        step==='completed' ? '&#10003; Completed' : '&#9675; Waiting', {
         responsible:'System', sees:'Completed workflow record.',
         action:'No further action required.',
         recorded:'Full audit trail: submission, approval, verification and payroll processing, each with timestamp and actor.',
@@ -471,33 +550,44 @@ const OT = {
       doc: document.getElementById('otDocName').textContent.replace('Attached: ','') || null
     };
     STATE.ot.step = 'pendingManager';
+    historyPush(STATE.ot.history, { stageKey:'employee', actor: VT_DATA.ot.employee, action:'Submitted overtime claim (' + STATE.ot.form.hours + ' hours, ' + STATE.ot.form.date + ').' });
     UI.pushNotification('Your overtime claim has been submitted.', 'Pending Manager Approval &middot; ' + VT_DATA.ot.employee);
     UI.render();
   },
 
   managerDecision(decision){
+    const actor = VT_DATA.personas.MANAGER.name;
     if (decision==='approve') {
       STATE.ot.step = 'sentToHR';
+      historyPush(STATE.ot.history, { stageKey:'manager', actor, action:'Approved the overtime claim.' });
       UI.pushNotification('Manager approved the overtime claim.', 'Sent to Human Resources for verification.');
     } else if (decision==='return') {
       STATE.ot.step = 'returned';
+      historyPush(STATE.ot.history, { stageKey:'manager', actor, action:'Returned the claim for amendment.' });
       UI.pushNotification('Overtime claim returned for amendment.', 'Manager requested more information.');
     } else {
       STATE.ot.step = 'rejected';
+      historyPush(STATE.ot.history, { stageKey:'manager', actor, action:'Rejected the overtime claim.' });
       UI.pushNotification('Overtime claim rejected.', 'Manager did not approve this claim.');
     }
     UI.render();
   },
 
   hrDecision(decision){
+    const actor = VT_DATA.personas.HR.name;
     if (decision==='approve') {
       STATE.ot.step = 'completed';
+      historyPush(STATE.ot.history, { stageKey:'hr', actor, action:'Verified eligibility, attendance and hours &mdash; approved.' });
+      historyPush(STATE.ot.history, { stageKey:'payroll', actor:'System', action:'Approved claim queued for payroll processing.' });
+      historyPush(STATE.ot.history, { stageKey:'completed', actor:'System', action:'Workflow completed and recorded for audit.' });
       UI.pushNotification('HR verified the overtime claim.', 'Sent to Payroll &middot; workflow completed.');
     } else if (decision==='return') {
       STATE.ot.step = 'hrReturned';
+      historyPush(STATE.ot.history, { stageKey:'hr', actor, action:'Returned the claim to the Manager for clarification.' });
       UI.pushNotification('Overtime claim returned by HR.', 'Returned to Manager for clarification.');
     } else {
       STATE.ot.step = 'escalated';
+      historyPush(STATE.ot.history, { stageKey:'hr', actor, action:'Escalated the claim to Management for review.' });
       UI.pushNotification('Overtime claim escalated to Management.', 'HR flagged this claim for Management review.');
     }
     UI.render();
@@ -505,7 +595,6 @@ const OT = {
 
   render(){
     const step = STATE.ot.step;
-    const wf = WF.render('ot', OT.stages());
     let body = '';
 
     if (step === 'form') {
@@ -532,13 +621,11 @@ const OT = {
         <div class="btnrow"><button class="btn btn-primary btn-lg" onclick="OT.submit()">Submit</button></div>
       </div>`;
     } else if (step === 'pendingManager') {
-      body = `
-      <div class="card">
-        <div class="badge badge-amber" style="margin-bottom:10px">Pending Manager Approval</div>
-        <h3>Overtime claim submitted</h3>
-        <p style="color:var(--muted);font-size:12.5px">Alex Tan &middot; ${STATE.ot.form.date} &middot; ${STATE.ot.form.hours} hours</p>
-        <div class="btnrow"><button class="btn btn-primary" onclick="UI.setPersona('MANAGER'); STATE.ot.step='managerReview'; UI.render()">Switch to Manager View</button></div>
-      </div>`;
+      body = transferCard(
+        'Request submitted successfully.',
+        VT_DATA.ot.employee + ' (Employee)', 'Manager / HOD',
+        "UI.setPersona('MANAGER'); STATE.ot.step='managerReview'; UI.render()"
+      );
     } else if (step === 'managerReview') {
       body = `
       <div class="card">
@@ -563,13 +650,11 @@ const OT = {
         </div>
       </div>`;
     } else if (step === 'sentToHR') {
-      body = `
-      <div class="card">
-        <div class="badge badge-green" style="margin-bottom:10px">Manager Approved</div>
-        <h3>Sent to Human Resources</h3>
-        <p style="color:var(--muted);font-size:12.5px">The claim now appears in the HR Approval Queue for verification.</p>
-        <div class="btnrow"><button class="btn btn-primary" onclick="UI.setPersona('HR'); STATE.ot.step='hrReview'; UI.render()">Switch to HR View</button></div>
-      </div>`;
+      body = transferCard(
+        'Manager approved the claim.',
+        'Manager / HOD', 'Human Resources',
+        "UI.setPersona('HR'); STATE.ot.step='hrReview'; UI.render()"
+      );
     } else if (step === 'hrReview') {
       body = `
       <div class="card">
@@ -610,9 +695,22 @@ const OT = {
     }
 
     return `
-      ${pageHead('HR Services &middot; Overtime', 'Overtime Claim Workflow', 'Employee submission &rarr; Manager/HOD approval &rarr; HR verification &rarr; Payroll &rarr; Completed record.')}
-      <div class="card"><h3>Workflow</h3>${wf}</div>
+      <div class="page-head-row">
+        ${pageHead('HR Services &middot; Overtime', 'Overtime Claim Workflow', 'Employee submission &rarr; Manager/HOD approval &rarr; HR verification &rarr; Payroll &rarr; Completed record.')}
+        <div class="page-head-actions">${GUIDED.toggleBtn('ot-demo')} <button class="btn btn-ghost" onclick="UI.goPage('live-workflow')">View in Live Workflow &rarr;</button></div>
+      </div>
+      ${GUIDED.render('ot-demo')}
+      ${WF.block('ot', OT.stages())}
       ${body}
+      ${renderHistory(STATE.ot.history)}
+      ${policyControlPanel([
+        { k:'Governing Rule', v:'Employees must submit overtime claims within the applicable submission period.' },
+        { k:'Operational Rule', v:'Current VT Lark practice indicates a seven-day submission window, subject to onsite validation.' },
+        { k:'System Control', v:'Lark submission validation against the configured window.' },
+        { k:'Exception Control', v:'Late submissions are routed for Manager, HR and (where required) Management review rather than an automatic block.' },
+        { k:'Record', v:'Approval and verification audit trail retained for every claim.' }
+      ])}
+      ${advisoryNote('Final submission-window configuration should be confirmed against VT Worldwide\'s live Lark environment.')}
       <div class="card">
         <h3>Exception Handling</h3>
         <p style="color:var(--muted);font-size:12.5px;margin-bottom:10px">VT currently operates a seven-day Lark OT submission window. See how a late submission is proposed to be handled &mdash; not simply rejected.</p>
@@ -627,16 +725,30 @@ Pages['ot-demo'] = () => OT.render();
    OT SEVEN-DAY EXCEPTION DEMO
    ========================================================= */
 const OTX = {
-  reset(){ STATE.otx = { step:'employee', reason:'' }; },
+  reset(){ STATE.otx = { step:'employee', reason:'', history:[] }; },
+
+  standardStages(){
+    return [
+      { key:'std-emp', label:'Employee', status:'pending', statusLabel:'Submits within 7 days', responsible:'Employee', sees:'Standard OT submission form.', action:'Submit within the 7-day window.', recorded:'OT claim.', next:'Manager approval.' },
+      { key:'std-mgr', label:'Manager', status:'pending', statusLabel:'Approves', responsible:'Manager / HOD', sees:'Standard approval queue.', action:'Approve, return or reject.', recorded:'Manager decision.', next:'HR verification.' },
+      { key:'std-hr', label:'Human Resources', status:'pending', statusLabel:'Verifies', responsible:'Human Resources', sees:'Standard verification checklist.', action:'Verify & approve.', recorded:'HR decision.', next:'Payroll.' },
+      { key:'std-pay', label:'Payroll', status:'pending', statusLabel:'Processes', responsible:'Payroll', sees:'Approved claim.', action:'Process automatically.', recorded:'Payroll input.', next:'Completed.' }
+    ];
+  },
 
   stages(){
     const step = STATE.otx.step;
     const idx = ['employee','reason','managerReview','hrReview','management','completed'].indexOf(step);
-    const s = (key,label,at,detail) => ({
-      key,label,
-      status: idx>at ? 'done' : (idx===at ? 'exception' : 'pending'),
-      ...detail
-    });
+    const labels = {
+      employee:{done:'&#10003; Flagged',active:'&#9679; Flagged'}, reason:{done:'&#10003; Reason Given',active:'&#9679; Awaiting Reason'},
+      manager:{done:'&#10003; Endorsed',active:'&#9679; Under Review'}, hr:{done:'&#10003; Exception Approved',active:'&#9679; Exception Review'},
+      management:{done:'&#10003; Approved',active:'&#9679; Awaiting Sign-off'}, completed:{done:'&#10003; Completed',active:'&#9679; Completing'}
+    };
+    const s = (key,label,at,detail) => {
+      const status = idx>at ? 'done' : (idx===at ? 'exception' : 'pending');
+      const lab = labels[key] || {};
+      return { key, label, status, statusLabel: status==='done' ? lab.done : (status==='exception' ? lab.active : '&#9675; Waiting'), ...detail };
+    };
     return [
       s('employee','Employee',0,{responsible:'Employee (Alex Tan)', sees:'Attempted OT submission flagged as outside the standard window.', action:'Acknowledge the exception and provide a reason.', recorded:'Original OT date and actual submission date.', next:'Employee provides a late submission reason.'}),
       s('reason','Late Submission Reason',1,{responsible:'Employee', sees:'A reason field specific to late submissions.', action:'Explain why the claim was not submitted within 7 days.', recorded:'Late submission justification, timestamped.', next:'Sent to Manager for review.'}),
@@ -649,7 +761,6 @@ const OTX = {
 
   render(){
     const step = STATE.otx.step;
-    const wf = WF.render('otx', OTX.stages());
     const ex = VT_DATA.ot.exception;
     let body = '';
 
@@ -674,44 +785,65 @@ const OTX = {
         <div class="card">
           <h3>Late Submission Reason</h3>
           <div class="field"><label>Reason</label><textarea id="otxReason">${ex.reason}</textarea></div>
-          <div class="btnrow"><button class="btn btn-primary" onclick="STATE.otx.reason=document.getElementById('otxReason').value; STATE.otx.step='managerReview'; UI.pushNotification('Late OT submission sent for Manager review.','Exception route started.'); UI.render()">Submit for Manager Review</button></div>
+          <div class="btnrow"><button class="btn btn-primary" onclick="STATE.otx.reason=document.getElementById('otxReason').value; STATE.otx.step='managerReview'; historyPush(STATE.otx.history,{stageKey:'reason',actor:VT_DATA.ot.employee,action:'Provided late submission reason.',comment:STATE.otx.reason}); UI.pushNotification('Late OT submission sent for Manager review.','Exception route started.'); UI.render()">Submit for Manager Review</button></div>
         </div>`;
     } else if (step === 'managerReview') {
-      body = `
+      body = transferCard(
+        'Late submission reason recorded.',
+        'Employee', 'Manager / HOD',
+        "UI.setPersona('MANAGER'); UI.render()"
+      );
+      if (STATE.persona === 'MANAGER') {
+        body = `
         <div class="card">
           <div class="badge badge-amber" style="margin-bottom:10px">Late Submission &mdash; Manager Review</div>
           <p><b>OT Date:</b> ${ex.date} &middot; <b>Submitted:</b> ${ex.submittedOn}</p>
           <p style="color:var(--muted);font-size:12.5px"><b>Employee reason:</b> ${STATE.otx.reason}</p>
           <div class="btnrow">
-            <button class="btn btn-primary" onclick="UI.setPersona('MANAGER'); STATE.otx.step='hrReview'; UI.pushNotification('Manager endorsed the late OT claim.','Sent to HR Exception Review.'); UI.render()">Endorse for HR Exception Review</button>
+            <button class="btn btn-primary" onclick="UI.setPersona('MANAGER'); STATE.otx.step='hrReview'; historyPush(STATE.otx.history,{stageKey:'manager',actor:VT_DATA.personas.MANAGER.name,action:'Endorsed the late claim for HR Exception Review.'}); UI.pushNotification('Manager endorsed the late OT claim.','Sent to HR Exception Review.'); UI.render()">Endorse for HR Exception Review</button>
             <button class="btn btn-danger" onclick="STATE.otx.step='employee'; UI.render()">Reject</button>
           </div>
         </div>`;
+      }
     } else if (step === 'hrReview') {
-      body = `
+      body = transferCard(
+        'Manager endorsed the exception.',
+        'Manager / HOD', 'Human Resources',
+        "UI.setPersona('HR'); UI.render()"
+      );
+      if (STATE.persona === 'HR') {
+        body = `
         <div class="card">
           <h3>HR Exception Review</h3>
           <div class="checklist">
             <div class="checkrow">&#10003; Reason justified against policy</div>
             <div class="checkrow">&#10003; Checked for pattern of repeated late claims</div>
-            <div class="checkrow warn">&#9888; Days beyond window: 7 &mdash; above HR's own-approval threshold</div>
+            <div class="checkrow warn">&#9888; Days beyond window: ${ex.daysLate} &mdash; above HR's own-approval threshold</div>
           </div>
           <div class="btnrow">
-            <button class="btn btn-success" onclick="UI.setPersona('HR'); STATE.otx.step='completed'; UI.pushNotification('HR approved the OT exception.','Exception route completed.'); UI.render()">Approve Exception</button>
-            <button class="btn btn-primary" onclick="UI.setPersona('MANAGEMENT'); STATE.otx.step='management'; UI.pushNotification('OT exception escalated to Management.','Requires final sign-off.'); UI.render()">Require Management Approval</button>
+            <button class="btn btn-success" onclick="UI.setPersona('HR'); STATE.otx.step='completed'; historyPush(STATE.otx.history,{stageKey:'hr',actor:VT_DATA.personas.HR.name,action:'Approved the exception directly.'}); UI.pushNotification('HR approved the OT exception.','Exception route completed.'); UI.render()">Approve Exception</button>
+            <button class="btn btn-primary" onclick="UI.setPersona('MANAGEMENT'); STATE.otx.step='management'; historyPush(STATE.otx.history,{stageKey:'hr',actor:VT_DATA.personas.HR.name,action:'Escalated to Management &mdash; above HR\\'s own-approval threshold.'}); UI.pushNotification('OT exception escalated to Management.','Requires final sign-off.'); UI.render()">Require Management Approval</button>
             <button class="btn btn-danger" onclick="STATE.otx.step='employee'; UI.render()">Reject</button>
           </div>
         </div>`;
+      }
     } else if (step === 'management') {
-      body = `
+      body = transferCard(
+        'HR exception review escalated this case.',
+        'Human Resources', 'Management',
+        "UI.setPersona('MANAGEMENT'); UI.render()"
+      );
+      if (STATE.persona === 'MANAGEMENT') {
+        body = `
         <div class="card">
           <div class="badge badge-red" style="margin-bottom:10px">Escalated &mdash; Management Approval Required</div>
           <p style="color:var(--muted);font-size:12.5px">HR's exception review determined this case exceeds the threshold for HR to approve directly.</p>
           <div class="btnrow">
-            <button class="btn btn-success" onclick="STATE.otx.step='completed'; UI.pushNotification('Management approved the OT exception.','Exception route completed.'); UI.render()">Approve</button>
+            <button class="btn btn-success" onclick="STATE.otx.step='completed'; historyPush(STATE.otx.history,{stageKey:'management',actor:VT_DATA.personas.MANAGEMENT.name,action:'Approved the exception.'}); UI.pushNotification('Management approved the OT exception.','Exception route completed.'); UI.render()">Approve</button>
             <button class="btn btn-danger" onclick="STATE.otx.step='employee'; UI.render()">Reject</button>
           </div>
         </div>`;
+      }
     } else if (step === 'completed') {
       body = `
         <div class="card">
@@ -723,8 +855,16 @@ const OTX = {
 
     return `
       ${pageHead('OT Exception', 'Overtime &mdash; Seven-Day Submission Exception', 'A proposed exception route, not an automatic rejection.')}
-      <div class="card"><h3>Exception Workflow</h3>${wf}</div>
+      <div class="card branch-diagram">
+        <div class="branch-head"><h3 style="margin:0">Standard Process vs Exception Process</h3></div>
+        <div class="branch-divider">&#9888; SUBMISSION OUTSIDE THE 7-DAY WINDOW &mdash; WORKFLOW BRANCHES HERE</div>
+        <div class="branch-cols">
+          <div class="branch-col"><h4>Standard Process</h4>${WF.render('otx-std', OTX.standardStages(), { vertical:true, reference:true })}</div>
+          <div class="branch-col exception"><h4>Exception Process</h4>${WF.render('otx-exc', OTX.stages(), { vertical:true })}</div>
+        </div>
+      </div>
       ${body}
+      ${renderHistory(STATE.otx.history, 'Exception Route History')}
       <div class="btnrow"><button class="btn btn-ghost" onclick="UI.goPage('ot-demo')">&larr; Back to OT Demo</button></div>
     `;
   }
@@ -735,9 +875,34 @@ Pages['ot-exception'] = () => OTX.render();
    DEMO 2 — DIGITAL POLICY ACKNOWLEDGEMENT + HR POLICY MONITOR
    ========================================================= */
 const POLICY = {
-  reset(){ STATE.policy = { step:'notify', checked:false, record:null }; },
+  reset(){ STATE.policy = { step:'notify', checked:false, record:null, history:[] }; },
 
-  viewPolicy(){ STATE.policy.step = 'viewer'; UI.render(); },
+  stages(){
+    const order = ['notify','viewer','acknowledged'];
+    const idx = order.indexOf(STATE.policy.step);
+    const labels = ['Assigned','Notification Sent','Opened','Acknowledged'];
+    const details = [
+      { responsible:'System', sees:'Policy assignment.', action:'None &mdash; automatic.', recorded:'Assignment record.', next:'Notification sent to employee.' },
+      { responsible:'System', sees:'Notification queued.', action:'None &mdash; automatic.', recorded:'Notification timestamp.', next:'Employee opens the notification.' },
+      { responsible:'Employee', sees:'Policy viewer with full text.', action:'Read the policy and tick the acknowledgement statement.', recorded:'Opened timestamp &mdash; this is not yet acknowledgement.', next:'Employee submits acknowledgement.' },
+      { responsible:'Employee', sees:'Confirmation of acknowledgement.', action:'None further required.', recorded:'Employee, policy, version, date and time.', next:'Retained for HR monitoring and audit.' }
+    ];
+    // map policy.step -> how many of the 4 chain stages are complete/active
+    const chainIdx = step => ({ notify:1, viewer:2, acknowledged:3 }[step] ?? 0);
+    const ci = chainIdx(STATE.policy.step);
+    return labels.map((label,i) => ({
+      key:'pk'+i, label,
+      status: i<ci ? 'done' : (i===ci ? 'active' : 'pending'),
+      statusLabel: i<ci ? '&#10003; Done' : (i===ci ? '&#9679; In Progress' : '&#9675; Waiting'),
+      ...details[i]
+    }));
+  },
+
+  viewPolicy(){
+    STATE.policy.step = 'viewer';
+    historyPush(STATE.policy.history, { stageKey:'pk2', actor: VT_DATA.ot.employee, action:'Opened the policy. Acknowledgement outstanding.' });
+    UI.render();
+  },
 
   toggleCheck(){
     STATE.policy.checked = document.getElementById('policyCheck').checked;
@@ -749,8 +914,16 @@ const POLICY = {
     const stamp = nowStamp();
     STATE.policy.record = { employee: VT_DATA.ot.employee, policy: VT_DATA.policy.name, version: VT_DATA.policy.version, date: stamp.date, time: stamp.time };
     STATE.policy.step = 'acknowledged';
+    historyPush(STATE.policy.history, { stageKey:'pk3', actor: VT_DATA.ot.employee, action:'Acknowledged ' + VT_DATA.policy.name + ' v' + VT_DATA.policy.version + '.' });
     UI.pushNotification('Policy acknowledged.', VT_DATA.policy.name + ' v' + VT_DATA.policy.version + ' recorded for ' + VT_DATA.ot.employee + '.');
     UI.render();
+  },
+
+  ackEvents(){
+    const step = STATE.policy.step;
+    const stages = ['Assigned','Notification Sent','Opened','Acknowledged'];
+    const ci = ({ notify:1, viewer:2, acknowledged:3 }[step] ?? 0);
+    return `<div class="ack-events">${stages.map((s,i) => `${i>0?'<span class="ack-arrow">&rarr;</span>':''}<span class="ack-event ${i<ci?'done':(i===ci?'now':'')}">${s}</span>`).join('')}</div>`;
   },
 
   employeeFlow(){
@@ -759,6 +932,7 @@ const POLICY = {
       return `
         <div class="card">
           <div class="badge badge-amber" style="margin-bottom:10px">New Policy Requires Your Acknowledgement</div>
+          ${POLICY.ackEvents()}
           <h3>${VT_DATA.policy.name}</h3>
           <p style="color:var(--muted);font-size:12.5px">Version ${VT_DATA.policy.version} &middot; Effective Date ${VT_DATA.policy.effective}</p>
           <div class="btnrow"><button class="btn btn-primary btn-lg" onclick="POLICY.viewPolicy()">View Policy</button></div>
@@ -767,7 +941,9 @@ const POLICY = {
     if (step === 'viewer') {
       return `
         <div class="card">
+          ${POLICY.ackEvents()}
           <h3>${VT_DATA.policy.name} <span style="color:var(--muted);font-weight:600;font-size:12.5px">v${VT_DATA.policy.version}</span></h3>
+          <div class="badge badge-amber" style="margin:6px 0 10px">Status: OPENED &mdash; Acknowledgement Outstanding</div>
           <div class="policy-viewer">
             ${VT_DATA.policy.body.map(sec => `<h4>${sec.h}</h4><p>${sec.p}</p>`).join('')}
           </div>
@@ -784,6 +960,7 @@ const POLICY = {
       return `
         <div class="card">
           <div class="badge badge-green" style="margin-bottom:10px">&#10003; Acknowledged</div>
+          ${POLICY.ackEvents()}
           <h3>Acknowledgement recorded</h3>
           <div class="formgrid" style="margin-top:10px">
             <div><b>Employee:</b> ${r.employee}</div>
@@ -791,7 +968,7 @@ const POLICY = {
             <div><b>Version:</b> ${r.version}</div>
             <div><b>Date / Time:</b> ${r.date} &middot; ${r.time}</div>
           </div>
-          <div class="btnrow"><button class="btn btn-primary" onclick="UI.setPersona('HR'); UI.render()">Switch to HR View</button></div>
+          ${transferCard('Employee acknowledgement complete.', 'Employee', 'Human Resources', "UI.setPersona('HR'); UI.render()")}
         </div>`;
     }
   },
@@ -811,11 +988,13 @@ const POLICY = {
       </div>
       <div class="card">
         <h3>Employee Status</h3>
+        <p style="color:var(--muted);font-size:11.5px;margin-top:-4px">System events tracked separately: Assigned &middot; Notification Sent &middot; Opened &middot; Acknowledged &middot; Reminder Sent &middot; Overdue &middot; Exception.</p>
         <table class="table"><thead><tr><th>Employee</th><th>Department</th><th>Status</th></tr></thead><tbody>
           ${m.employees.map((e,i) => `<tr class="clickable" onclick="POLICY.showTimeline(${i})"><td>${e.name}</td><td>${e.dept}</td><td>${statusBadge(e.status)}</td></tr>`).join('')}
         </tbody></table>
         <p style="color:var(--muted);font-size:11.5px;margin-top:10px">Click an employee to see their acknowledgement timeline. Note: <b>Opened &ne; Acknowledged</b>.</p>
-      </div>`;
+      </div>
+      ${advisoryNote('Approval and escalation roles for policy follow-up should reflect VT Worldwide\'s final authority structure.')}`;
   },
 
   showTimeline(i){
@@ -836,7 +1015,15 @@ const POLICY = {
     if (STATE.persona === 'HR') {
       return `${pageHead('Policies &middot; Acknowledgement', 'HR Policy Monitor', 'Track digital acknowledgement of published policies across VT Worldwide.')}${POLICY.hrMonitor()}`;
     }
-    return `${pageHead('HR Services &middot; Policies', 'Digital Policy Acknowledgement', 'What an employee sees when a new policy is published in Lark.')}${POLICY.employeeFlow()}`;
+    return `
+      <div class="page-head-row">
+        ${pageHead('HR Services &middot; Policies', 'Digital Policy Acknowledgement', 'What an employee sees when a new policy is published in Lark.')}
+        <div class="page-head-actions">${GUIDED.toggleBtn('policy-demo')}</div>
+      </div>
+      ${GUIDED.render('policy-demo')}
+      ${POLICY.employeeFlow()}
+      ${renderHistory(STATE.policy.history)}
+    `;
   }
 };
 Pages['policy-demo'] = () => POLICY.render();
@@ -845,7 +1032,7 @@ Pages['policy-demo'] = () => POLICY.render();
    DEMO 3 — LEAVE APPLICATION
    ========================================================= */
 const LEAVE = {
-  reset(){ STATE.leave = { step:'form', form:null }; },
+  reset(){ STATE.leave = { step:'form', form:null, balance: STATE.leave ? STATE.leave.balance : VT_DATA.leave.balance, history:[] }; },
 
   stages(){
     const order = ['form','pendingManager','managerReview','approved'];
@@ -867,17 +1054,22 @@ const LEAVE = {
     const days = Math.max(1, Math.round((end-start)/86400000)+1);
     STATE.leave.form = { type: val('leaveType'), start: val('leaveStart'), end: val('leaveEnd'), reason: val('leaveReason'), days };
     STATE.leave.step = 'pendingManager';
+    historyPush(STATE.leave.history, { stageKey:'employee', actor: VT_DATA.ot.employee, action:'Applied for ' + STATE.leave.form.type + ' (' + days + ' day(s)).' });
     UI.pushNotification('Leave application submitted.', 'Pending Manager Approval &middot; ' + days + ' day(s).');
     UI.render();
   },
 
   decide(approve){
+    const actor = VT_DATA.personas.MANAGER.name;
     if (approve) {
       STATE.leave.balance = Math.max(0, STATE.leave.balance - STATE.leave.form.days);
       STATE.leave.step = 'approved';
+      historyPush(STATE.leave.history, { stageKey:'manager', actor, action:'Approved the leave request.' });
+      historyPush(STATE.leave.history, { stageKey:'hr', actor:'System', action:'Balance updated and HR record created.' });
       UI.pushNotification('Leave approved.', 'Balance updated and HR record created.');
     } else {
       STATE.leave.step = 'form';
+      historyPush(STATE.leave.history, { stageKey:'manager', actor, action:'Rejected the leave request.' });
       UI.pushNotification('Leave rejected.', 'Employee notified to review and resubmit.');
     }
     UI.render();
@@ -885,7 +1077,6 @@ const LEAVE = {
 
   render(){
     const step = STATE.leave.step;
-    const wf = WF.render('leave', LEAVE.stages());
     let body = '';
     if (step === 'form') {
       body = `<div class="card">
@@ -900,11 +1091,7 @@ const LEAVE = {
         <div class="btnrow"><button class="btn btn-primary btn-lg" onclick="LEAVE.submit()">Submit</button></div>
       </div>`;
     } else if (step === 'pendingManager') {
-      body = `<div class="card">
-        <div class="badge badge-amber" style="margin-bottom:10px">Pending Manager Approval</div>
-        <p>${VT_DATA.ot.employee} &middot; ${STATE.leave.form.type} &middot; ${STATE.leave.form.start} to ${STATE.leave.form.end} (${STATE.leave.form.days} day(s))</p>
-        <div class="btnrow"><button class="btn btn-primary" onclick="UI.setPersona('MANAGER'); STATE.leave.step='managerReview'; UI.render()">Switch to Manager View</button></div>
-      </div>`;
+      body = transferCard('Request submitted successfully.', VT_DATA.ot.employee + ' (Employee)', 'Manager / HOD', "UI.setPersona('MANAGER'); STATE.leave.step='managerReview'; UI.render()");
     } else if (step === 'managerReview') {
       body = `<div class="card">
         <h3>Leave Request</h3>
@@ -928,7 +1115,7 @@ const LEAVE = {
         <div class="btnrow"><button class="btn btn-primary" onclick="LEAVE.reset(); UI.setPersona('EMPLOYEE'); UI.render()">Restart Leave Demo</button></div>
       </div>`;
     }
-    return `${pageHead('HR Services &middot; Leave', 'Leave Application', 'Employee submission &rarr; Manager approval &rarr; Balance update &rarr; HR record.')}<div class="card"><h3>Workflow</h3>${wf}</div>${body}`;
+    return `${pageHead('HR Services &middot; Leave', 'Leave Application', 'Employee submission &rarr; Manager approval &rarr; Balance update &rarr; HR record.')}${WF.block('leave', LEAVE.stages())}${body}${renderHistory(STATE.leave.history)}`;
   }
 };
 Pages['leave-demo'] = () => LEAVE.render();
@@ -937,7 +1124,7 @@ Pages['leave-demo'] = () => LEAVE.render();
    DEMO 4 — MEDICAL LEAVE
    ========================================================= */
 const MEDICAL = {
-  reset(){ STATE.medical = { step:'form', form:null }; },
+  reset(){ STATE.medical = { step:'form', form:null, history:[] }; },
 
   stages(){
     const order = ['form','submitted','verified'];
@@ -957,19 +1144,20 @@ const MEDICAL = {
     if (!val('medStart') || !document.getElementById('medDocName').textContent.includes('Attached')) { UI.toast('Please set dates and upload the medical certificate.', 'warn'); return; }
     STATE.medical.form = { start: val('medStart'), days: val('medDays'), doc: VT_DATA.medical.doc, clinic: VT_DATA.medical.clinic };
     STATE.medical.step = 'submitted';
+    historyPush(STATE.medical.history, { stageKey:'employee', actor: VT_DATA.ot.employee, action:'Submitted medical leave with certificate (' + STATE.medical.form.doc + ').' });
     UI.pushNotification('Medical leave submitted.', 'Document uploaded &middot; pending HR verification.');
     UI.render();
   },
 
   verify(){
     STATE.medical.step = 'verified';
+    historyPush(STATE.medical.history, { stageKey:'hr', actor: VT_DATA.personas.HR.name, action:'Verified the medical certificate. Attendance updated.' });
     UI.pushNotification('Medical leave verified by HR.', 'Attendance updated automatically.');
     UI.render();
   },
 
   render(){
     const step = STATE.medical.step;
-    const wf = WF.render('medical', MEDICAL.stages());
     let body = '';
     if (step === 'form') {
       body = `<div class="card">
@@ -998,8 +1186,9 @@ const MEDICAL = {
           <div><b>Clinic:</b> ${STATE.medical.form.clinic}</div>
         </div>
         <div class="doc-chip" style="margin-top:10px;cursor:pointer" onclick="UI.openModal('&lt;h3&gt;Medical Certificate&lt;/h3&gt;&lt;p&gt;&lt;b&gt;File:&lt;/b&gt; ${STATE.medical.form.doc}&lt;/p&gt;&lt;p&gt;&lt;b&gt;Clinic:&lt;/b&gt; ${STATE.medical.form.clinic}&lt;/p&gt;&lt;p style=color:var(--muted);font-size:12.5px&gt;Illustrative placeholder &mdash; no real medical document is stored in this concept.&lt;/p&gt;')">&#128196; ${STATE.medical.form.doc} &middot; View Certificate</div>
-        ${showHR ? `<div class="btnrow"><button class="btn btn-success" onclick="MEDICAL.verify()">Verify Certificate</button></div>` : `<div class="btnrow"><button class="btn btn-primary" onclick="UI.setPersona('HR'); UI.render()">Switch to HR View</button></div>`}
-      </div>`;
+        ${showHR ? `<div class="btnrow"><button class="btn btn-success" onclick="MEDICAL.verify()">Verify Certificate</button></div>` : ''}
+      </div>
+      ${showHR ? '' : transferCard('Medical leave submitted with certificate.', 'Employee', 'Human Resources', "UI.setPersona('HR'); UI.render()")}`;
     } else if (step === 'verified') {
       body = `<div class="card">
         <div class="badge badge-green" style="margin-bottom:10px">Completed</div>
@@ -1008,7 +1197,7 @@ const MEDICAL = {
         <div class="btnrow"><button class="btn btn-primary" onclick="MEDICAL.reset(); UI.setPersona('EMPLOYEE'); UI.render()">Restart Medical Leave Demo</button></div>
       </div>`;
     }
-    return `${pageHead('HR Services &middot; Medical Leave', 'Medical Leave', 'Employee submission &rarr; Document uploaded &rarr; HR verification &rarr; Attendance updated.')}<div class="card"><h3>Workflow</h3>${wf}</div>${body}`;
+    return `${pageHead('HR Services &middot; Medical Leave', 'Medical Leave', 'Employee submission &rarr; Document uploaded &rarr; HR verification &rarr; Attendance updated.')}${WF.block('medical', MEDICAL.stages())}${body}${renderHistory(STATE.medical.history)}`;
   }
 };
 Pages['medical-demo'] = () => MEDICAL.render();
@@ -1017,7 +1206,7 @@ Pages['medical-demo'] = () => MEDICAL.render();
    DEMO 5 — ATTENDANCE CORRECTION
    ========================================================= */
 const ATTEND = {
-  reset(){ STATE.attendance = { step:'log', form:null }; },
+  reset(){ STATE.attendance = { step:'log', form:null, history:[] }; },
 
   stages(){
     const order = ['log','reportForm','managerVerify','hrReview','updated'];
@@ -1036,13 +1225,13 @@ const ATTEND = {
     if (!val('attCorrect') || !val('attReason')) { UI.toast('Please provide the correct time and a reason.', 'warn'); return; }
     STATE.attendance.form = { correctedOut: val('attCorrect'), reason: val('attReason') };
     STATE.attendance.step = 'managerVerify';
+    historyPush(STATE.attendance.history, { stageKey:'employee', actor: VT_DATA.ot.employee, action:'Reported missing clock-out. Proposed correction: ' + STATE.attendance.form.correctedOut + '.' });
     UI.pushNotification('Attendance correction reported.', 'Pending Manager verification.');
     UI.render();
   },
 
   render(){
     const step = STATE.attendance.step;
-    const wf = WF.render('attendance', ATTEND.stages());
     const a = VT_DATA.attendance;
     let body = '';
     if (step === 'log') {
@@ -1066,14 +1255,16 @@ const ATTEND = {
         <div class="badge badge-amber" style="margin-bottom:10px">Pending Manager Verification</div>
         <p><b>Employee:</b> ${VT_DATA.ot.employee} &middot; <b>Date:</b> ${a.date}</p>
         <p style="color:var(--muted);font-size:12.5px"><b>Reported correction:</b> Clock-out ${STATE.attendance.form.correctedOut} &mdash; ${STATE.attendance.form.reason}</p>
-        ${STATE.persona==='MANAGER' ? `<div class="btnrow"><button class="btn btn-success" onclick="STATE.attendance.step='hrReview'; UI.pushNotification('Manager verified the attendance correction.','Sent to HR for review.'); UI.render()">Verify</button></div>` : `<div class="btnrow"><button class="btn btn-primary" onclick="UI.setPersona('MANAGER'); UI.render()">Switch to Manager View</button></div>`}
-      </div>`;
+        ${STATE.persona==='MANAGER' ? `<div class="btnrow"><button class="btn btn-success" onclick="STATE.attendance.step='hrReview'; historyPush(STATE.attendance.history,{stageKey:'manager',actor:VT_DATA.personas.MANAGER.name,action:'Verified the reported correction.'}); UI.pushNotification('Manager verified the attendance correction.','Sent to HR for review.'); UI.render()">Verify</button></div>` : ''}
+      </div>
+      ${STATE.persona==='MANAGER' ? '' : transferCard('Attendance issue reported.', 'Employee', 'Manager / HOD', "UI.setPersona('MANAGER'); UI.render()")}`;
     } else if (step === 'hrReview') {
       body = `<div class="card">
         <div class="badge badge-amber" style="margin-bottom:10px">Pending HR Review</div>
         <p style="color:var(--muted);font-size:12.5px">Manager-verified correction awaiting HR approval to update the official attendance record.</p>
-        ${STATE.persona==='HR' ? `<div class="btnrow"><button class="btn btn-success" onclick="STATE.attendance.step='updated'; UI.pushNotification('HR approved the attendance correction.','Attendance record updated.'); UI.render()">Approve &amp; Update</button></div>` : `<div class="btnrow"><button class="btn btn-primary" onclick="UI.setPersona('HR'); UI.render()">Switch to HR View</button></div>`}
-      </div>`;
+        ${STATE.persona==='HR' ? `<div class="btnrow"><button class="btn btn-success" onclick="STATE.attendance.step='updated'; historyPush(STATE.attendance.history,{stageKey:'hr',actor:VT_DATA.personas.HR.name,action:'Approved the correction and updated attendance.'}); UI.pushNotification('HR approved the attendance correction.','Attendance record updated.'); UI.render()">Approve &amp; Update</button></div>` : ''}
+      </div>
+      ${STATE.persona==='HR' ? '' : transferCard('Manager verified the correction.', 'Manager / HOD', 'Human Resources', "UI.setPersona('HR'); UI.render()")}`;
     } else if (step === 'updated') {
       body = `<div class="grid grid-2">
         <div class="card"><h3>Before</h3><div class="attendance-row"><div>Clock In: <b>${a.clockIn}</b></div></div><div class="attendance-row"><div style="color:var(--danger);font-weight:700">-- Missing Clock-Out</div></div></div>
@@ -1081,7 +1272,7 @@ const ATTEND = {
       </div>
       <div class="btnrow"><button class="btn btn-primary" onclick="ATTEND.reset(); UI.setPersona('EMPLOYEE'); UI.render()">Restart Attendance Demo</button></div>`;
     }
-    return `${pageHead('HR Services &middot; Attendance Correction', 'Attendance Correction', 'Employee report &rarr; Manager verification &rarr; HR review &rarr; Attendance updated.')}<div class="card"><h3>Workflow</h3>${wf}</div>${body}`;
+    return `${pageHead('HR Services &middot; Attendance Correction', 'Attendance Correction', 'Employee report &rarr; Manager verification &rarr; HR review &rarr; Attendance updated.')}${WF.block('attendance', ATTEND.stages())}${body}${renderHistory(STATE.attendance.history)}`;
   }
 };
 Pages['attendance-demo'] = () => ATTEND.render();
@@ -1147,7 +1338,7 @@ Pages['performance-demo'] = () => PERF.render();
    DEMO 7 — PROBATION REVIEW
    ========================================================= */
 const PROBATION = {
-  reset(){ STATE.probation = { outcome:null }; },
+  reset(){ STATE.probation = { outcome:null, history:[] }; },
 
   stages(){
     const p = VT_DATA.probation;
@@ -1164,16 +1355,16 @@ const PROBATION = {
 
   decide(outcome){
     STATE.probation.outcome = outcome;
+    historyPush(STATE.probation.history, { stageKey:'pr1', actor: VT_DATA.personas.MANAGER.name, action:'Recorded probation outcome: ' + outcome + '.' });
     UI.pushNotification('Probation outcome recorded: ' + outcome + '.', VT_DATA.probation.employee);
     UI.render();
   },
 
   render(){
     const p = VT_DATA.probation;
-    const wf = WF.render('probation', PROBATION.stages());
     let action = '';
     if (STATE.persona !== 'MANAGER') {
-      action = `<div class="btnrow"><button class="btn btn-primary" onclick="UI.setPersona('MANAGER'); UI.render()">Switch to Manager View</button></div>`;
+      action = transferCard('Probation review is due.', 'Employee Record', 'Manager / HOD', "UI.setPersona('MANAGER'); UI.render()");
     } else if (!STATE.probation.outcome) {
       action = `<div class="btnrow">
         <button class="btn btn-success" onclick="PROBATION.decide('CONFIRM')">Confirm</button>
@@ -1194,8 +1385,9 @@ const PROBATION = {
           <div><b>Status:</b> <span class="badge badge-amber">${p.status}</span></div>
         </div>
       </div>
-      <div class="card"><h3>${STATE.persona==='MANAGER' ? 'Probation Review Required' : 'Manager Action'}</h3>${action}</div>
-      <div class="card"><h3>Workflow</h3>${wf}</div>
+      ${STATE.persona==='MANAGER' ? `<div class="card"><h3>Probation Review Required</h3>${action}</div>` : action}
+      ${WF.block('probation', PROBATION.stages())}
+      ${renderHistory(STATE.probation.history)}
     `;
   }
 };
@@ -1256,6 +1448,51 @@ const OFFB = {
 Pages['offboarding-demo'] = () => OFFB.render();
 
 /* =========================================================
+   LIVE WORKFLOW — master high-level view of the active OT request
+   ========================================================= */
+Pages['live-workflow'] = function(){
+  const stages = OT.stages();
+  WF.registry['live'] = stages;
+  const map = {};
+  STATE.ot.history.forEach(h => { map[h.stageKey] = h; });
+  const submitted = STATE.ot.form;
+  const firstEntry = STATE.ot.history[0];
+
+  const rows = stages.map((s,i) => {
+    const h = map[s.key];
+    const symbolClass = s.status;
+    const symbol = s.status==='done' ? '&#10003;' : (s.status==='active' ? '&#9679;' : (s.status==='exception' ? '!' : '&#9675;'));
+    return `<div class="live-row" onclick="WF.handleClick('live',${i})">
+      <div class="lr-stage"><span class="live-symbol ${symbolClass}">${symbol}</span>${s.label}</div>
+      <div class="lr-meta">${h ? `<b>${h.actor}</b> &middot; ${h.action}` : (s.status==='active' ? 'In progress&hellip;' : 'Waiting')}</div>
+      <div class="lr-meta">${h ? `${h.date} &middot; ${h.time}` : ''}</div>
+    </div>`;
+  }).join('');
+
+  return `
+    ${pageHead('Client Presentation', 'Live Workflow', 'The cleanest high-level view of an active request &mdash; reflects the Overtime demo\'s current state in real time.')}
+    <div class="card">
+      <div class="live-header">
+        <div>
+          <div class="eyebrow">Overtime Claim</div>
+          <div class="live-id">OT-2026-0910-004</div>
+          <h3 style="margin-top:6px">${VT_DATA.ot.employee}</h3>
+          <p style="color:var(--muted);font-size:12.5px;margin:2px 0 0">${VT_DATA.ot.department} Department</p>
+        </div>
+        <div style="text-align:right">
+          <span class="badge ${submitted ? 'badge-blue' : 'badge-grey'}">${submitted ? 'Submitted' : 'Not yet submitted'}</span>
+          ${firstEntry ? `<div style="font-size:11.5px;color:var(--muted);margin-top:6px">${firstEntry.date} &middot; ${firstEntry.time}</div>` : ''}
+        </div>
+      </div>
+      <div class="divider"></div>
+      ${rows}
+    </div>
+    ${!submitted ? `<div class="card"><p style="color:var(--muted);font-size:12.5px;margin:0">No claim has been submitted yet in this session. <a href="#" onclick="event.preventDefault(); OT.reset(); UI.goPage('ot-demo')">Start the Overtime Demo</a> to see this view update live.</p></div>` : ''}
+    <div class="btnrow"><button class="btn btn-ghost" onclick="UI.goPage('ot-demo')">&larr; Back to Overtime Workflow</button></div>
+  `;
+};
+
+/* =========================================================
    POLICY → LARK WORKFLOW VIEW (client presentation page)
    ========================================================= */
 Pages['policy-to-lark'] = function(){
@@ -1305,19 +1542,28 @@ Pages['current-vs-proposed'] = function(){
           </div>
         </div>`).join('')}
     </div>
+    ${advisoryNote('Variable operational rules (submission windows, escalation thresholds) should remain configurable rather than being embedded permanently into the principal policy document.')}
   `;
 };
 
 /* =========================================================
-   WORKSHOP MODE
+   WORKSHOP MODE — v2: five-state markers + per-area notes.
+   Local session state only; nothing is persisted.
    ========================================================= */
 const WORKSHOP = {
-  markers: ['&mdash;','&#10003; Confirmed','? To Confirm','&#9651; Requires Change','+ New Configuration'],
-  markerClass: ['', 'confirmed', 'toconfirm', 'change', 'newconfig'],
-  cycle(area){
-    const cur = STATE.workshop[area] || 0;
-    STATE.workshop[area] = (cur + 1) % WORKSHOP.markers.length;
+  markerDefs: {
+    confirmed: { label:'&#10003; Confirmed Existing Process', short:'Confirmed Existing Process', cls:'sel-confirmed' },
+    proposed:  { label:'&#9679; Proposed Configuration', short:'Proposed Configuration', cls:'sel-proposed' },
+    toconfirm: { label:'? Requires VT Confirmation', short:'Requires VT Confirmation', cls:'sel-toconfirm' },
+    gap:       { label:'&#9651; Gap Identified', short:'Gap Identified', cls:'sel-gap' },
+    mgmt:      { label:'! Management Decision Required', short:'Management Decision Required', cls:'sel-mgmt' }
+  },
+  setMarker(area, key){
+    STATE.workshop[area] = STATE.workshop[area] === key ? null : key;
     UI.render();
+  },
+  setNote(area, val){
+    STATE.workshopNotes[area] = val;
   }
 };
 Pages.workshop = function(){
@@ -1326,30 +1572,95 @@ Pages.workshop = function(){
   return `
     <div class="workshop-banner">
       <span>WORKSHOP MODE &middot; VT Worldwide HR on Lark &mdash; discussion only, not persisted</span>
-      <button onclick="UI.toggleWorkshopMode()">Exit Workshop Mode</button>
+      <span style="display:flex;gap:8px">
+        <button onclick="UI.goPage('workshop-summary')" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.3)">View Summary</button>
+        <button onclick="UI.toggleWorkshopMode()">Exit Workshop Mode</button>
+      </span>
     </div>
     <div style="padding-top:20px">
-      ${pageHead('Working Session', 'Current Process &rarr; Proposed Workflow', 'Click the VT Confirmation marker to cycle through: Confirmed / To Confirm / Requires Change / New Configuration.')}
-      <div class="card">
-        <table class="table">
-          <thead><tr><th>Current VT Process</th><th>Proposed Workflow</th><th>VT Confirmation</th><th>Gap Identified</th><th>Action Required</th></tr></thead>
-          <tbody>
-            ${VT_DATA.workshopAreas.map(area => {
-              const r = cvpByArea[area] || {current:'To be validated with VT Worldwide', proposed:''};
-              const mi = STATE.workshop[area] || 0;
-              return `<tr>
-                <td><b>${area}</b><div style="color:var(--muted);font-size:11.5px;margin-top:2px">${r.current}</div></td>
-                <td style="font-size:12px">${r.proposed}</td>
-                <td><span class="workshop-cell ${WORKSHOP.markerClass[mi]}" onclick="WORKSHOP.cycle('${area.replace(/'/g,"\\'")}')">${WORKSHOP.markers[mi]}</span></td>
-                <td style="color:var(--muted);font-size:12px">To identify during session</td>
-                <td style="color:var(--muted);font-size:12px">To confirm with VT</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
+      ${pageHead('Working Session', 'Current Process &rarr; Proposed Workflow', 'Select the marker that reflects the discussion for each workflow, and add a note where useful.')}
+      <div class="workshop-grid">
+        ${VT_DATA.workshopAreas.map(area => {
+          const r = cvpByArea[area] || {current:'To be validated with VT Worldwide', proposed:''};
+          const sel = STATE.workshop[area];
+          return `<div class="workshop-card">
+            <div class="wc-head">
+              <div><b>${area}</b><div class="wc-current-text"><i>Current:</i> ${r.current}</div></div>
+              <div class="wc-proposed">${r.proposed}</div>
+            </div>
+            <div class="wc-markers">
+              ${Object.entries(WORKSHOP.markerDefs).map(([key,def]) => `<button class="wc-mk ${sel===key?def.cls:''}" onclick="WORKSHOP.setMarker('${area.replace(/'/g,"\\'")}','${key}')">${def.label}</button>`).join('')}
+            </div>
+            <textarea class="wc-note" placeholder="Workshop note&hellip; e.g. Confirm whether Lark currently blocks submissions after seven days or permits HR override." onchange="WORKSHOP.setNote('${area.replace(/'/g,"\\'")}', this.value)">${STATE.workshopNotes[area] || ''}</textarea>
+          </div>`;
+        }).join('')}
       </div>
     </div>
   `;
+};
+
+/* =========================================================
+   WORKSHOP SUMMARY
+   ========================================================= */
+Pages['workshop-summary'] = function(){
+  const groups = { confirmed:[], proposed:[], toconfirm:[], gap:[], mgmt:[] };
+  VT_DATA.workshopAreas.forEach(area => {
+    const key = STATE.workshop[area];
+    if (key && groups[key]) groups[key].push(area);
+  });
+  const groupMeta = [
+    ['confirmed','CONFIRMED', 'var(--success)'],
+    ['toconfirm','TO CONFIRM', 'var(--warning)'],
+    ['gap','GAPS IDENTIFIED', 'var(--danger)'],
+    ['proposed','PROPOSED CONFIGURATION', 'var(--accent)'],
+    ['mgmt','MANAGEMENT DECISIONS', '#6a3fc7']
+  ];
+  const anyMarked = VT_DATA.workshopAreas.some(a => STATE.workshop[a]);
+  return `
+    ${pageHead('Working Session', 'Workshop Summary', 'Automatically summarised from the markers selected in Workshop Mode.')}
+    <div class="btnrow" style="margin-bottom:16px">
+      <button class="btn btn-primary" onclick="WORKSHOP.copySummary()">Copy Summary</button>
+      <button class="btn" onclick="window.print()">Print / Export View</button>
+      <button class="btn btn-ghost" onclick="UI.goPage('workshop')">&larr; Back to Workshop Mode</button>
+      ${STATE.workshopMode ? `<button class="btn btn-ghost" onclick="UI.toggleWorkshopMode()">Exit Workshop Mode</button>` : ''}
+    </div>
+    <div class="card" id="workshopSummaryCard">
+      ${anyMarked ? groupMeta.map(([key,title,color]) => groups[key].length ? `
+        <div class="summary-group">
+          <h4><span class="summary-dot" style="background:${color}"></span>${title}</h4>
+          <ul>${groups[key].map(area => `<li>${area}${STATE.workshopNotes[area] ? `<span class="note"> &mdash; ${STATE.workshopNotes[area]}</span>` : ''}</li>`).join('')}</ul>
+        </div>` : '').join('') : `<p style="color:var(--muted)">No workshop markers selected yet. Open Workshop Mode and mark each workflow to build this summary.</p>`}
+    </div>
+  `;
+};
+WORKSHOP.summaryText = function(){
+  const groups = { confirmed:[], proposed:[], toconfirm:[], gap:[], mgmt:[] };
+  VT_DATA.workshopAreas.forEach(area => {
+    const key = STATE.workshop[area];
+    if (key && groups[key]) groups[key].push(area);
+  });
+  const titles = { confirmed:'CONFIRMED', toconfirm:'TO CONFIRM', gap:'GAPS IDENTIFIED', proposed:'PROPOSED CONFIGURATION', mgmt:'MANAGEMENT DECISIONS' };
+  let out = 'VT Worldwide — Workshop Summary\n\n';
+  ['confirmed','toconfirm','gap','proposed','mgmt'].forEach(key => {
+    if (!groups[key].length) return;
+    out += titles[key] + '\n';
+    groups[key].forEach(area => {
+      out += '- ' + area + (STATE.workshopNotes[area] ? ' — ' + STATE.workshopNotes[area] : '') + '\n';
+    });
+    out += '\n';
+  });
+  return out;
+};
+WORKSHOP.copySummary = function(){
+  const text = WORKSHOP.summaryText();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(
+      () => UI.toast('Summary copied to clipboard.', 'success'),
+      () => UI.toast('Could not copy — clipboard access blocked in this environment.', 'warn')
+    );
+  } else {
+    UI.toast('Clipboard not available in this environment.', 'warn');
+  }
 };
 
 /* ===================== INIT ===================== */
