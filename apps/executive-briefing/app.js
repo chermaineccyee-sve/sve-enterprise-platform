@@ -306,7 +306,7 @@ const PEOPLE_STAGES = [
     qualification: "Onboarding is tracked as a Human Resources lifecycle capability; it is not currently connected to the Workflow approval engine.",
     whatHappens: "A new employee's record is established within one governed employment and organisational foundation — not as an isolated record in a standalone system.",
     connects: [
-      { label: "Employee Record", detail: "Legal name, employee number and core identity." },
+      { label: "Employee Record", detail: "Core employee identity and employment record." },
       { label: "Legal Entity & Organisation", detail: "The SVE entity, business unit and department the employee belongs to." },
       { label: "Position / Assignment", detail: "Role and effective-dated employment terms." },
       { label: "Reporting Relationship", detail: "Who the employee reports to, resolved by name and title." },
