@@ -53,7 +53,7 @@ const STAGE_DATA = [
     number: 3,
     name: "Operational Platform Foundation",
     summary:
-      "Independent, tested core services now exist for identity, organisation, HR lifecycle, workflow and a new Data Vault foundation — the reusable base the wider platform is built on.",
+      "The platform now has reusable foundations for identity and access, organisation and employee records, Human Resources lifecycle management, workflow and approvals.",
     capabilities: [
       { label: "SVE Identity & Access foundation — secure sign-in, multi-factor authentication, role-based permissions and a full audit trail", status: "working" },
       { label: "Organisation structure & Employee Master", status: "working" },
@@ -92,21 +92,21 @@ const STAGE_DATA = [
 const LAYERS = [
   {
     id: "experience",
-    name: "Experience Layer",
-    blurb: "What people across SVE Group actually open and use each day.",
+    name: "Experience",
+    blurb: "What people use",
     modules: [
       { id: "svegip", name: "SVEGIP", status: "working", note: "The existing SVE Group internal portal — the platform's front door today." },
       { id: "mysve", name: "My SVE", status: "working", note: "Employee self-service workspace: profile, tasks and reporting structure." },
       { id: "people", name: "People", status: "working", note: "The HR lifecycle & approvals experience — onboarding, probation, employment changes, offboarding, and manager/HR approvals." },
       { id: "management", name: "Management", status: "working", note: "Existing decision-tracking and management workspace capabilities within SVEGIP; deeper management intelligence integration remains under development." },
       { id: "finance", name: "Finance", status: "future", note: "No finance workspace exists yet. It depends on Payroll and Accounting Pro, which today exist only as documented designs, not working software." },
-      { id: "intelligence", name: "Intelligence", status: "architecture", note: "Today's SVE Data Vault screen is in active use, but the information entered into it is currently stored on the user's own device rather than in a central, backed-up database. A newer, server-based Data Vault has been built (see the Domain & Application layer) to replace this in a future phase; that changeover has not happened yet." },
+      { id: "intelligence", name: "Intelligence", status: "architecture", note: "Today's SVE Data Vault screen is in active use, but the information entered into it is currently stored on the user's own device rather than in a central, backed-up database. A newer, server-based Data Vault has been built (see Business Systems below) to replace this in a future phase; that changeover has not happened yet." },
     ],
   },
   {
     id: "domain",
-    name: "Domain & Application Layer",
-    blurb: "The business services that actually own SVE Group's data and rules.",
+    name: "Business Systems",
+    blurb: "Where work happens",
     modules: [
       { id: "identity", name: "Identity & Access", status: "working", note: "Manages user accounts, roles, permissions, secure sign-in and multi-factor authentication, with a full security audit trail — real and tested. SVEGIP's own sign-in still works independently and has not yet been connected to this foundation." },
       { id: "organisation", name: "Organisation & Employee Master", status: "working", note: "Organisation structure and the Employee Master record — real, tested, and backed by a production database." },
@@ -122,7 +122,7 @@ const LAYERS = [
   {
     id: "shared",
     name: "Shared Platform Services",
-    blurb: "Shared capabilities every business service should rely on, instead of rebuilding its own.",
+    blurb: "Common controls and services used across the platform",
     modules: [
       { id: "security", name: "Security", status: "architecture", note: "A shared security approach has been designed. Real security controls already exist inside Identity today, but are not yet shared as common infrastructure every service uses." },
       { id: "permissions", name: "Permissions", status: "working", note: "Controls over who can do what, and for which SVE entity, are real and independently verified across Identity, Organisation, HRMS, Workflow and Data Vault today — including SK Lai & Partners' separate, more restricted access tier." },
@@ -136,7 +136,7 @@ const LAYERS = [
   {
     id: "data",
     name: "Data & Infrastructure",
-    blurb: "Where SVE Group's information actually lives and runs.",
+    blurb: "Where information lives and runs",
     modules: [
       { id: "postgres", name: "PostgreSQL", status: "working", note: "Every real service (Identity, Organisation, HRMS, Workflow, Data Vault) stores its data in a real, tested production database today." },
       { id: "storage", name: "Storage", status: "architecture", note: "A design for secure file storage exists on paper, but a working file-storage capability does not exist yet — including in the existing portal, where document storage is currently only a placeholder." },
@@ -156,7 +156,10 @@ const SCREENS = [
 let currentIndex = 0;
 let selectedStageIndex = 0;
 let selectedModule = null; // { layerIndex, moduleIndex } | null
-let openAccordionLayerIndex = 0; // mobile architecture accordion
+// Shared by desktop and mobile: Screen 03 opens with all four layers
+// collapsed (-1) so the architecture reads as four connected blocks before
+// any module is revealed — progressive disclosure, not a wall of modules.
+let openAccordionLayerIndex = -1;
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -268,6 +271,10 @@ function getModuleStatus(layerId, moduleId) {
 
 function toggleAccordion(layerIndex) {
   openAccordionLayerIndex = openAccordionLayerIndex === layerIndex ? -1 : layerIndex;
+  // Selecting a different layer (or collapsing the open one) always drops
+  // back to "see its modules" — never leaves a module's detail panel
+  // showing for a layer that's no longer expanded.
+  selectedModule = null;
   render();
 }
 
@@ -317,8 +324,7 @@ function renderScreenOpening() {
         </h1>
         <p class="opening-lede">One connected internal platform designed to bring together information, people, workflow, governance, finance and management intelligence across SVE Group.</p>
         <div class="opening-status">
-          ${statusPillHtml("working")}
-          <span class="status-pill status-architecture"><span class="status-dot"></span>Management Review</span>
+          <span class="briefing-marker"><span class="marker-dot"></span>Management Review</span>
         </div>
         <div class="opening-cta">
           <button data-action="next">Explore the Platform &rarr;</button>
@@ -369,8 +375,8 @@ function renderScreenProgression() {
       <div class="section-wrap">
         <div class="progression-head">
           <div class="eyebrow">From Prototype to Platform</div>
-          <h2>The architecture evolved — not just the feature list</h2>
-          <p>Each stage below is a real shift in how the platform is built, not simply "more features." Select a stage to see what it introduced and what it carried forward.</p>
+          <h2>From an internal portal to an enterprise platform</h2>
+          <p>What began as a central workspace for information and governance has progressively developed into a reusable operational foundation for SVE Group.</p>
         </div>
         <div class="stage-track" role="tablist" aria-label="Platform evolution stages">${track}</div>
         <div class="stage-detail">
@@ -389,7 +395,7 @@ function renderScreenProgression() {
 
 function moduleDetailHtml() {
   if (!selectedModule) {
-    return `<div class="module-detail-empty">Select any module above to see an executive-level explanation of what it is and its verified status.</div>`;
+    return `<div class="module-detail-empty">Select a layer above to reveal its systems, then select any system to see an executive-level explanation of what it is and its current status.</div>`;
   }
   const layer = LAYERS[selectedModule.layerIndex];
   const mod = layer && layer.modules[selectedModule.moduleIndex];
@@ -409,7 +415,15 @@ function renderScreenArchitecture() {
     .map((key) => statusPillHtml(key))
     .join("");
 
+  // Progressive disclosure: the initial view shows only the four connected
+  // layers (name + one-line blurb) so the whole architecture reads in
+  // seconds. Selecting a layer expands it to reveal its modules; selecting
+  // a module (once revealed) still opens the same executive detail panel
+  // as before. openAccordionLayerIndex is shared with the mobile accordion
+  // below, so desktop and mobile always agree on which layer is open.
+  const anyLayerOpen = openAccordionLayerIndex !== -1;
   const desktopLayers = LAYERS.map((layer, layerIndex) => {
+    const isOpen = openAccordionLayerIndex === layerIndex;
     const chips = layer.modules
       .map((mod, moduleIndex) => {
         const isSelected =
@@ -422,15 +436,21 @@ function renderScreenArchitecture() {
           </button>`;
       })
       .join("");
-    const connector = layerIndex > 0 ? `<div class="layer-connector ${selectedModule ? "flowing" : ""}"></div>` : "";
+    const connector =
+      layerIndex > 0
+        ? `<div class="layer-connector ${anyLayerOpen ? "flowing" : ""}"><span class="connector-line"></span><span class="connector-arrow">&darr;</span><span class="connector-line"></span></div>`
+        : "";
     return `
       ${connector}
-      <div class="layer-band">
-        <div class="layer-head">
-          <h3>${esc(layer.name)}</h3>
-          <span class="layer-blurb">${esc(layer.blurb)}</span>
-        </div>
-        <div class="module-grid">${chips}</div>
+      <div class="layer-band ${isOpen ? "open" : ""}">
+        <button class="layer-toggle" data-action="accordion" data-layer="${layerIndex}" aria-expanded="${isOpen}">
+          <div class="layer-toggle-text">
+            <h3>${esc(layer.name)}</h3>
+            <span class="layer-blurb">${esc(layer.blurb)}</span>
+          </div>
+          <span class="layer-caret">&#9662;</span>
+        </button>
+        ${isOpen ? `<div class="module-grid">${chips}</div>` : ""}
       </div>`;
   }).join("");
 
@@ -467,7 +487,7 @@ function renderScreenArchitecture() {
         <div class="architecture-head">
           <div class="eyebrow">Enterprise Platform Architecture</div>
           <h2>Four connected layers, not a pile of features</h2>
-          <p>Every screen people use sits on shared business services, which sit on shared platform services, which sit on shared data and infrastructure. Select any module for its status and a short explanation.</p>
+          <p>Every screen people use sits on shared business services, which sit on shared platform services, which sit on shared data and infrastructure. Select a layer to see its systems, then select any system for its status and a short explanation.</p>
         </div>
         <div class="legend">${legend}</div>
         <div class="layer-stack">${desktopLayers}</div>
