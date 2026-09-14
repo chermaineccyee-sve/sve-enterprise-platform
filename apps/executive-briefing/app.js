@@ -41,11 +41,11 @@ const STAGE_DATA = [
     number: 2,
     name: "Governed Information & Intelligence",
     summary:
-      "Access became role- and entity-aware, decisions became tracked, and a dedicated strategic intelligence workspace appeared.",
+      "Access became based on each person's role and their specific SVE entity, decisions became tracked, and a dedicated strategic intelligence workspace appeared.",
     capabilities: [
-      { label: "Role-based access control enforced server-side on every request", status: "working" },
+      { label: "Access control based on role and SVE entity, enforced on every request", status: "working" },
       { label: "Management decision tracker with audit trail", status: "working" },
-      { label: "SVE Data Vault workspace (strategic & legal intelligence UI)", status: "working" },
+      { label: "SVE Data Vault workspace — the visible strategic & legal intelligence screen in use today", status: "working" },
     ],
   },
   {
@@ -53,12 +53,13 @@ const STAGE_DATA = [
     number: 3,
     name: "Operational Platform Foundation",
     summary:
-      "Independent, tested backend services now exist for identity, organisation, HR lifecycle and workflow — the reusable foundation the wider platform is built on.",
+      "Independent, tested core services now exist for identity, organisation, HR lifecycle, workflow and a new Data Vault foundation — the reusable base the wider platform is built on.",
     capabilities: [
-      { label: "SVE Identity & Access foundation — sessions, MFA, RBAC, audit", status: "working" },
+      { label: "SVE Identity & Access foundation — secure sign-in, multi-factor authentication, role-based permissions and a full audit trail", status: "working" },
       { label: "Organisation structure & Employee Master", status: "working" },
       { label: "HR lifecycle: onboarding, probation, employment changes, offboarding", status: "working" },
       { label: "Shared workflow & approvals engine", status: "working" },
+      { label: "Server-backed Data Vault foundation — a newer, more secure base than the existing screen currently uses", status: "working", caveat: "UI integration pending" },
     ],
   },
   {
@@ -97,9 +98,9 @@ const LAYERS = [
       { id: "svegip", name: "SVEGIP", status: "working", note: "The existing SVE Group internal portal — the platform's front door today." },
       { id: "mysve", name: "My SVE", status: "working", note: "Employee self-service workspace: profile, tasks and reporting structure." },
       { id: "people", name: "People", status: "working", note: "The HR lifecycle & approvals experience — onboarding, probation, employment changes, offboarding, and manager/HR approvals." },
-      { id: "management", name: "Management", status: "working", note: "The existing decision tracker and management command centre, already in real use; deeper integration with a dedicated intelligence service is future work." },
-      { id: "finance", name: "Finance", status: "future", note: "No finance workspace exists yet. It depends on Payroll and Accounting Pro, which are architecture-only today." },
-      { id: "intelligence", name: "Intelligence", status: "architecture", note: "Today's SVE Data Vault screen is real and working, but its confidential content still lives in the browser, not a database. A server-backed Data Vault architecture now exists (see the Domain layer) but is not yet wired into this screen." },
+      { id: "management", name: "Management", status: "working", note: "Existing decision-tracking and management workspace capabilities within SVEGIP; deeper management intelligence integration remains under development." },
+      { id: "finance", name: "Finance", status: "future", note: "No finance workspace exists yet. It depends on Payroll and Accounting Pro, which today exist only as documented designs, not working software." },
+      { id: "intelligence", name: "Intelligence", status: "architecture", note: "Today's SVE Data Vault screen is in active use, but the information entered into it is currently stored on the user's own device rather than in a central, backed-up database. A newer, server-based Data Vault has been built (see the Domain & Application layer) to replace this in a future phase; that changeover has not happened yet." },
     ],
   },
   {
@@ -107,29 +108,29 @@ const LAYERS = [
     name: "Domain & Application Layer",
     blurb: "The business services that actually own SVE Group's data and rules.",
     modules: [
-      { id: "identity", name: "Identity & Access", status: "working", note: "Users, roles, permissions, sessions, MFA and security audit — real, tested code. Not yet wired into SVEGIP's own sign-in, which runs its own separate authentication today." },
-      { id: "organisation", name: "Organisation & Employee Master", status: "working", note: "Organisation structure and the Employee Master record — real, tested, PostgreSQL-backed." },
+      { id: "identity", name: "Identity & Access", status: "working", note: "Manages user accounts, roles, permissions, secure sign-in and multi-factor authentication, with a full security audit trail — real and tested. SVEGIP's own sign-in still works independently and has not yet been connected to this foundation." },
+      { id: "organisation", name: "Organisation & Employee Master", status: "working", note: "Organisation structure and the Employee Master record — real, tested, and backed by a production database." },
       { id: "hrms", name: "HRMS", status: "working", note: "Onboarding, probation, employment changes and offboarding, integrated with approvals and Identity." },
-      { id: "workflow", name: "Workflow", status: "working", note: "A shared, reusable approval engine — routing, escalation and decisions, built once rather than per module." },
-      { id: "datavault", name: "Data Vault", status: "working", caveat: "UI integration pending", note: "Server architecture implemented / UI integration pending — the confidential-content service and its access rules are real and tested; the visible Data Vault screen has not yet been switched over to it." },
-      { id: "payroll", name: "Payroll", status: "architecture", note: "Service boundaries and data contracts are documented. No payroll calculation, payslip, or statutory logic exists yet." },
-      { id: "iclaims", name: "iClaims", status: "architecture", note: "Service boundaries are documented, dependent on HRMS and Payroll. No claims logic exists yet." },
-      { id: "accounting", name: "Accounting Pro", status: "architecture", note: "Service boundaries are documented. No ledger, journal or accounting logic exists anywhere in the platform yet." },
-      { id: "mgmtintel", name: "Management & Intelligence", status: "future", note: "Not yet scaffolded as its own service. Today's decision-tracking and reporting live inside SVEGIP itself." },
+      { id: "workflow", name: "Workflow", status: "working", note: "A shared, reusable approvals engine — routing, escalation and decisions, built once rather than separately for every business area." },
+      { id: "datavault", name: "Data Vault", status: "working", caveat: "UI integration pending", note: "Server architecture implemented / UI integration pending. The underlying service that will securely store Data Vault information and enforce access rules has been built and tested. The screen users see today has not yet been connected to it — that changeover is future work." },
+      { id: "payroll", name: "Payroll", status: "architecture", note: "The design approach has been documented. No payroll calculation, payslip, or statutory logic exists yet." },
+      { id: "iclaims", name: "iClaims", status: "architecture", note: "The design approach has been documented; it will depend on HRMS and Payroll. No claims logic exists yet." },
+      { id: "accounting", name: "Accounting Pro", status: "architecture", note: "The design approach has been documented. No ledger, journal or accounting logic exists anywhere in the platform yet." },
+      { id: "mgmtintel", name: "Management & Intelligence", status: "future", note: "Not yet built as its own dedicated service. Today's decision-tracking and reporting live inside SVEGIP itself." },
     ],
   },
   {
     id: "shared",
     name: "Shared Platform Services",
-    blurb: "Cross-cutting capabilities every business service should rely on, instead of rebuilding its own.",
+    blurb: "Shared capabilities every business service should rely on, instead of rebuilding its own.",
     modules: [
-      { id: "security", name: "Security", status: "architecture", note: "A shared contract is defined. Real authentication/security logic exists today inside Identity, not yet as a shared library every service consumes." },
-      { id: "permissions", name: "Permissions", status: "working", note: "Role, permission and entity-access enforcement is real and independently tested in Identity, Organisation, HRMS, Workflow and Data Vault today — including SK Lai & Partners' separate, more restricted access tier." },
+      { id: "security", name: "Security", status: "architecture", note: "A shared security approach has been designed. Real security controls already exist inside Identity today, but are not yet shared as common infrastructure every service uses." },
+      { id: "permissions", name: "Permissions", status: "working", note: "Controls over who can do what, and for which SVE entity, are real and independently verified across Identity, Organisation, HRMS, Workflow and Data Vault today — including SK Lai & Partners' separate, more restricted access tier." },
       { id: "audit", name: "Audit", status: "architecture", note: "A single, group-wide audit service is planned, not built. Each service already keeps its own real, working audit trail today; consolidating them is future work." },
-      { id: "documents", name: "Documents", status: "architecture", note: "A shared document-registry service is planned. SVEGIP's own controlled-document registry works today but is separate." },
-      { id: "notifications", name: "Notifications", status: "architecture", note: "Boundaries are documented. No notification service exists yet." },
-      { id: "configuration", name: "Configuration", status: "architecture", note: "A shared environment/configuration contract is defined; each service still manages its own settings today." },
-      { id: "contracts", name: "Shared Contracts", status: "architecture", note: "Common data shapes (entities, API responses, audit events) are defined so every future service speaks the same language." },
+      { id: "documents", name: "Documents", status: "architecture", note: "A shared, group-wide document-management service is planned. SVEGIP's own controlled-document registry already works today but stands alone." },
+      { id: "notifications", name: "Notifications", status: "architecture", note: "The approach has been documented, but no notification service exists yet." },
+      { id: "configuration", name: "Configuration", status: "architecture", note: "A shared approach to system configuration has been designed; each service still manages its own settings independently today." },
+      { id: "contracts", name: "Shared Contracts", status: "architecture", note: "Common data definitions (entities, responses, audit events) have been designed so every future service speaks the same language." },
     ],
   },
   {
@@ -137,11 +138,11 @@ const LAYERS = [
     name: "Data & Infrastructure",
     blurb: "Where SVE Group's information actually lives and runs.",
     modules: [
-      { id: "postgres", name: "PostgreSQL", status: "working", note: "Every real backend service (Identity, Organisation, HRMS, Workflow, Data Vault) runs real, tested migrations against PostgreSQL today." },
-      { id: "storage", name: "Storage", status: "architecture", note: "A storage contract is defined, but no real file-storage implementation exists yet — including in the existing portal, where document storage is currently a placeholder." },
-      { id: "secrets", name: "Secrets", status: "working", note: "A working, environment-variable-based secrets provider exists and is used by Identity today. A dedicated secrets-management service is future work." },
-      { id: "logging", name: "Logging", status: "architecture", note: "A shared logging contract is defined; console-level logging is what actually runs today." },
-      { id: "deployment", name: "SVE Server / AWS", status: "architecture", note: "A deployment-portability approach is documented. The platform runs on Netlify today and is not yet portable to private-server or AWS hosting." },
+      { id: "postgres", name: "PostgreSQL", status: "working", note: "Every real service (Identity, Organisation, HRMS, Workflow, Data Vault) stores its data in a real, tested production database today." },
+      { id: "storage", name: "Storage", status: "architecture", note: "A design for secure file storage exists on paper, but a working file-storage capability does not exist yet — including in the existing portal, where document storage is currently only a placeholder." },
+      { id: "secrets", name: "Secrets", status: "working", note: "A basic, working method for storing system credentials securely exists and is used by Identity today. A dedicated, enterprise-grade secrets-management service is future work." },
+      { id: "logging", name: "Logging", status: "architecture", note: "A shared approach to system logging has been designed; only basic, developer-level logging runs today. A full monitoring capability is future work." },
+      { id: "deployment", name: "SVE Server / AWS", status: "architecture", note: "A plan for moving to SVE's own servers or AWS has been documented, but not built. The platform currently runs on a third-party hosting provider (Netlify)." },
     ],
   },
 ];
@@ -351,7 +352,7 @@ function renderScreenProgression() {
         .map(
           (cap, idx) => `
         <li class="capability-item ${isCurrent ? "" : "carried"}" style="animation-delay:${idx * 0.06}s">
-          ${statusPillHtml(cap.status)}
+          ${statusPillHtml(cap.status, cap.caveat)}
           <span class="capability-label">${esc(cap.label)}</span>
         </li>`
         )
@@ -368,7 +369,7 @@ function renderScreenProgression() {
       <div class="section-wrap">
         <div class="progression-head">
           <div class="eyebrow">From Prototype to Platform</div>
-          <h2>The architecture evolved — not just the module count</h2>
+          <h2>The architecture evolved — not just the feature list</h2>
           <p>Each stage below is a real shift in how the platform is built, not simply "more features." Select a stage to see what it introduced and what it carried forward.</p>
         </div>
         <div class="stage-track" role="tablist" aria-label="Platform evolution stages">${track}</div>
