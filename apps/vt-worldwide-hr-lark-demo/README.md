@@ -67,3 +67,35 @@ Management views at any point in a demo.
 
 All of the above is layered onto the existing workflow engine and state; no working demo path
 from the first build was removed or rebuilt.
+
+## Performance Management (`performance-demo`)
+
+A proposed future-state visualisation only — **not** VT Worldwide's confirmed Performance
+Management framework. Every rating, weighting, target and approval authority shown is
+illustrative ("SAMPLE ONLY" tags on the KPI card) and labelled with its status against the same
+five-marker vocabulary used in Workshop Mode (Confirmed / Proposed Configuration / Requires VT
+Confirmation / Gap Identified / Management Decision Required):
+
+- **Home** shows Performance Management as one of four principal workflow columns (Time &
+  Attendance, Policy & Acknowledgement, Performance Management, Employee Lifecycle).
+- The **12-stage landing overview** (Performance Cycle Setup → Next Performance Cycle) is fully
+  clickable and reference-only.
+- The **live interactive flow** — Cycle Setup (HR) → Self-Assessment (Employee) → Manager
+  Assessment → Calibration (Management persona, standing in for Department Head / Calibration
+  authority) → HR governance control (checks completeness, does *not* set the rating) → Final
+  Outcome (three branches, none auto-selected) → Employee Acknowledgement (explicitly not
+  agreement) — uses the same `WF.block`, transfer-card and history-log components as every other
+  demo.
+- **Branch C (Performance Concern Identified)** links to the existing Probation demo's
+  Performance Improvement Plan outcome via "Open Performance Improvement Plan Workflow" rather
+  than duplicating it, and states plainly that PIP initiation is not automatic.
+- A **Performance Cycle Status dashboard** (illustrative sample numbers) shows for HR/Management
+  personas.
+- **Start Performance Demo** — a 9-step Guided Demo narration, since this is a priority
+  discussion item for the working session.
+- **Workshop Mode** carries a dedicated 15-item "Performance Management — Detailed Validation"
+  panel (Current VT Practice / Proposed SVE Workflow / marker / note per item), seeded with SVE's
+  proposed starting position — 14 items default to "Requires VT Confirmation", Employee
+  Acknowledgement defaults to "Proposed Configuration" — and every item stays changeable live.
+  **Workshop Summary** automatically rolls these up into their own "Performance Management"
+  section alongside the general summary.

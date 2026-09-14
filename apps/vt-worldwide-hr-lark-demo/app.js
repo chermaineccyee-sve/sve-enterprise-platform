@@ -32,13 +32,26 @@ const STATE = {
   leave: { step:'form', form:null, balance: VT_DATA.leave.balance, history:[] },
   medical: { step:'form', form:null, history:[] },
   attendance: { step:'log', form:null, history:[] },
-  performance: { localView:'EMPLOYEE', empRating: VT_DATA.performance.kpi.empRating, mgrRating: VT_DATA.performance.kpi.mgrRating, stageIndex:0 },
+  pm: {
+    step:'employee',
+    empRating:null, empComments:'', empEvidence:false,
+    mgrRating:null, mgrComments:'', mgrObservations:'', mgrDevRec:'',
+    calibProposedRating:null, calibComments:'',
+    outcomeBranch:null,
+    ackRecord:null,
+    history:[]
+  },
   probation: { outcome:null, history:[] },
   offboarding: { started:false, tasks: JSON.parse(JSON.stringify(VT_DATA.offboarding.tasks)) },
   cvp: {},
   workshop: {},
   workshopNotes: {}
 };
+
+// Seed the Performance Management workshop items with SVE's proposed starting
+// position (see VT_DATA.pm.workshopItems) — a live-session default, not a
+// pre-filled "finding"; every item remains changeable during Workshop Mode.
+VT_DATA.pm.workshopItems.forEach(item => { STATE.workshop[item.label] = item.defaultMarker; });
 
 /* ===================== UI CORE ===================== */
 const UI = {
@@ -220,12 +233,23 @@ const GUIDED = {
       'Employee confirms the acknowledgement statement and submits.',
       'Human Resources monitors acknowledgement completion across all assigned employees.',
       'Outstanding and overdue acknowledgements are followed up by Human Resources.'
+    ],
+    'performance-demo': [
+      'Human Resources launches the performance cycle.',
+      'Key Result Areas and Key Performance Indicators are established and aligned.',
+      'Employee completes self-assessment.',
+      'Manager completes assessment.',
+      'Department Head / appropriate reviewer conducts review or calibration.',
+      'Human Resources verifies workflow completion and governance requirements.',
+      'Final performance outcome is recorded.',
+      'Employee reviews and acknowledges the completed evaluation.',
+      'Development, follow-up or Performance Improvement Plan workflow may follow where appropriate.'
     ]
   },
-  toggleBtn(pageKey){
+  toggleBtn(pageKey, onLabel){
     if (!GUIDED.scripts[pageKey]) return '';
     const isOpen = STATE.guided.open && STATE.guided.pageKey === pageKey;
-    return `<button class="btn ${isOpen?'btn-primary':''}" onclick="${isOpen? 'GUIDED.exit()' : `GUIDED.start('${pageKey}')`}">${isOpen ? 'Exit Guided Demo' : 'Guided Demo'}</button>`;
+    return `<button class="btn ${isOpen?'btn-primary':''}" onclick="${isOpen? 'GUIDED.exit()' : `GUIDED.start('${pageKey}')`}">${isOpen ? 'Exit Guided Demo' : (onLabel || 'Guided Demo')}</button>`;
   },
   start(pageKey){
     STATE.guided = { open:true, pageKey, stepIndex:0 };
@@ -284,6 +308,16 @@ Pages.home = function(){
       <div class="grid grid-4">
         ${qa.map(c => `<div class="tile" onclick="UI.goPage('${c.page}')"><div class="tile-icon">${c.icon}</div><h4>${c.label}</h4></div>`).join('')}
       </div>
+    </div>
+
+    <h3 style="margin:22px 0 12px">Principal HR Workflow Areas</h3>
+    <p style="color:var(--muted);font-size:12.5px;margin:-6px 0 14px">The major workflow groups being configured in Lark. Performance Management is shown here as a principal workflow area &mdash; click any item to open its workflow.</p>
+    <div class="principal-grid">
+      ${VT_DATA.principalWorkflow.map(col => `
+        <div class="principal-col">
+          <h4>${col.title}</h4>
+          ${col.items.map(it => `<button class="principal-item" onclick="UI.goPage('${it.page}')">${it.label}</button>`).join('')}
+        </div>`).join('')}
     </div>
 
     <h3 style="margin:22px 0 12px">Employee Workspace</h3>
@@ -375,16 +409,12 @@ Pages.policies = function(){
 
 Pages.performance = function(){
   return `
-    ${pageHead('Performance', 'Performance', 'Performance workflows for the current review cycle.')}
+    ${pageHead('Performance', 'Performance', 'Performance workflows for the current review cycle.', 'Proposed Future-State Workflow &mdash; Subject to VT Worldwide Confirmation')}
     <div class="grid grid-2">
-      <div class="tile" onclick="UI.goPage('performance-demo')"><div class="tile-icon">&#127919;</div><h4>Performance Review 2026</h4><p>Self-assessment &rarr; Manager &rarr; HOD &rarr; HR &rarr; Final Review &rarr; Acknowledgement.</p></div>
+      <div class="tile" onclick="UI.goPage('performance-demo')"><div class="tile-icon">&#127919;</div><h4>Performance Management</h4><p>Cycle setup &rarr; KRA/KPI &rarr; Self-assessment &rarr; Manager &rarr; Calibration &rarr; HR &rarr; Final outcome &rarr; Acknowledgement.</p></div>
       <div class="tile" onclick="UI.goPage('probation-demo')"><div class="tile-icon">&#128197;</div><h4>Probation Review</h4><p>Confirm, extend or initiate a Performance Improvement Plan.</p></div>
     </div>
-    ${STATE.persona==='HR' ? `<div class="card" style="margin-top:16px"><h3>Performance Administration</h3><div class="grid grid-3">
-      <div class="stat-tile"><div class="num">68</div><div class="lbl">Reviews In Cycle</div></div>
-      <div class="stat-tile"><div class="num">41</div><div class="lbl">Completed</div></div>
-      <div class="stat-tile"><div class="num">27</div><div class="lbl">Outstanding</div></div>
-    </div></div>` : ''}
+    ${(STATE.persona==='HR' || STATE.persona==='MANAGEMENT') ? PM.dashboard() : ''}
   `;
 };
 
@@ -1278,61 +1308,389 @@ const ATTEND = {
 Pages['attendance-demo'] = () => ATTEND.render();
 
 /* =========================================================
-   DEMO 6 — PERFORMANCE EVALUATION (illustrative workflow only)
+   DEMO 6 — PERFORMANCE MANAGEMENT
+   Proposed future-state workflow only. Nothing here finalises
+   VT Worldwide's KRA/KPI methodology, rating scale, weighting,
+   calibration authority, approval authority or PIP triggers —
+   see VT_DATA.pm and the Workshop validation panel.
    ========================================================= */
-const PERF = {
-  setView(v){ STATE.performance.localView = v; UI.render(); },
-  setRating(who, val){ STATE.performance[who] = parseInt(val,10); UI.render(); },
-  advance(delta){
-    const max = VT_DATA.performance.stages.length - 1;
-    STATE.performance.stageIndex = Math.min(max, Math.max(0, STATE.performance.stageIndex + delta));
+const PM = {
+  reset(){
+    STATE.pm = {
+      step:'cycleSetup',
+      empRating:null, empComments:'', empEvidence:false,
+      mgrRating:null, mgrComments:'', mgrObservations:'', mgrDevRec:'',
+      calibProposedRating:null, calibComments:'',
+      outcomeBranch:null,
+      ackRecord:null,
+      history:[]
+    };
+  },
+
+  openLandingDetail(n){
+    const stages = VT_DATA.pm.landingStages;
+    const i = stages.findIndex(s => s.n === n);
+    const s = stages[i];
+    const next = stages[i+1];
+    const RESP = ['Human Resources','Human Resources / Employee / Manager','Employee & Manager','Human Resources / System','Employee','Manager / HOD','Department Head (authority to be confirmed)','Human Resources','Final approval authority (to be confirmed)','Employee','Employee / Manager / Human Resources','Human Resources'];
+    UI.openStagePanel({
+      label: s.label,
+      responsible: RESP[i],
+      sees: s.desc,
+      action: 'This is a proposed stage for discussion &mdash; mark it in Workshop Mode to record VT Worldwide\'s position.',
+      recorded: 'Illustrative only in this concept; subject to VT Worldwide confirmation.',
+      next: next ? 'Proceeds to: ' + next.label + '.' : 'The cycle returns to Performance Cycle Setup.'
+    });
+  },
+
+  flowStages(){
+    const step = STATE.pm.step;
+    const doneSets = {
+      employee: ['pendingManager','managerReview','pendingCalibration','calibration','pendingHR','hrReview','finalOutcome','pendingAck','acknowledgement','completed'],
+      manager: ['pendingCalibration','calibration','pendingHR','hrReview','finalOutcome','pendingAck','acknowledgement','completed'],
+      calibration: ['pendingHR','hrReview','finalOutcome','pendingAck','acknowledgement','completed'],
+      hr: ['finalOutcome','pendingAck','acknowledgement','completed'],
+      outcome: ['pendingAck','acknowledgement','completed'],
+      ack: ['completed']
+    };
+    const activeSets = {
+      employee: ['cycleSetup','employee'],
+      manager: ['pendingManager','managerReview'],
+      calibration: ['pendingCalibration','calibration'],
+      hr: ['pendingHR','hrReview'],
+      outcome: ['finalOutcome'],
+      ack: ['pendingAck','acknowledgement']
+    };
+    const mk = (key,label,detail) => {
+      const status = doneSets[key].includes(step) ? 'done' : (activeSets[key].includes(step) ? 'active' : 'pending');
+      return { key, label, status, statusLabel: status==='done' ? '&#10003; Done' : (status==='active' ? '&#9679; In Progress' : '&#9675; Waiting'), ...detail };
+    };
+    return [
+      mk('employee','Employee', {responsible:'Employee', sees:'Self-assessment form with illustrative KRA/KPI.', action:'Rate own performance, add comments and supporting evidence.', recorded:'Employee self-assessment.', next:'Sent to Manager / HOD.'}),
+      mk('manager','Manager/HOD', {responsible:'Manager / HOD', sees:'Employee self-assessment, KRA/KPI results, comments and evidence.', action:'Record a manager rating, comments, observations and development recommendation.', recorded:'Manager assessment.', next:'Sent to Calibration.'}),
+      mk('calibration','Calibration', {responsible:'Department Head / Calibration (authority to be confirmed)', sees:'Employee and manager ratings.', action:'Endorse, return for review, or propose an adjustment.', recorded:'Calibration outcome and proposed rating.', next:'Sent to Human Resources.'}),
+      mk('hr','Human Resources', {responsible:'Human Resources', sees:'Full review trail, completion checklist.', action:'Verify governance and completeness &mdash; not the rating decision.', recorded:'HR governance checklist outcome.', next:'Final performance outcome is recorded.'}),
+      mk('outcome','Final Outcome', {responsible:'Final approval authority (to be confirmed)', sees:'Full review package.', action:'Record the final outcome branch.', recorded:'Final outcome and branch.', next:'Employee reviews and acknowledges.'}),
+      mk('ack','Acknowledgement', {responsible:'Employee', sees:'Completed performance evaluation.', action:'Acknowledge receipt (not agreement) of the completed evaluation.', recorded:'Acknowledgement date and time.', next:'Cycle record retained; development/follow-up as applicable.'})
+    ];
+  },
+
+  launchCycle(){
+    STATE.pm.step = 'employee';
+    historyPush(STATE.pm.history, { stageKey:'employee', actor: VT_DATA.personas.HR.name, action:'Launched the ' + VT_DATA.pm.cycle + '.' });
+    UI.pushNotification('Performance cycle launched.', VT_DATA.pm.cycle + ' is now open.');
     UI.render();
   },
 
-  stages(){
-    const idx = STATE.performance.stageIndex;
-    const details = [
-      {responsible:'Employee', sees:'Self-assessment form against agreed KPIs.', action:'Rate own performance and add comments.', recorded:'Employee rating and comments.', next:'Sent to Manager.'},
-      {responsible:'Manager', sees:'Employee self-assessment alongside actuals.', action:'Provide manager rating and comments.', recorded:'Manager rating and comments.', next:'Sent to HOD for review.'},
-      {responsible:'HOD', sees:'Employee and manager assessments.', action:'Review for consistency and calibration.', recorded:'HOD review notes.', next:'Sent to HR.'},
-      {responsible:'Human Resources', sees:'Full assessment trail.', action:'Check completeness and policy compliance.', recorded:'HR review status.', next:'Sent for final review.'},
-      {responsible:'Final Reviewer', sees:'Complete review package.', action:'Confirm the final rating.', recorded:'Final rating.', next:'Employee acknowledges the outcome.'},
-      {responsible:'Employee', sees:'Final review outcome.', action:'Acknowledge the completed review.', recorded:'Acknowledgement timestamp.', next:'Review cycle closed.'}
-    ];
-    return VT_DATA.performance.stages.map((label,i) => ({ key:'p'+i, label, status: i<idx?'done':(i===idx?'active':'pending'), ...details[i] }));
+  submitSelfAssessment(){
+    const rating = document.getElementById('pmEmpRating').value;
+    if (!rating) { UI.toast('Please select a self-assessment rating.', 'warn'); return; }
+    STATE.pm.empRating = rating;
+    STATE.pm.empComments = document.getElementById('pmEmpComments').value;
+    STATE.pm.empEvidence = document.getElementById('pmEmpDocName').textContent.includes('Attached');
+    STATE.pm.step = 'pendingManager';
+    historyPush(STATE.pm.history, { stageKey:'employee', actor: VT_DATA.ot.employee, action:'Submitted self-assessment (illustrative rating ' + rating + '/5).' });
+    UI.pushNotification('Self-assessment submitted.', 'Pending Manager / HOD assessment.');
+    UI.render();
+  },
+
+  saveDraft(){ UI.toast('Draft saved for this session (not persisted between sessions).'); },
+
+  submitManagerAssessment(){
+    const rating = document.getElementById('pmMgrRating').value;
+    if (!rating) { UI.toast('Please select a manager rating.', 'warn'); return; }
+    STATE.pm.mgrRating = rating;
+    STATE.pm.mgrComments = document.getElementById('pmMgrComments').value;
+    STATE.pm.mgrObservations = document.getElementById('pmMgrObs').value;
+    STATE.pm.mgrDevRec = document.getElementById('pmMgrDev').value;
+    STATE.pm.step = 'pendingCalibration';
+    historyPush(STATE.pm.history, { stageKey:'manager', actor: VT_DATA.personas.MANAGER.name, action:'Submitted manager assessment (illustrative rating ' + rating + '/5).' });
+    UI.pushNotification('Manager assessment submitted.', 'Sent for calibration review.');
+    UI.render();
+  },
+
+  returnForClarification(){
+    STATE.pm.step = 'returnedToEmployee';
+    historyPush(STATE.pm.history, { stageKey:'manager', actor: VT_DATA.personas.MANAGER.name, action:'Returned the self-assessment for clarification.' });
+    UI.pushNotification('Self-assessment returned for clarification.', 'Employee notified.');
+    UI.render();
+  },
+
+  calibrationAction(action){
+    const select = document.getElementById('pmCalibRating');
+    const chosen = select ? select.value : STATE.pm.mgrRating;
+    STATE.pm.calibComments = document.getElementById('pmCalibComments') ? document.getElementById('pmCalibComments').value : '';
+    if (action === 'return') {
+      STATE.pm.step = 'managerReview';
+      historyPush(STATE.pm.history, { stageKey:'calibration', actor: VT_DATA.personas.MANAGEMENT.name, action:'Returned the assessment to Manager / HOD for review.' });
+      UI.pushNotification('Returned for review.', 'Sent back to Manager / HOD.');
+    } else {
+      STATE.pm.calibProposedRating = action === 'adjust' ? chosen : STATE.pm.mgrRating;
+      STATE.pm.step = 'pendingHR';
+      historyPush(STATE.pm.history, { stageKey:'calibration', actor: VT_DATA.personas.MANAGEMENT.name, action: (action==='endorse' ? 'Endorsed the manager rating.' : 'Proposed a calibration adjustment (illustrative rating ' + chosen + '/5).') });
+      UI.pushNotification('Calibration completed.', 'Sent to Human Resources for governance review.');
+    }
+    UI.render();
+  },
+
+  hrDecision(ready){
+    if (ready) {
+      STATE.pm.step = 'finalOutcome';
+      historyPush(STATE.pm.history, { stageKey:'hr', actor: VT_DATA.personas.HR.name, action:'Confirmed governance checklist complete &mdash; ready for final outcome.' });
+      UI.pushNotification('HR governance review complete.', 'Ready for final performance outcome.');
+    } else {
+      STATE.pm.step = 'calibration';
+      historyPush(STATE.pm.history, { stageKey:'hr', actor: VT_DATA.personas.HR.name, action:'Returned for completion &mdash; required stage or evidence missing.' });
+      UI.pushNotification('Returned for completion.', 'Sent back to Calibration.');
+    }
+    UI.render();
+  },
+
+  chooseOutcome(branch){
+    STATE.pm.outcomeBranch = branch;
+    historyPush(STATE.pm.history, { stageKey:'outcome', actor:'Final approval authority (TBC)', action:'Recorded outcome branch: ' + ({A:'Meets / Exceeds Expectations', B:'Development Required', C:'Performance Concern Identified'})[branch] + '.' });
+    UI.render();
+  },
+
+  continueToAck(){
+    STATE.pm.step = 'pendingAck';
+    UI.pushNotification('Final performance outcome recorded.', 'Sent to Employee for review and acknowledgement.');
+    UI.render();
+  },
+
+  acknowledge(){
+    const stamp = nowStamp();
+    STATE.pm.ackRecord = { date: stamp.date, time: stamp.time };
+    STATE.pm.step = 'completed';
+    historyPush(STATE.pm.history, { stageKey:'ack', actor: VT_DATA.ot.employee, action:'Acknowledged receipt of the completed evaluation (not an indication of agreement).' });
+    UI.pushNotification('Performance review acknowledged.', 'Cycle record retained for audit.');
+    UI.render();
+  },
+
+  sampleKpiCard(){
+    const kpi = VT_DATA.performance.kpi;
+    return `
+      <div class="kpi-card pm-kpi-card">
+        <div class="kpi-row"><span>KRA</span><b>${kpi.kra}</b></div>
+        <div class="kpi-row"><span>KPI</span><b>${kpi.kpi}</b></div>
+        <div class="kpi-row"><span class="sample-lbl">Weight <span class="status-tag sample">Sample Only</span></span><b>${kpi.weight}</b></div>
+        <div class="kpi-row"><span class="sample-lbl">Target <span class="status-tag sample">Sample Only</span></span><b>${kpi.target}</b></div>
+        <div class="kpi-row"><span class="sample-lbl">Actual <span class="status-tag sample">Sample Only</span></span><b>${kpi.actual}</b></div>
+      </div>
+      <p style="color:var(--muted);font-size:11px;margin-top:8px">${VT_DATA.pm.ratingScaleNote}</p>`;
+  },
+
+  landingOverview(){
+    return VT_DATA.pm.landingStages.map(s => `
+      <div class="pm-landing-stage">
+        <div class="pm-landing-num">${s.n}</div>
+        <div class="pm-landing-body" onclick="PM.openLandingDetail(${s.n})">
+          <h4>${s.label} <span class="status-tag ${s.status}">${WORKSHOP.markerDefs[s.status] ? WORKSHOP.markerDefs[s.status].short : (s.status==='mgmt' ? 'Management Decision Required' : s.status)}</span></h4>
+          <p>${s.desc}</p>
+        </div>
+      </div>`).join('');
+  },
+
+  dashboard(){
+    const d = VT_DATA.pm.dashboard;
+    return `
+      <div class="card">
+        <h3>Performance Cycle Status</h3>
+        <p style="color:var(--muted);font-size:11.5px;margin-top:-6px">Illustrative / sample data &mdash; shown to demonstrate what management visibility could look like.</p>
+        <div class="grid grid-4" style="margin-top:6px">
+          <div class="stat-tile"><div class="num">${d.inCycle}</div><div class="lbl">Employees In Cycle</div></div>
+          <div class="stat-tile"><div class="num" style="color:var(--accent-dark)">${d.selfAssessed}</div><div class="lbl">Self-Assessments Completed</div></div>
+          <div class="stat-tile"><div class="num" style="color:var(--accent-dark)">${d.managerReviewed}</div><div class="lbl">Manager Reviews Completed</div></div>
+          <div class="stat-tile"><div class="num" style="color:var(--warning)">${d.pendingCalibration}</div><div class="lbl">Pending Calibration</div></div>
+          <div class="stat-tile"><div class="num" style="color:var(--warning)">${d.hrReview}</div><div class="lbl">Human Resources Review</div></div>
+          <div class="stat-tile"><div class="num" style="color:var(--success)">${d.completed}</div><div class="lbl">Completed</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Upcoming Actions</h3>
+        ${d.upcoming.map(u => `<div class="attendance-row"><div>${u.label}</div><span class="badge badge-amber">${u.count}</span></div>`).join('')}
+      </div>`;
   },
 
   render(){
-    const wf = WF.render('perf', PERF.stages(), {});
-    const kpi = VT_DATA.performance.kpi;
-    const view = STATE.performance.localView;
+    const step = STATE.pm.step;
+    let body = '';
+
+    if (step === 'cycleSetup') {
+      body = `<div class="card">
+        <div class="badge badge-amber" style="margin-bottom:10px">Performance Cycle Not Yet Launched</div>
+        <p style="color:var(--muted);font-size:12.5px">${VT_DATA.pm.cycle} &middot; Period: ${VT_DATA.pm.period}</p>
+        ${STATE.persona==='HR' ? `<div class="btnrow"><button class="btn btn-primary btn-lg" onclick="PM.launchCycle()">Launch Performance Cycle</button></div>` : transferCard('Performance cycle is ready to be opened.', 'Employee Record', 'Human Resources', "UI.setPersona('HR'); UI.render()")}
+      </div>`;
+    } else if (step === 'employee') {
+      body = `<div class="card">
+        <h3>My Performance</h3>
+        <p style="color:var(--muted);font-size:12.5px">Performance Review ${VT_DATA.performance.year} &middot; <span class="status-tag toconfirm">Period: ${VT_DATA.pm.period}</span></p>
+        <div class="badge badge-amber" style="margin:8px 0">Status: Self-Assessment Required</div>
+        ${PM.sampleKpiCard()}
+        <div class="formgrid" style="margin-top:14px">
+          <div class="field"><label>Employee Rating</label><select id="pmEmpRating"><option value="">Select&hellip;</option>${[1,2,3,4,5].map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div>
+          <div class="field full"><label>Employee Comments</label><textarea id="pmEmpComments" placeholder="Describe performance against each KRA/KPI&hellip;"></textarea></div>
+          <div class="field full"><label>Supporting Evidence</label>
+            <div style="display:flex;gap:10px;align-items:center">
+              <button type="button" class="btn" onclick="document.getElementById('pmEmpDocName').textContent='Attached: Q3-Delivery-Summary.pdf'; UI.toast('Evidence attached (simulated).')">Upload Evidence</button>
+              <span id="pmEmpDocName" class="hint">No file attached</span>
+            </div>
+          </div>
+        </div>
+        <div class="btnrow"><button class="btn btn-primary btn-lg" onclick="PM.submitSelfAssessment()">Submit Self-Assessment</button></div>
+        <div class="tag-note" style="margin-top:14px">Illustrative Performance Structure &ndash; Final methodology subject to VT Worldwide confirmation.</div>
+      </div>`;
+    } else if (step === 'pendingManager') {
+      body = transferCard('Self-assessment submitted successfully.', VT_DATA.ot.employee + ' (Employee)', 'Manager / HOD', "UI.setPersona('MANAGER'); STATE.pm.step='managerReview'; UI.render()");
+    } else if (step === 'managerReview') {
+      body = `<div class="card">
+        <h3>Employee Performance Review</h3>
+        <div class="formgrid">
+          <div><b>Employee:</b> ${VT_DATA.ot.employee}</div>
+          <div><b>Employee Rating (illustrative):</b> ${STATE.pm.empRating}/5</div>
+          <div class="full"><b>Employee Comments:</b> ${STATE.pm.empComments || '&mdash;'}</div>
+          <div class="full"><b>Supporting Evidence:</b> ${STATE.pm.empEvidence ? 'Attached' : 'None attached'}</div>
+        </div>
+        <div class="divider"></div>
+        ${PM.sampleKpiCard()}
+        <div class="formgrid" style="margin-top:14px">
+          <div class="field"><label>Manager Rating</label><select id="pmMgrRating"><option value="">Select&hellip;</option>${[1,2,3,4,5].map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div>
+          <div class="field full"><label>Manager Comments</label><textarea id="pmMgrComments" placeholder="Manager assessment comments&hellip;"></textarea></div>
+          <div class="field full"><label>Performance Observations</label><textarea id="pmMgrObs" placeholder="Observations over the review period&hellip;"></textarea></div>
+          <div class="field full"><label>Development Recommendation</label><textarea id="pmMgrDev" placeholder="Optional development or coaching recommendation&hellip;"></textarea></div>
+        </div>
+        <div class="btnrow">
+          <button class="btn" onclick="PM.saveDraft()">Save Draft</button>
+          <button class="btn btn-primary" onclick="PM.submitManagerAssessment()">Submit Manager Assessment</button>
+          <button class="btn btn-danger" onclick="PM.returnForClarification()">Return for Clarification</button>
+        </div>
+      </div>`;
+    } else if (step === 'returnedToEmployee') {
+      body = `<div class="card">
+        <div class="badge badge-amber" style="margin-bottom:10px">Returned for Clarification</div>
+        <p style="color:var(--muted);font-size:12.5px">The manager requested more information before completing the assessment.</p>
+        <div class="btnrow"><button class="btn btn-primary" onclick="STATE.pm.step='employee'; UI.setPersona('EMPLOYEE'); UI.render()">Back to Self-Assessment</button></div>
+      </div>`;
+    } else if (step === 'pendingCalibration') {
+      body = transferCard('Manager assessment submitted for Department Head / Calibration review.', 'Manager / HOD', 'Management', "UI.setPersona('MANAGEMENT'); STATE.pm.step='calibration'; UI.render()");
+    } else if (step === 'calibration') {
+      body = `<div class="card">
+        <h3>Calibration / Review</h3>
+        <p style="color:var(--muted);font-size:12.5px">Purpose: ensure consistency and appropriate review before finalisation.</p>
+        <div class="tag-note" style="margin:8px 0 14px">Calibration methodology and authority to be confirmed with VT Worldwide.</div>
+        <div class="formgrid">
+          <div><b>Employee Rating:</b> ${STATE.pm.empRating}/5</div>
+          <div><b>Manager Rating:</b> ${STATE.pm.mgrRating}/5</div>
+          <div class="field"><label>Proposed Rating</label><select id="pmCalibRating">${[1,2,3,4,5].map(n=>`<option value="${n}" ${String(n)===STATE.pm.mgrRating?'selected':''}>${n}</option>`).join('')}</select></div>
+          <div class="field full"><label>Comments</label><textarea id="pmCalibComments" placeholder="Calibration notes&hellip;"></textarea></div>
+        </div>
+        <div class="btnrow">
+          <button class="btn btn-success" onclick="PM.calibrationAction('endorse')">Endorse</button>
+          <button class="btn" onclick="PM.calibrationAction('return')">Return for Review</button>
+          <button class="btn btn-primary" onclick="PM.calibrationAction('adjust')">Propose Adjustment</button>
+        </div>
+      </div>`;
+    } else if (step === 'pendingHR') {
+      body = transferCard('Calibration completed.', 'Department Head / Calibration', 'Human Resources', "UI.setPersona('HR'); STATE.pm.step='hrReview'; UI.render()");
+    } else if (step === 'hrReview') {
+      body = `<div class="card">
+        <h3>Performance Review Control</h3>
+        <div class="formgrid">
+          <div><b>Employee:</b> ${VT_DATA.ot.employee}</div>
+          <div><b>Department:</b> ${VT_DATA.pm.dept}</div>
+          <div><b>Review Cycle:</b> ${VT_DATA.pm.cycle}</div>
+          <div><b>Employee Submission:</b> Complete</div>
+          <div><b>Manager Submission:</b> Complete</div>
+          <div><b>Calibration Status:</b> Complete</div>
+          <div><b>Proposed Final Rating:</b> ${STATE.pm.calibProposedRating || STATE.pm.mgrRating}/5 (illustrative)</div>
+          <div><b>Supporting Documentation:</b> ${STATE.pm.empEvidence ? 'Available' : 'None attached'}</div>
+        </div>
+        <div class="checklist" style="margin-top:12px">
+          <div class="checkrow">&#10003; Required stages completed</div>
+          <div class="checkrow">&#10003; Required comments completed</div>
+          <div class="checkrow">&#10003; Supporting evidence available where applicable</div>
+          <div class="checkrow">&#10003; Review routing completed</div>
+        </div>
+        <div class="tag-note" style="margin:12px 0">Human Resources provides governance and completeness review here &mdash; it does not itself determine the employee's rating.</div>
+        <div class="btnrow">
+          <button class="btn btn-success" onclick="PM.hrDecision(true)">Ready for Final Review</button>
+          <button class="btn btn-danger" onclick="PM.hrDecision(false)">Return for Completion</button>
+        </div>
+      </div>`;
+    } else if (step === 'finalOutcome') {
+      const branches = {
+        A: { title:'Meets / Exceeds Expectations', chain:['Performance Review Completed','Development / Career Discussion','Next Performance Cycle'] },
+        B: { title:'Development Required', chain:['Development Plan','Follow-Up Review'] },
+        C: { title:'Performance Concern Identified', chain:['Human Resources Review','Management / Appropriate Authority Review','Possible Performance Improvement Plan'] }
+      };
+      const b = STATE.pm.outcomeBranch;
+      body = `<div class="card">
+        <h3>Final Performance Outcome <span class="status-tag mgmt">Management Decision Required</span></h3>
+        <p style="color:var(--muted);font-size:12.5px">Final approval authority to be confirmed with VT Worldwide. Select a branch to see the proposed downstream path.</p>
+        <div class="grid grid-3" style="margin-top:10px">
+          <div class="tile" onclick="PM.chooseOutcome('A')" style="${b==='A'?'border-color:var(--success)':''}"><h4>Branch A</h4><p>${branches.A.title}</p></div>
+          <div class="tile" onclick="PM.chooseOutcome('B')" style="${b==='B'?'border-color:var(--warning)':''}"><h4>Branch B</h4><p>${branches.B.title}</p></div>
+          <div class="tile" onclick="PM.chooseOutcome('C')" style="${b==='C'?'border-color:var(--danger)':''}"><h4>Branch C</h4><p>${branches.C.title}</p></div>
+        </div>
+        ${b ? `
+        <div class="divider"></div>
+        <h4 style="margin-bottom:8px">${branches[b].title}</h4>
+        ${WF.render('pm-outcome', branches[b].chain.map((label,i) => ({ key:'o'+i, label, status:'done', responsible:'See Final Outcome card', sees:label, action:'Illustrative downstream step.', recorded:'Not yet configured.', next:branches[b].chain[i+1]||'Employee acknowledgement.' })), { vertical:true, reference:true })}
+        ${b==='C' ? `
+          <div class="tag-note" style="margin:12px 0">Performance Improvement Plan initiation is subject to review and the approved VT Worldwide Performance Management framework.</div>
+          <p style="color:var(--muted);font-size:12px">This reuses the existing Probation / Performance Improvement workflow rather than duplicating it.</p>
+          <div class="btnrow"><button class="btn" onclick="UI.goPage('probation-demo')">Open Performance Improvement Plan Workflow &rarr;</button></div>
+        ` : ''}
+        <div class="btnrow"><button class="btn btn-primary btn-lg" onclick="PM.continueToAck()">Continue to Employee Acknowledgement</button></div>
+        ` : ''}
+      </div>`;
+    } else if (step === 'pendingAck') {
+      body = transferCard('Final performance outcome recorded.', 'Human Resources / Management', 'Employee', "UI.setPersona('EMPLOYEE'); STATE.pm.step='acknowledgement'; UI.render()");
+    } else if (step === 'acknowledgement') {
+      body = `<div class="card">
+        <div class="badge badge-blue" style="margin-bottom:10px">Performance Review Completed</div>
+        <button class="btn" onclick="UI.openModal('&lt;h3&gt;Performance Review Summary&lt;/h3&gt;&lt;p&gt;&lt;b&gt;Employee Rating (illustrative):&lt;/b&gt; ${STATE.pm.empRating}/5&lt;/p&gt;&lt;p&gt;&lt;b&gt;Manager Rating (illustrative):&lt;/b&gt; ${STATE.pm.mgrRating}/5&lt;/p&gt;&lt;p&gt;&lt;b&gt;Calibrated Rating (illustrative):&lt;/b&gt; ${STATE.pm.calibProposedRating || STATE.pm.mgrRating}/5&lt;/p&gt;&lt;p style=color:var(--muted);font-size:12.5px&gt;Rating scale and weighting are illustrative only in this concept.&lt;/p&gt;')">View Review</button>
+        <div class="divider"></div>
+        <h3>Employee Acknowledgement</h3>
+        <p style="font-size:12.5px">I acknowledge that I have received and reviewed the completed performance evaluation.</p>
+        <p style="color:var(--muted);font-size:11.5px">Acknowledgement does not indicate agreement with the rating. A separate employee comments/disagreement process can be configured, subject to VT Worldwide confirmation.</p>
+        <div class="btnrow"><button class="btn btn-primary btn-lg" onclick="PM.acknowledge()">Acknowledge</button></div>
+      </div>`;
+    } else if (step === 'completed') {
+      body = `<div class="card">
+        <div class="badge badge-green" style="margin-bottom:10px">&#10003; Acknowledged</div>
+        <h3>Performance review cycle complete</h3>
+        <div class="formgrid" style="margin-top:8px">
+          <div><b>Acknowledged:</b> Yes</div>
+          <div><b>Date / Time:</b> ${STATE.pm.ackRecord.date} &middot; ${STATE.pm.ackRecord.time}</div>
+        </div>
+        <div class="btnrow"><button class="btn btn-primary" onclick="PM.reset(); UI.setPersona('EMPLOYEE'); UI.render()">Restart Performance Demo</button></div>
+      </div>`;
+    }
+
+    const dashboardHtml = (STATE.persona==='HR' || STATE.persona==='MANAGEMENT') ? PM.dashboard() : '';
+
     return `
-      ${pageHead('Performance', 'Performance Review ' + VT_DATA.performance.year, 'Illustrative workflow only &mdash; does not finalise VT\'s KPI methodology.')}
-      <div class="card">
-        <h3>Review Workflow</h3>${wf}
-        <div class="btnrow"><button class="btn" onclick="PERF.advance(-1)">&larr; Back a stage</button><button class="btn btn-primary" onclick="PERF.advance(1)">Advance stage &rarr;</button></div>
+      <div class="page-head-row">
+        ${pageHead('Performance Management', 'Performance Management', 'Proposed Future-State Workflow &mdash; Subject to VT Worldwide Confirmation.')}
+        <div class="page-head-actions">${GUIDED.toggleBtn('performance-demo', 'Start Performance Demo')}</div>
       </div>
+      ${GUIDED.render('performance-demo')}
       <div class="card">
-        <div style="display:flex;gap:8px;margin-bottom:14px">
-          <button class="btn ${view==='EMPLOYEE'?'btn-primary':''}" onclick="PERF.setView('EMPLOYEE')">Employee View</button>
-          <button class="btn ${view==='MANAGER'?'btn-primary':''}" onclick="PERF.setView('MANAGER')">Manager View</button>
-          <button class="btn ${view==='HR'?'btn-primary':''}" onclick="PERF.setView('HR')">HR View</button>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-row"><span>KRA</span><b>${kpi.kra}</b></div>
-          <div class="kpi-row"><span>KPI</span><b>${kpi.kpi}</b></div>
-          <div class="kpi-row"><span>Weight</span><b>${kpi.weight}</b></div>
-          <div class="kpi-row"><span>Target</span><b>${kpi.target}</b></div>
-          <div class="kpi-row"><span>Actual</span><b>${kpi.actual}</b></div>
-          <div class="kpi-row"><span>Employee Rating</span>${view==='EMPLOYEE' ? `<select onchange="PERF.setRating('empRating', this.value)">${[1,2,3,4,5].map(n=>`<option ${n===STATE.performance.empRating?'selected':''}>${n}</option>`).join('')}</select>` : `<b>${STATE.performance.empRating}</b>`}</div>
-          <div class="kpi-row"><span>Manager Rating</span>${view==='MANAGER' ? `<select onchange="PERF.setRating('mgrRating', this.value)">${[1,2,3,4,5].map(n=>`<option ${n===STATE.performance.mgrRating?'selected':''}>${n}</option>`).join('')}</select>` : `<b>${STATE.performance.mgrRating}</b>`}</div>
-        </div>
-        ${view==='HR' ? `<div class="btnrow"><button class="btn btn-success" onclick="STATE.performance.stageIndex=5; UI.pushNotification('Final review completed.','Employee acknowledgement stage reached.'); UI.render()">Complete Final Review</button></div>` : ''}
+        <h3>Performance Management Overview</h3>
+        <p style="color:var(--muted);font-size:12.5px;margin-top:-4px">Every stage is clickable. Colours match the Workshop Mode markers used to capture VT Worldwide's position.</p>
+        ${PM.landingOverview()}
       </div>
+      ${advisoryNote('The Performance Management workflow shown is a proposed future-state operating model intended to support discussion with VT Worldwide. Performance methodology, Key Result Areas, Key Performance Indicators, weighting, rating, calibration, approval authority and Performance Improvement Plan linkage remain subject to confirmation.')}
+      ${WF.block('pm', PM.flowStages())}
+      ${body}
+      ${renderHistory(STATE.pm.history)}
+      ${dashboardHtml}
     `;
   }
 };
-Pages['performance-demo'] = () => PERF.render();
+Pages['performance-demo'] = () => PM.render();
 
 /* =========================================================
    DEMO 7 — PROBATION REVIEW
@@ -1564,6 +1922,20 @@ const WORKSHOP = {
   },
   setNote(area, val){
     STATE.workshopNotes[area] = val;
+  },
+  card(area, current, proposed){
+    const sel = STATE.workshop[area];
+    const safeArea = area.replace(/'/g,"\\'");
+    return `<div class="workshop-card">
+      <div class="wc-head">
+        <div><b>${area}</b><div class="wc-current-text"><i>Current VT Practice:</i> ${current}</div></div>
+        <div class="wc-proposed">${proposed || ''}</div>
+      </div>
+      <div class="wc-markers">
+        ${Object.entries(WORKSHOP.markerDefs).map(([key,def]) => `<button class="wc-mk ${sel===key?def.cls:''}" onclick="WORKSHOP.setMarker('${safeArea}','${key}')">${def.label}</button>`).join('')}
+      </div>
+      <textarea class="wc-note" placeholder="Workshop note&hellip;" onchange="WORKSHOP.setNote('${safeArea}', this.value)">${STATE.workshopNotes[area] || ''}</textarea>
+    </div>`;
   }
 };
 Pages.workshop = function(){
@@ -1580,20 +1952,13 @@ Pages.workshop = function(){
     <div style="padding-top:20px">
       ${pageHead('Working Session', 'Current Process &rarr; Proposed Workflow', 'Select the marker that reflects the discussion for each workflow, and add a note where useful.')}
       <div class="workshop-grid">
-        ${VT_DATA.workshopAreas.map(area => {
-          const r = cvpByArea[area] || {current:'To be validated with VT Worldwide', proposed:''};
-          const sel = STATE.workshop[area];
-          return `<div class="workshop-card">
-            <div class="wc-head">
-              <div><b>${area}</b><div class="wc-current-text"><i>Current:</i> ${r.current}</div></div>
-              <div class="wc-proposed">${r.proposed}</div>
-            </div>
-            <div class="wc-markers">
-              ${Object.entries(WORKSHOP.markerDefs).map(([key,def]) => `<button class="wc-mk ${sel===key?def.cls:''}" onclick="WORKSHOP.setMarker('${area.replace(/'/g,"\\'")}','${key}')">${def.label}</button>`).join('')}
-            </div>
-            <textarea class="wc-note" placeholder="Workshop note&hellip; e.g. Confirm whether Lark currently blocks submissions after seven days or permits HR override." onchange="WORKSHOP.setNote('${area.replace(/'/g,"\\'")}', this.value)">${STATE.workshopNotes[area] || ''}</textarea>
-          </div>`;
-        }).join('')}
+        ${VT_DATA.workshopAreas.map(area => WORKSHOP.card(area, (cvpByArea[area] || {current:'To be validated with VT Worldwide', proposed:''}).current, (cvpByArea[area] || {current:'', proposed:''}).proposed)).join('')}
+      </div>
+
+      <h3 style="margin:28px 0 4px">Performance Management &mdash; Detailed Validation</h3>
+      <p style="color:var(--muted);font-size:12.5px;margin:0 0 14px">Performance Management is the most complex discussion item for Thursday's session. Every item below defaults to SVE's proposed starting position &mdash; nothing is a confirmed finding until VT Worldwide changes or confirms it here.</p>
+      <div class="workshop-grid">
+        ${VT_DATA.pm.workshopItems.map(item => WORKSHOP.card(item.label, 'To Be Confirmed with VT Worldwide', item.proposed)).join('')}
       </div>
     </div>
   `;
@@ -1602,20 +1967,37 @@ Pages.workshop = function(){
 /* =========================================================
    WORKSHOP SUMMARY
    ========================================================= */
-Pages['workshop-summary'] = function(){
+WORKSHOP.groupMeta = [
+  ['confirmed','CONFIRMED', 'var(--success)'],
+  ['toconfirm','TO CONFIRM', 'var(--warning)'],
+  ['gap','GAPS IDENTIFIED', 'var(--danger)'],
+  ['proposed','PROPOSED CONFIGURATION', 'var(--accent)'],
+  ['mgmt','MANAGEMENT DECISION REQUIRED', '#6a3fc7']
+];
+WORKSHOP.groupAreas = function(areaList){
   const groups = { confirmed:[], proposed:[], toconfirm:[], gap:[], mgmt:[] };
-  VT_DATA.workshopAreas.forEach(area => {
+  areaList.forEach(area => {
     const key = STATE.workshop[area];
     if (key && groups[key]) groups[key].push(area);
   });
-  const groupMeta = [
-    ['confirmed','CONFIRMED', 'var(--success)'],
-    ['toconfirm','TO CONFIRM', 'var(--warning)'],
-    ['gap','GAPS IDENTIFIED', 'var(--danger)'],
-    ['proposed','PROPOSED CONFIGURATION', 'var(--accent)'],
-    ['mgmt','MANAGEMENT DECISIONS', '#6a3fc7']
-  ];
-  const anyMarked = VT_DATA.workshopAreas.some(a => STATE.workshop[a]);
+  return groups;
+};
+WORKSHOP.renderGroups = function(groups, anyMarked, emptyMsg){
+  if (!anyMarked) return `<p style="color:var(--muted)">${emptyMsg}</p>`;
+  return WORKSHOP.groupMeta.map(([key,title,color]) => groups[key].length ? `
+    <div class="summary-group">
+      <h4><span class="summary-dot" style="background:${color}"></span>${title}</h4>
+      <ul>${groups[key].map(area => `<li>${area}${STATE.workshopNotes[area] ? `<span class="note"> &mdash; ${STATE.workshopNotes[area]}</span>` : ''}</li>`).join('')}</ul>
+    </div>` : '').join('');
+};
+
+Pages['workshop-summary'] = function(){
+  const genericAreas = VT_DATA.workshopAreas;
+  const pmAreas = VT_DATA.pm.workshopItems.map(i => i.label);
+  const groups = WORKSHOP.groupAreas(genericAreas);
+  const pmGroups = WORKSHOP.groupAreas(pmAreas);
+  const anyMarked = genericAreas.some(a => STATE.workshop[a]);
+  const anyPmMarked = pmAreas.some(a => STATE.workshop[a]);
   return `
     ${pageHead('Working Session', 'Workshop Summary', 'Automatically summarised from the markers selected in Workshop Mode.')}
     <div class="btnrow" style="margin-bottom:16px">
@@ -1625,30 +2007,33 @@ Pages['workshop-summary'] = function(){
       ${STATE.workshopMode ? `<button class="btn btn-ghost" onclick="UI.toggleWorkshopMode()">Exit Workshop Mode</button>` : ''}
     </div>
     <div class="card" id="workshopSummaryCard">
-      ${anyMarked ? groupMeta.map(([key,title,color]) => groups[key].length ? `
-        <div class="summary-group">
-          <h4><span class="summary-dot" style="background:${color}"></span>${title}</h4>
-          <ul>${groups[key].map(area => `<li>${area}${STATE.workshopNotes[area] ? `<span class="note"> &mdash; ${STATE.workshopNotes[area]}</span>` : ''}</li>`).join('')}</ul>
-        </div>` : '').join('') : `<p style="color:var(--muted)">No workshop markers selected yet. Open Workshop Mode and mark each workflow to build this summary.</p>`}
+      ${WORKSHOP.renderGroups(groups, anyMarked, 'No workshop markers selected yet. Open Workshop Mode and mark each workflow to build this summary.')}
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:12px">Performance Management</h3>
+      ${WORKSHOP.renderGroups(pmGroups, anyPmMarked, 'No Performance Management markers selected yet.')}
     </div>
   `;
 };
 WORKSHOP.summaryText = function(){
-  const groups = { confirmed:[], proposed:[], toconfirm:[], gap:[], mgmt:[] };
-  VT_DATA.workshopAreas.forEach(area => {
-    const key = STATE.workshop[area];
-    if (key && groups[key]) groups[key].push(area);
-  });
-  const titles = { confirmed:'CONFIRMED', toconfirm:'TO CONFIRM', gap:'GAPS IDENTIFIED', proposed:'PROPOSED CONFIGURATION', mgmt:'MANAGEMENT DECISIONS' };
-  let out = 'VT Worldwide — Workshop Summary\n\n';
-  ['confirmed','toconfirm','gap','proposed','mgmt'].forEach(key => {
-    if (!groups[key].length) return;
-    out += titles[key] + '\n';
-    groups[key].forEach(area => {
-      out += '- ' + area + (STATE.workshopNotes[area] ? ' — ' + STATE.workshopNotes[area] : '') + '\n';
+  const titles = { confirmed:'CONFIRMED', toconfirm:'TO CONFIRM', gap:'GAPS IDENTIFIED', proposed:'PROPOSED CONFIGURATION', mgmt:'MANAGEMENT DECISION REQUIRED' };
+  const order = ['confirmed','toconfirm','gap','proposed','mgmt'];
+  const writeGroups = (groups) => {
+    let out = '';
+    order.forEach(key => {
+      if (!groups[key].length) return;
+      out += titles[key] + '\n';
+      groups[key].forEach(area => {
+        out += '- ' + area + (STATE.workshopNotes[area] ? ' — ' + STATE.workshopNotes[area] : '') + '\n';
+      });
+      out += '\n';
     });
-    out += '\n';
-  });
+    return out;
+  };
+  let out = 'VT Worldwide — Workshop Summary\n\n';
+  out += writeGroups(WORKSHOP.groupAreas(VT_DATA.workshopAreas));
+  out += 'PERFORMANCE MANAGEMENT\n\n';
+  out += writeGroups(WORKSHOP.groupAreas(VT_DATA.pm.workshopItems.map(i => i.label)));
   return out;
 };
 WORKSHOP.copySummary = function(){

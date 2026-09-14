@@ -140,6 +140,63 @@ const VT_DATA = {
     stages:['Employee Self Assessment','Manager Assessment','HOD Review','HR Review','Final Review','Employee Acknowledgement']
   },
 
+  /* =========================================================
+     PERFORMANCE MANAGEMENT — proposed future-state workflow only.
+     Nothing here is a confirmed VT Worldwide methodology; every
+     figure, weighting, rating scale and approval authority is
+     illustrative and subject to confirmation with VT Worldwide.
+     ========================================================= */
+  pm: {
+    employee:'Alex Tan', dept:'Operations', cycle:'FY2026 Performance Cycle', period:'Illustrative / To Confirm',
+    ratingScaleNote:'1–5 scale shown for illustration only — final rating scale subject to VT Worldwide confirmation.',
+
+    landingStages: [
+      { n:1,  label:'Performance Cycle Setup',              status:'proposed',  desc:'Human Resources opens the performance cycle in Lark.' },
+      { n:2,  label:'KRA / KPI Setting',                     status:'toconfirm', desc:'Key Result Areas and Key Performance Indicators are established. Methodology, weighting and target-setting approach to be confirmed with VT Worldwide.' },
+      { n:3,  label:'Employee & Manager Alignment',          status:'toconfirm', desc:'Employee and manager align on KRA/KPI before the review period begins.' },
+      { n:4,  label:'Performance Period',                    status:'toconfirm', desc:'The period under review. Duration and cadence (e.g. annual, half-yearly) to be confirmed.' },
+      { n:5,  label:'Employee Self-Assessment',              status:'proposed',  desc:'Employee rates their own performance against agreed KRA/KPI and adds comments and supporting evidence.' },
+      { n:6,  label:'Manager Assessment',                    status:'proposed',  desc:'Manager reviews the self-assessment and records a manager rating, comments and development recommendation.' },
+      { n:7,  label:'Department Head / Calibration',         status:'toconfirm', desc:'Calibration methodology and the reviewing authority are to be confirmed with VT Worldwide.' },
+      { n:8,  label:'Human Resources Review',                status:'proposed',  desc:'Human Resources checks completeness and governance — it does not itself set the employee\'s rating.' },
+      { n:9,  label:'Final Performance Outcome',             status:'mgmt',      desc:'Final approval authority for the performance outcome is to be confirmed with VT Worldwide.' },
+      { n:10, label:'Employee Review & Acknowledgement',     status:'proposed',  desc:'Employee reviews the completed evaluation and digitally acknowledges receipt — acknowledgement is not agreement with the rating.' },
+      { n:11, label:'Development / Follow-Up',               status:'toconfirm', desc:'Development plan, coaching or — where appropriate and subject to review — a Performance Improvement Plan.' },
+      { n:12, label:'Next Performance Cycle',                status:'toconfirm', desc:'Cycle cadence and reset point to be confirmed with VT Worldwide.' }
+    ],
+
+    /* 15-item Workshop validation panel — see WORKSHOP module.
+       defaultMarker seeds STATE.workshop with SVE's proposed starting
+       position for the live session; every item remains changeable. */
+    workshopItems: [
+      { key:'pmCycle',    label:'Performance Cycle',                     proposed:'Annual or periodic cycle configured and opened by Human Resources in Lark.',                          defaultMarker:'toconfirm' },
+      { key:'pmKra',       label:'KRA Structure',                        proposed:'Key Result Areas defined per role / department, aligned to job scope.',                                 defaultMarker:'toconfirm' },
+      { key:'pmKpi',       label:'KPI Structure',                        proposed:'Measurable Key Performance Indicators mapped to each KRA.',                                             defaultMarker:'toconfirm' },
+      { key:'pmWeighting', label:'KPI Weighting',                        proposed:'Weighting assigned per KPI — illustrative only in this concept, not a proposed final methodology.',       defaultMarker:'toconfirm' },
+      { key:'pmTargets',   label:'Target Setting',                       proposed:'Targets set collaboratively between employee and manager.',                                             defaultMarker:'toconfirm' },
+      { key:'pmSelf',      label:'Employee Self-Assessment',             proposed:'Employee rates own performance and submits comments / evidence in Lark.',                                defaultMarker:'toconfirm' },
+      { key:'pmMgrAssess', label:'Manager Assessment',                   proposed:'Manager reviews the self-assessment and records a manager rating.',                                      defaultMarker:'toconfirm' },
+      { key:'pmScale',     label:'Rating Scale',                         proposed:'Illustrative 1–5 scale shown in this concept; final scale to be confirmed.',                              defaultMarker:'toconfirm' },
+      { key:'pmHod',       label:'Department Head Review',               proposed:'Department Head reviews for consistency before Human Resources governance check.',                       defaultMarker:'toconfirm' },
+      { key:'pmCalib',     label:'Calibration Process',                  proposed:'Cross-team calibration to align ratings, where required.',                                              defaultMarker:'toconfirm' },
+      { key:'pmHrGov',     label:'Human Resources Governance Review',    proposed:'Human Resources checks completeness and routing — not the rating decision itself.',                      defaultMarker:'toconfirm' },
+      { key:'pmMgmtApp',   label:'Management Approval',                  proposed:'Final sign-off authority and structure to be defined.',                                                 defaultMarker:'toconfirm' },
+      { key:'pmAck',       label:'Employee Acknowledgement',             proposed:'Employee digitally acknowledges receipt of the completed review — acknowledgement is not agreement.',     defaultMarker:'proposed' },
+      { key:'pmDev',       label:'Development Plan',                     proposed:'Development or coaching plan created where applicable, following the review.',                           defaultMarker:'toconfirm' },
+      { key:'pmPipLink',   label:'Performance Improvement Plan Linkage', proposed:'Links to the existing Probation / Performance Improvement workflow rather than duplicating it.',           defaultMarker:'toconfirm' }
+    ],
+
+    dashboard: {
+      inCycle:68, selfAssessed:52, managerReviewed:41, pendingCalibration:12, hrReview:8, completed:27,
+      upcoming: [
+        { label:'Self-Assessment Due', count:6 },
+        { label:'Manager Review Due', count:5 },
+        { label:'Calibration Pending', count:7 },
+        { label:'Employee Acknowledgement Outstanding', count:4 }
+      ]
+    }
+  },
+
   probation: {
     employee:'Jordan Lim (New Employee)', dept:'Marketing', joinDate:'1 June 2026', endDate:'30 November 2026', status:'Review Due'
   },
@@ -167,5 +224,31 @@ const VT_DATA = {
   ],
 
   workshopAreas: ['Overtime Claims','Leave Application','Medical Leave','Attendance Correction','Policy Acknowledgement','Performance Review','Probation Review','Offboarding'],
-  workshopCols: ['Current VT Process','Proposed Workflow','VT Confirmation','Gap Identified','Action Required']
+  workshopCols: ['Current VT Process','Proposed Workflow','VT Confirmation','Gap Identified','Action Required'],
+
+  principalWorkflow: [
+    { title:'Time & Attendance', items:[
+      {label:'Overtime', page:'ot-demo'},
+      {label:'Attendance Correction', page:'attendance-demo'},
+      {label:'Leave', page:'leave-demo'},
+      {label:'Medical Leave', page:'medical-demo'}
+    ]},
+    { title:'Policy & Acknowledgement', items:[
+      {label:'Policy Assignment', page:'policy-demo'},
+      {label:'Digital Acknowledgement', page:'policy-demo'},
+      {label:'Reminder / Escalation', page:'policy-demo'}
+    ]},
+    { title:'Performance Management', items:[
+      {label:'Performance Cycle', page:'performance-demo'},
+      {label:'KRA / KPI Setting', page:'performance-demo'},
+      {label:'Performance Review', page:'performance-demo'},
+      {label:'Development / PIP', page:'performance-demo'}
+    ]},
+    { title:'Employee Lifecycle', items:[
+      {label:'Probation', page:'probation-demo'},
+      {label:'Confirmation / Extension', page:'probation-demo'},
+      {label:'Performance Improvement', page:'probation-demo'},
+      {label:'Offboarding', page:'offboarding-demo'}
+    ]}
+  ]
 };
