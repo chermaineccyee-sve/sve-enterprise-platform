@@ -321,6 +321,12 @@ test("HRMS HTTP: full employment-change flow completes through real Organisation
       });
       const offboardCase = (await offboardCaseRes.json()).data.case;
 
+      // PR #13: before completion, no deactivation request exists yet.
+      const beforeStatusRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${offboardCase.id}/deactivation-status`, { headers: auth });
+      const beforeStatusBody = await beforeStatusRes.json();
+      assert.equal(beforeStatusRes.status, 200, JSON.stringify(beforeStatusBody));
+      assert.equal(beforeStatusBody.data.status, "not_requested");
+
       const offboardCompleteRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${offboardCase.id}/offboarding/complete`, {
         method: "POST",
         headers: { ...auth, "content-type": "application/json" },
@@ -337,6 +343,18 @@ test("HRMS HTTP: full employment-change flow completes through real Organisation
       const eventsRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${offboardCase.id}/events`, { headers: auth });
       const events = (await eventsRes.json()).data.events as Array<{ eventType: string }>;
       assert.ok(events.some((e) => e.eventType === "identity_deactivation_requested"));
+
+      // PR #13: after completion, a durable request row exists — surfaced
+      // as "requested" (the processor sweep has not run in this test).
+      const afterStatusRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${offboardCase.id}/deactivation-status`, { headers: auth });
+      const afterStatusBody = await afterStatusRes.json();
+      assert.equal(afterStatusRes.status, 200);
+      assert.equal(afterStatusBody.data.status, "requested");
+
+      // An unauthorised caller gets the same 404 the case itself would give.
+      const strangerSession = await container.sessions.createSession({ userId: (await container.users.createUser({ email: `hrms.http.deactivation.stranger.${randomUUID()}@example.test`, accountType: "employee" })).id, mfaVerified: true });
+      const deniedStatusRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${offboardCase.id}/deactivation-status`, { headers: { authorization: `Bearer ${strangerSession.token}` } });
+      assert.equal(deniedStatusRes.status, 404, "an unauthorised caller must not learn anything about this case's deactivation status");
     } finally {
       server.close();
     }
@@ -403,6 +421,37 @@ test("HRMS HTTP: full submit-for-approval -> Workflow decision -> completion flo
       assert.equal(submitBody.data.case.status, "PENDING_DECISION");
       const workflowInstanceId = submitBody.data.workflowInstanceId as string;
       assert.ok(workflowInstanceId);
+
+      // PR #13: the Employment Changes case-detail view's "proposed
+      // change" projection — allowlisted fields only, server-side, never
+      // trusting the frontend to hide what was actually sent. A SEPARATE
+      // case is used here (left at PENDING_DECISION, never decided) so
+      // planting a raw assignment id in completionInput cannot affect the
+      // main flow's own completion below — reportsToAssignmentId is a
+      // real, permission-checked field once completion actually runs
+      // createAssignment(), which is exactly why this projection must
+      // never echo it back regardless.
+      const projectionCaseRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases`, {
+        method: "POST",
+        headers: { ...auth, "content-type": "application/json" },
+        body: JSON.stringify({ lifecycleType: "employment_change", employeeId: employee.id, legalEntityId: my.id, hrOwnerUserId: hrUser.id, changeType: "promotion" }),
+      });
+      const projectionCase = (await projectionCaseRes.json()).data.case;
+      const plantedAssignmentId = randomUUID();
+      const projectionSubmitRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${projectionCase.id}/submit-for-approval`, {
+        method: "POST",
+        headers: { ...auth, "content-type": "application/json" },
+        body: JSON.stringify({ completionInput: { employmentType: "full_time", status: "ACTIVE", startDate: "2026-09-01", effectiveFrom: "2026-09-01", positionId: "pos-fictional-1", reportsToAssignmentId: plantedAssignmentId, someUnexpectedInternalField: "must-not-leak" } }),
+      });
+      assert.equal(projectionSubmitRes.status, 200, JSON.stringify(await projectionSubmitRes.json()));
+
+      const pendingCaseRes = await fetch(`${baseUrl}/api/v1/hrms/lifecycle/cases/${projectionCase.id}`, { headers: auth });
+      const pendingCaseBody = await pendingCaseRes.json();
+      const proposedChange = pendingCaseBody.data.case.restricted.proposedChange;
+      assert.deepEqual(proposedChange, { employmentType: "full_time", status: "ACTIVE", startDate: "2026-09-01", effectiveFrom: "2026-09-01", positionId: "pos-fictional-1" });
+      const pendingSerialized = JSON.stringify(pendingCaseBody);
+      assert.ok(!pendingSerialized.includes(plantedAssignmentId), "reportsToAssignmentId must never be echoed back in the proposedChange projection");
+      assert.ok(!pendingSerialized.includes("must-not-leak"), "an unrecognised field in a caller-supplied completionInput must never be echoed back raw");
 
       // The approver's decision itself goes through Workflow's own
       // service layer (its own HTTP surface is Workflow's own, already

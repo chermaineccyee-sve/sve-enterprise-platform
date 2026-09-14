@@ -55,6 +55,10 @@ export function createPgIdentityDeactivationRequestRepository(db: DatabaseProvid
       const result = await db.query<RequestRow>(`SELECT ${COLUMNS} FROM hr_identity_deactivation_requests WHERE id = $1 FOR UPDATE`, [id]);
       return result.rows[0] ? mapRow(result.rows[0]) : null;
     },
+    async findByCaseId(caseId: string): Promise<HrIdentityDeactivationRequest | null> {
+      const result = await db.query<RequestRow>(`SELECT ${COLUMNS} FROM hr_identity_deactivation_requests WHERE case_id = $1 ORDER BY requested_at DESC LIMIT 1`, [caseId]);
+      return result.rows[0] ? mapRow(result.rows[0]) : null;
+    },
     async listByStatus(status: DeactivationRequestStatus): Promise<HrIdentityDeactivationRequest[]> {
       const result = await db.query<RequestRow>(`SELECT ${COLUMNS} FROM hr_identity_deactivation_requests WHERE status = $1 ORDER BY requested_at ASC`, [status]);
       return result.rows.map(mapRow);

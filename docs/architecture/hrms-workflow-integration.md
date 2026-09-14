@@ -710,6 +710,17 @@ Workflow's own task-decision routes remain entirely Workflow-owned and
 untouched; an approver decides through Workflow's own API, exactly as
 before this PR.
 
+**PR #13 note**: the deactivation-request boundary described in §10 above
+is unchanged by PR #13 — no write path was added or altered. PR #13 adds
+one read-only projection, `GET /api/v1/hrms/lifecycle/cases/:id/
+deactivation-status`, so SVEGIP's Offboarding screen can show a
+humanized status (not requested / requested / retry pending / completed)
+without exposing the raw `hr_identity_deactivation_requests` row. Full
+detail (including how it composes with PR #10's actual processor, which
+postdates this doc) is in `hrms-employee-lifecycle.md` §15 and
+`hrms-application-shell.md` §14.6; `identity-offboarding-revocation.md`
+remains the authoritative doc for the processor itself.
+
 ## 19. Tests
 
 `platform-services/hrms` — 77 substantive tests (44 pre-existing PR #7 +

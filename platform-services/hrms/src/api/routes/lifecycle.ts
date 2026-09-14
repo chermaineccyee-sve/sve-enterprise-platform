@@ -42,6 +42,31 @@ function serializeCaseBase(c: HrLifecycleCase) {
   return { id: c.id, caseNumber: c.caseNumber, employeeId: c.employeeId, legalEntityId: c.legalEntityId, lifecycleType: c.lifecycleType, status: c.status, initiatedAt: c.initiatedAt, hrOwnerUserId: c.hrOwnerUserId, createdAt: c.createdAt, updatedAt: c.updatedAt };
 }
 
+/**
+ * PR #13: the Employment Changes case-detail view needs the PROPOSED
+ * position/department/entity/type before completion — `pendingCompletionInput`
+ * carries exactly that (captured verbatim from whatever the submitting
+ * caller sent as `completionInput`, see approvalService.submitForApproval's
+ * validateCompletionInput — it validates only that a few required keys are
+ * present, not the full shape). Since that object is caller-supplied and
+ * unvalidated beyond presence, this projects an explicit ALLOWLIST rather
+ * than the raw object — the same defense-in-depth principle as PR #12's
+ * security review: never trust that nothing internal ended up in a
+ * caller-supplied bag, filter server-side. `reportsToAssignmentId` in
+ * particular is deliberately never in this allowlist, mirroring
+ * serializeRestricted's own assignment view in Organisation.
+ */
+const PROPOSED_CHANGE_ALLOWED_KEYS = ["employmentType", "status", "startDate", "endDate", "effectiveFrom", "positionId", "departmentId", "businessUnitId", "workLocation", "workArrangement", "changeReason"] as const;
+
+function serializeProposedChange(input: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!input) return null;
+  const out: Record<string, unknown> = {};
+  for (const key of PROPOSED_CHANGE_ALLOWED_KEYS) {
+    if (key in input) out[key] = input[key];
+  }
+  return out;
+}
+
 function serializeCaseRestricted(c: HrLifecycleCase) {
   return {
     caseSubtype: c.caseSubtype,
@@ -59,6 +84,7 @@ function serializeCaseRestricted(c: HrLifecycleCase) {
     // serializes it to a client.
     completedAt: c.completedAt,
     cancelledAt: c.cancelledAt,
+    proposedChange: serializeProposedChange(c.pendingCompletionInput),
   };
 }
 
@@ -341,6 +367,21 @@ export async function handleCompleteOffboarding(ctx: RouteContext, id: string): 
       changeReason: typeof body.changeReason === "string" ? body.changeReason : undefined,
     });
     sendSuccess(ctx.res, 200, { case: serializeCaseBase(result.case), assignment: { id: result.assignment.id, effectiveTo: result.assignment.effectiveTo } }, ctx.correlationId);
+  } catch (error) {
+    respondError(ctx.res, ctx.correlationId, error);
+  }
+}
+
+/**
+ * PR #13: the smallest safe projection of PR #10's deactivation-request
+ * state for the Offboarding case-detail UI. Gated by the same access
+ * check as the case itself — see offboardingService.getDeactivationStatus.
+ */
+export async function handleGetDeactivationStatus(ctx: RouteContext, id: string): Promise<void> {
+  try {
+    const actor = await requireActor(ctx.req, ctx.container);
+    const result = await ctx.container.offboarding.getDeactivationStatus(toActorContext(actor, ctx.req), id);
+    sendSuccess(ctx.res, 200, result, ctx.correlationId);
   } catch (error) {
     respondError(ctx.res, ctx.correlationId, error);
   }

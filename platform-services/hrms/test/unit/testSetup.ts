@@ -71,7 +71,7 @@ export async function setup() {
   const onboarding = createOnboardingService({ lifecycle });
   const probation = createProbationService({ lifecycle, cases: caseRepo, reviews: reviewRepo, organisation, rbac, audit });
   const employmentChange = createEmploymentChangeService({ lifecycle });
-  const offboarding = createOffboardingService({ lifecycle, users });
+  const offboarding = createOffboardingService({ lifecycle, users, deactivationRequests: deactivationRequestRepo });
 
   const [sg, my, skl] = identityStore.legalEntities;
   return { identityStore, rbacRepo, organisation, users, employees, orgAssignments, lifecycle, onboarding, probation, employmentChange, offboarding, caseRepo, transactions, eventRepo, deactivationRequestRepo, sg: sg!, my: my!, skl: skl! };
