@@ -1,11 +1,11 @@
 /**
  * SVE Group Enterprise Platform — Executive Briefing
- * Phase 1: Screens 01–03. Phase 2: Screen 04. Vanilla JS, no build step, no
- * framework — matches apps/svegip's own convention. This app is fully
- * isolated from apps/svegip: it does not import, fetch, or link to
- * anything there.
+ * Phase 1: Screens 01–03. Phase 2: Screen 04. Phase 3: Screen 05. Vanilla
+ * JS, no build step, no framework — matches apps/svegip's own convention.
+ * This app is fully isolated from apps/svegip: it does not import, fetch,
+ * or link to anything there.
  *
- * SCREENS is an ordered registry so Screens 05–15 can be appended later
+ * SCREENS is an ordered registry so Screens 06–15 can be appended later
  * without redesigning navigation, keyboard handling, or the progress chrome.
  */
 
@@ -275,11 +275,160 @@ const BUILT_DATA = [
   },
 ];
 
+/**
+ * Screen 05 content — the People / HRMS employee journey. Executive-facing
+ * stage labels (JOIN / PROBATION / MOVEMENT / EXIT) are deliberately
+ * distinct from the underlying repository terminology, which is preserved
+ * in each stage's `systemLabel` (matching apps/svegip's own
+ * HRMS_LIFECYCLE_LABELS exactly: Onboarding, Probation & Confirmation,
+ * Employment Changes, Offboarding) — "Movement" is a presentation label
+ * over "Employment Change", never a rename of the underlying capability.
+ *
+ * All four stages are Working/Implemented. JOIN and PROBATION carry a
+ * qualification: real HR lifecycle tracking, but not Workflow-connected.
+ * EXIT carries the qualification the inspection specifically flagged:
+ * Identity deactivation is a real, tested, controlled processing step,
+ * but nothing currently triggers it on a schedule — this must stay
+ * visible in the main stage experience, not buried behind an extra click.
+ *
+ * `preview.*` fields feed each stage's presentation-native application
+ * preview — entirely fictional (a single illustrative employee, "Aisha
+ * Rahman", carried across all four stages for narrative continuity), no
+ * real employee/case/assignment identifiers, no salary/bank/tax data, no
+ * runtime connection of any kind to apps/svegip.
+ */
+const PEOPLE_STAGES = [
+  {
+    id: "join",
+    label: "JOIN",
+    systemLabel: "Onboarding",
+    status: "working",
+    qualification: "Onboarding is tracked as a Human Resources lifecycle capability; it is not currently connected to the Workflow approval engine.",
+    whatHappens: "A new employee's record is established within one governed employment and organisational foundation — not as an isolated record in a standalone system.",
+    connects: [
+      { label: "Employee Record", detail: "Legal name, employee number and core identity." },
+      { label: "Legal Entity & Organisation", detail: "The SVE entity, business unit and department the employee belongs to." },
+      { label: "Position / Assignment", detail: "Role and effective-dated employment terms." },
+      { label: "Reporting Relationship", detail: "Who the employee reports to, resolved by name and title." },
+      { label: "Onboarding Lifecycle", detail: "A tracked case governing the joining process." },
+      { label: "Milestones / History", detail: "Joining milestones and a retained record from day one." },
+    ],
+    whyItMatters: "Every later stage of employment — probation, movement, eventual exit — builds on this same governed record, rather than a separate system re-entering the same information.",
+    preview: {
+      kind: "record",
+      title: "New Employee Record",
+      fields: [
+        ["Name", "Aisha Rahman"],
+        ["Legal Entity", "SVE International Sdn. Bhd."],
+        ["Department", "Group Finance"],
+        ["Position", "Finance Associate"],
+        ["Reports To", "Priya Nathan — Finance Manager"],
+        ["Start Date", "3 March 2026"],
+      ],
+      badge: { label: "Onboarding — In Progress", tone: "info" },
+    },
+  },
+  {
+    id: "probation",
+    label: "PROBATION",
+    systemLabel: "Probation & Confirmation",
+    status: "working",
+    qualification: "Probation review is tracked as a Human Resources lifecycle capability; it is not currently connected to the Workflow approval engine.",
+    whatHappens: "A probation period is tracked through to a review date, ending in one recorded outcome.",
+    connects: [
+      { label: "Probation Period", detail: "A tracked start date and review due date." },
+      { label: "Review", detail: "A recorded review against that due date." },
+      { label: "Outcome", detail: "Confirm, extend, or unsuccessful — recorded once, on the same case." },
+    ],
+    whyItMatters: "Confirmation is not a separate stage of its own — it is one governed outcome of probation, recorded on the same history as everything else in the employee's foundation.",
+    preview: {
+      kind: "probation",
+      title: "Probation Review",
+      fields: [
+        ["Probation Start", "3 March 2026"],
+        ["Review Due", "3 June 2026"],
+        ["Review Status", "Completed"],
+      ],
+      outcomes: [
+        { label: "Confirm", selected: true },
+        { label: "Extend", selected: false },
+        { label: "Unsuccessful", selected: false },
+      ],
+      badge: { label: "Outcome — Confirmed", tone: "good" },
+    },
+  },
+  {
+    id: "movement",
+    label: "MOVEMENT",
+    systemLabel: "Employment Change",
+    status: "working",
+    qualification: null,
+    whatHappens: "A proposed change to an employee's position, department or reporting arrangement is submitted for authorised approval before it takes effect.",
+    connects: [
+      { label: "Employee Master", detail: "Current employment and organisational structure." },
+      { label: "Human Resources Lifecycle", detail: "The proposed movement, recorded as a case." },
+      { label: "Workflow & Approval", detail: "Routed to an authorised approver — never self-approved." },
+      { label: "Organisation", detail: "Once approved, the new assignment becomes effective." },
+      { label: "History", detail: "The movement and the decision behind it are both retained." },
+    ],
+    whyItMatters: "Movement is not someone editing a profile. It is a governed transaction: proposed, authorised by someone other than the requester, then applied — with the decision retained in history.",
+    preview: {
+      kind: "movement",
+      title: "Current vs Proposed Movement",
+      current: [
+        ["Position", "Finance Associate"],
+        ["Department", "Group Finance"],
+        ["Reporting To", "Priya Nathan — Finance Manager"],
+        ["Legal Entity", "SVE International Sdn. Bhd."],
+      ],
+      proposed: [
+        ["Proposed Position", "Senior Finance Associate"],
+        ["Proposed Department", "Group Finance"],
+        ["Proposed Reporting Relationship", "Daniel Ong — Senior Finance Manager"],
+        ["Effective Date", "1 September 2026"],
+      ],
+      badge: { label: "Approval Status — Pending Approval", tone: "pending" },
+    },
+  },
+  {
+    id: "exit",
+    label: "EXIT",
+    systemLabel: "Offboarding",
+    status: "working",
+    caveat: "Scheduling not yet configured",
+    qualification: "Access deactivation is implemented as a controlled processing step; automated scheduling is not yet configured.",
+    whatHappens: "Offboarding is approved, employment ends, and access is withdrawn through a controlled sequence rather than a manual afterthought.",
+    connects: [
+      { label: "Offboarding", detail: "A tracked case for the employee's departure." },
+      { label: "Authorised Approval", detail: "Routed to an authorised approver — never self-approved." },
+      { label: "Employment Ends", detail: "The assignment ends in the organisational record." },
+      { label: "Access Withdrawal Requested", detail: "A controlled request is created automatically, in the same transaction." },
+      { label: "Identity Deactivation Processing", detail: "A separate, controlled step processes the request." },
+      { label: "Account & Active Sessions Revoked", detail: "Once processed, the account is disabled and every active session is revoked together." },
+      { label: "History Preserved", detail: "Employment and decision history are retained throughout, not deleted." },
+    ],
+    whyItMatters: "Access does not depend on someone remembering to disable an account. It follows a controlled, auditable sequence, with history preserved throughout.",
+    preview: {
+      kind: "exit",
+      title: "Offboarding Status",
+      fields: [
+        ["Offboarding Status", "Approved"],
+        ["Approval Status", "Approved"],
+        ["Employment End Date", "30 November 2026"],
+        ["Access Withdrawal Requested", "Yes — requested automatically on approval"],
+        ["Identity Deactivation Status", "Requested — pending processing"],
+      ],
+      badge: { label: "History — Retained", tone: "good" },
+    },
+  },
+];
+
 const SCREENS = [
   { id: "opening", number: 1, title: "Executive Opening", render: renderScreenOpening },
   { id: "prototype-to-platform", number: 2, title: "From Prototype to Platform", render: renderScreenProgression },
   { id: "architecture", number: 3, title: "Enterprise Platform Architecture", render: renderScreenArchitecture },
   { id: "what-built", number: 4, title: "What Has Already Been Built", render: renderScreenBuilt },
+  { id: "people", number: 5, title: "People / HRMS", render: renderScreenPeople },
 ];
 
 let currentIndex = 0;
@@ -293,6 +442,11 @@ let openAccordionLayerIndex = -1;
 // tile+detail layout and mobile's accordion — same convention as Screen 03.
 let activeCapabilityIndex = -1;
 let buildEvidenceOpen = false;
+// Screen 05: which employee-journey stage (if any) is expanded, shared by
+// desktop's stage-track+detail layout and mobile's accordion — same
+// convention as Screens 03/04. Starts collapsed so Eric sees the four-stage
+// journey on its own before any detail is revealed.
+let activePeopleStageIndex = -1;
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -305,7 +459,12 @@ function getStatusMeta(key) {
 function statusPillHtml(statusKey, caveat) {
   const meta = getStatusMeta(statusKey);
   const caveatHtml = caveat ? `<span class="caveat-chip">${esc(caveat)}</span>` : "";
-  return `<span class="status-pill ${meta.cls}"><span class="status-dot"></span>${esc(meta.label)}</span>${caveatHtml}`;
+  // Wrapped in one group so the pill and its caveat chip (when present)
+  // always stay visually together as a single unit — without this, a
+  // flex row using justify-content:space-between (e.g. a detail header)
+  // would space the two apart as independent items, stranding the caveat
+  // chip at the far edge, disconnected from the status it qualifies.
+  return `<span class="status-pill-group"><span class="status-pill ${meta.cls}"><span class="status-dot"></span>${esc(meta.label)}</span>${caveatHtml}</span>`;
 }
 
 function getScreens() {
@@ -442,6 +601,25 @@ function toggleBuildEvidence() {
 function getCapabilityStatus(id) {
   const cap = BUILT_DATA.find((c) => c.id === id);
   return cap ? cap.status : null;
+}
+
+function getPeopleStages() {
+  return PEOPLE_STAGES;
+}
+
+function getActivePeopleStageIndex() {
+  return activePeopleStageIndex;
+}
+
+function selectPeopleStage(index) {
+  activePeopleStageIndex = activePeopleStageIndex === index ? -1 : index;
+  render();
+}
+
+/** Convenience lookup by stable id, used by tests and safe against reordering. */
+function getPeopleStageSystemLabel(id) {
+  const stage = PEOPLE_STAGES.find((s) => s.id === id);
+  return stage ? stage.systemLabel : null;
 }
 
 /* ===================== Rendering ===================== */
@@ -788,6 +966,187 @@ function renderScreenBuilt() {
     </div>`;
 }
 
+function peopleQualificationHtml(stage) {
+  if (!stage.qualification) return "";
+  return `
+    <div class="stage-qualification">
+      <span class="stage-qualification-label">Important qualification</span>
+      <p>${esc(stage.qualification)}</p>
+    </div>`;
+}
+
+/**
+ * The "what connects" mini flow shared by desktop and mobile — reuses the
+ * same connector visual grammar as Screens 03/04 (a short line-arrow-line
+ * between blocks) rather than inventing a new diagram style.
+ */
+function peopleJourneyChainHtml(steps) {
+  return `
+    <div class="journey-chain">
+      ${steps
+        .map(
+          (step, i) => `
+        ${i > 0 ? `<div class="journey-connector"><span class="connector-line"></span><span class="connector-arrow">&darr;</span><span class="connector-line"></span></div>` : ""}
+        <div class="journey-chain-step">
+          <h5>${esc(step.label)}</h5>
+          <p>${esc(step.detail)}</p>
+        </div>`
+        )
+        .join("")}
+    </div>`;
+}
+
+function peopleBadgeHtml(badge) {
+  if (!badge) return "";
+  return `<span class="app-badge tone-${esc(badge.tone)}">${esc(badge.label)}</span>`;
+}
+
+function peopleFieldListHtml(fields) {
+  return `<dl class="app-field-list">${fields
+    .map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`)
+    .join("")}</dl>`;
+}
+
+/**
+ * Presentation-native, entirely fictional application preview — never a
+ * live SVEGIP screenshot, iframe, or API call. Recreates the real People
+ * application's own visual conventions (field-list cards, Current/Proposed
+ * comparison, status badges) as new, independent markup/CSS.
+ */
+function peoplePreviewHtml(stage) {
+  const p = stage.preview;
+  if (p.kind === "movement") {
+    return `
+      <div class="app-preview-card">
+        <div class="app-preview-head"><h4>${esc(p.title)}</h4>${peopleBadgeHtml(p.badge)}</div>
+        <div class="app-preview-compare">
+          <div class="app-preview-col"><h5>Current</h5>${peopleFieldListHtml(p.current)}</div>
+          <div class="app-preview-col"><h5>Proposed Movement</h5>${peopleFieldListHtml(p.proposed)}</div>
+        </div>
+      </div>`;
+  }
+  if (p.kind === "probation") {
+    const outcomes = `<div class="app-outcome-row">${p.outcomes
+      .map((o) => `<span class="app-outcome-chip ${o.selected ? "selected" : ""}">${esc(o.label)}</span>`)
+      .join("")}</div>`;
+    return `
+      <div class="app-preview-card">
+        <div class="app-preview-head"><h4>${esc(p.title)}</h4>${peopleBadgeHtml(p.badge)}</div>
+        ${peopleFieldListHtml(p.fields)}
+        ${outcomes}
+      </div>`;
+  }
+  // "record" (JOIN) and "exit" (EXIT) share the same simple field-list card shape.
+  return `
+    <div class="app-preview-card">
+      <div class="app-preview-head"><h4>${esc(p.title)}</h4>${peopleBadgeHtml(p.badge)}</div>
+      ${peopleFieldListHtml(p.fields)}
+      ${p.kind === "exit" ? `<p class="app-preview-note">History is retained throughout — nothing above is deleted when access is withdrawn.</p>` : ""}
+    </div>`;
+}
+
+/**
+ * Shared by desktop's detail panel and mobile's expanded accordion row —
+ * identical markup either way, matching the What-exists/Why-it-matters
+ * pattern's own precedent from Screen 04. Order matches the brief exactly:
+ * what happens -> what connects -> why it matters -> application preview,
+ * with the qualification (where present) kept visible in the main flow,
+ * never behind a secondary disclosure.
+ */
+function peopleDetailBodyHtml(stage) {
+  return `
+    <div class="built-detail-grid people-detail-grid">
+      <div class="built-detail-block" style="animation-delay:.05s">
+        <span class="built-detail-label">What happens</span>
+        <p>${esc(stage.whatHappens)}</p>
+      </div>
+      <div class="built-detail-block" style="animation-delay:.15s">
+        <span class="built-detail-label">What connects</span>
+        ${peopleJourneyChainHtml(stage.connects)}
+      </div>
+      <div class="built-detail-block" style="animation-delay:.25s">
+        <span class="built-detail-label">Why it matters</span>
+        <p>${esc(stage.whyItMatters)}</p>
+      </div>
+      ${peopleQualificationHtml(stage)}
+      <div class="built-detail-block" style="animation-delay:.35s">
+        <span class="built-detail-label">Application experience</span>
+        ${peoplePreviewHtml(stage)}
+      </div>
+    </div>`;
+}
+
+function renderScreenPeople() {
+  const stages = PEOPLE_STAGES;
+  const anySelected = activePeopleStageIndex !== -1;
+
+  const track = stages
+    .map((stage, i) => {
+      const state = activePeopleStageIndex === i ? "active" : "";
+      return `
+        <button class="stage-node ${state}" data-action="peoplestage" data-index="${i}" aria-current="${activePeopleStageIndex === i}">
+          <div class="stage-node-top">
+            <span class="stage-node-dot">${i + 1}</span>
+          </div>
+          <div class="stage-node-name">${esc(stage.label)}</div>
+          <div class="stage-node-tag">${esc(stage.systemLabel)}</div>
+        </button>`;
+    })
+    .join("");
+
+  const detail =
+    activePeopleStageIndex === -1
+      ? `<div class="module-detail-empty">Select a stage above to see what happens, what connects, why it matters, and the application experience behind it.</div>`
+      : (() => {
+          const stage = stages[activePeopleStageIndex];
+          return `
+            <div class="module-detail built-detail people-detail">
+              <div class="module-detail-head">
+                <h4>${esc(stage.label)} <span class="people-detail-system">— ${esc(stage.systemLabel)}</span></h4>
+                ${statusPillHtml(stage.status, stage.caveat)}
+              </div>
+              ${peopleDetailBodyHtml(stage)}
+            </div>`;
+        })();
+
+  const mobileStages = stages
+    .map((stage, i) => {
+      const open = activePeopleStageIndex === i;
+      return `
+        <div class="accordion-item ${open ? "open" : ""}">
+          <button class="accordion-trigger capability-trigger" data-action="peoplestage" data-index="${i}" aria-expanded="${open}">
+            <span class="capability-trigger-row1">
+              <h3>${esc(stage.label)}</h3>
+              <span class="accordion-caret">&#9662;</span>
+            </span>
+            <span class="capability-trigger-status">${statusPillHtml(stage.status, stage.caveat)}</span>
+            <span class="capability-trigger-meaning">${esc(stage.systemLabel)} — ${esc(stage.whatHappens)}</span>
+          </button>
+          <div class="accordion-body">
+            <div class="accordion-body-inner">
+              ${peopleDetailBodyHtml(stage)}
+            </div>
+          </div>
+        </div>`;
+    })
+    .join("");
+
+  return `
+    <div class="people">
+      <div class="section-wrap">
+        <div class="people-head">
+          <div class="eyebrow">People / HRMS</div>
+          <h2>One Employee Foundation. A Connected Employment Lifecycle.</h2>
+          <p>SVE's People foundation connects employee information, organisational structure, lifecycle processes and approvals through one controlled platform architecture.</p>
+        </div>
+        <div class="stage-track people-stage-track" role="tablist" aria-label="Employee journey stages">${track}</div>
+        <div class="layer-connector people-track-connector ${anySelected ? "flowing" : ""}"><span class="connector-line"></span><span class="connector-arrow">&darr;</span><span class="connector-line"></span></div>
+        <div class="built-detail-desktop">${detail}</div>
+        <div class="mobile-capabilities">${mobileStages}</div>
+      </div>
+    </div>`;
+}
+
 /* ===================== Shell / init ===================== */
 
 function renderApp() {
@@ -821,6 +1180,7 @@ function onAppClick(e) {
   else if (action === "accordion") toggleAccordion(Number(el.dataset.layer));
   else if (action === "capability") selectCapability(Number(el.dataset.index));
   else if (action === "evidence") toggleBuildEvidence();
+  else if (action === "peoplestage") selectPeopleStage(Number(el.dataset.index));
 }
 
 let touchStartX = null;
