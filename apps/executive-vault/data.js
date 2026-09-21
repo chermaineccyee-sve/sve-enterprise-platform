@@ -136,41 +136,74 @@ const ENGAGEMENTS = [
 // (§3.1), holding the Workstream vocabulary documents are tagged against.
 // A workstream can be promoted to its own standalone Matter later —
 // app.js's promoteWorkstreamToMatter() demonstrates this live.
+// Management fields (managementVisible/managementStatus/currentPosition/
+// nextStep/managementAttentionLevel/managementAttentionNote/managementUpdated)
+// supplement the existing Matter record — architecture doc §16.2. Default is
+// managementVisible:false (privacy by default, §16.3); only the four Matters
+// the brief itself described are opted in. Internal Governance's policy and
+// litigation Matters are deliberately left out — a live demonstration that
+// the default actually withholds something.
 const MATTERS = [
   {
     id: "matter-vt-hrtransform", engagementId: "eng-vt-hr", name: "HR Transformation", status: "active",
     owner: "Me", startDate: "2026-04-01", targetDate: "2027-01-31", currentStage: "Delivery",
     workstreams: ["HR Policy Framework", "HR Digitalisation / HRMS", "Performance Management", "Implementation / Training"],
+    managementVisible: true, managementStatus: "In Progress",
+    currentPosition: "Policy framework, HR digitalisation and performance-management implementation work progressing.",
+    nextStep: "Close outstanding HR / Legal confirmation items and implementation materials.",
+    managementAttentionLevel: null, managementAttentionNote: "Review only where escalated.",
+    managementUpdated: "2026-09-19",
   },
   {
     id: "matter-mre-opmodel", engagementId: "eng-mre-hr", name: "HR Operating Model Design", status: "active",
     owner: "Me", startDate: "2026-08-15", targetDate: "2026-11-30", currentStage: "Proposal",
     workstreams: ["Operating Model Design"],
+    managementVisible: true, managementStatus: "Awaiting Input",
+    currentPosition: "Client brief and proposed operating structure prepared following initial engagement.",
+    nextStep: "Review workforce and contractor information once received.",
+    managementAttentionLevel: null, managementAttentionNote: "None currently.",
+    managementUpdated: "2026-09-18",
   },
   {
     id: "matter-nus-strategy", engagementId: "eng-nus-strategy", name: "Strategic Advisory Programme", status: "active",
     owner: "Me", startDate: "2026-09-01", targetDate: null, currentStage: "Advisory",
     workstreams: ["Strategic Advisory"],
+    managementVisible: true, managementStatus: "In Progress",
+    currentPosition: "Meeting documentation and Executive Summary completed. Supporting documentation and governance matters remain under follow-up.",
+    nextStep: "Close outstanding documentation / governance confirmations.",
+    managementAttentionLevel: null, managementAttentionNote: "As required.",
+    managementUpdated: "2026-09-17",
   },
   {
     id: "matter-svegip-platform", engagementId: "eng-svegip", name: "Platform Architecture & Rollout", status: "active",
     owner: "Me", startDate: "2026-02-01", targetDate: null, currentStage: "Build",
     workstreams: ["Platform Architecture", "Management Reporting"],
+    managementVisible: true, managementStatus: "Decision Required",
+    currentPosition: "Management concept, architecture and supporting governance framework prepared.",
+    nextStep: "Proceed to priority implementation following management direction.",
+    managementAttentionLevel: "Direction Required", managementAttentionNote: "Confirm next-stage platform direction and priority modules.",
+    managementUpdated: "2026-09-19",
   },
   {
     id: "matter-intgov-policy", engagementId: "eng-intgov", name: "Group Policy & Governance Administration", status: "active",
     owner: "Me", startDate: "2026-01-01", targetDate: null, currentStage: "Ongoing",
     workstreams: ["Board & Governance", "Group Policy"],
+    managementVisible: false, managementStatus: null, currentPosition: "", nextStep: "",
+    managementAttentionLevel: null, managementAttentionNote: "", managementUpdated: null,
   },
   {
     id: "matter-intgov-litigation", engagementId: "eng-intgov", name: "Contract Dispute — Vendor XYZ", status: "active",
     owner: "Me", startDate: "2026-08-01", targetDate: null, currentStage: "Active Dispute",
     workstreams: [],
+    managementVisible: false, managementStatus: null, currentPosition: "", nextStep: "",
+    managementAttentionLevel: null, managementAttentionNote: "", managementUpdated: null,
   },
   {
     id: "matter-legacy-resort", engagementId: "eng-legacy-sabah", name: "Resort Development Programme (Historical)", status: "closed",
     owner: "Me", startDate: "2019-01-01", targetDate: "2024-12-31", currentStage: "Closed",
     workstreams: [],
+    managementVisible: false, managementStatus: null, currentPosition: "", nextStep: "",
+    managementAttentionLevel: null, managementAttentionNote: "", managementUpdated: null,
   },
 ];
 
@@ -317,7 +350,7 @@ const DOCUMENTS = [
     docType: "Executive Summary", version: "v1.0 Final", versionChain: ["v0.1", "v1.0 Final"], status: "Final",
     confidentiality: "general", jurisdiction: "ASEAN", owner: "Me", reviewer: null,
     created: "2026-08-01", modified: "2026-09-12", reviewDate: null, starred: false,
-    classified: true, tags: [],
+    classified: true, tags: [], managementVisibility: "Reference",
     driveUrl: "https://drive.google.com/file/d/mock-nusex001/view",
     drivePath: "Clients & Engagements / Nusantara Project / 07 – Final / Issued",
     notes: "",
@@ -339,10 +372,21 @@ const DOCUMENTS = [
     docType: "Management Paper", version: "v0.1", versionChain: ["v0.1"], status: "Internal Review",
     confidentiality: "restricted", jurisdiction: "Global", owner: "Me", reviewer: "Eric Tang",
     created: "2026-09-14", modified: "2026-09-19", reviewDate: "2026-09-28", starred: true,
-    classified: true, tags: ["management review"],
+    classified: true, tags: ["management review"], managementVisibility: "For Review",
     driveUrl: "https://drive.google.com/file/d/mock-svegipmg001/view",
     drivePath: "Projects & Programmes / SVE Group Enterprise Platform / 03 – Working Documents",
     notes: "Awaiting Eric's review before circulation to the wider steering group.",
+  },
+  {
+    id: "d19d", docId: "VT-HR-034", title: "Policy Closure Summary",
+    clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", workstream: "HR Policy Framework", function: "Human Resources",
+    docType: "Executive Summary", version: "v1.0 Final", versionChain: ["v0.1", "v1.0 Final"], status: "Final",
+    confidentiality: "restricted", jurisdiction: "Malaysia", owner: "Me", reviewer: null,
+    created: "2026-09-15", modified: "2026-09-18", reviewDate: null, starred: false,
+    classified: true, tags: [], managementVisibility: "Reference",
+    driveUrl: "https://drive.google.com/file/d/mock-vthr034/view",
+    drivePath: "Clients & Engagements / VT Worldwide / 07 – Final / Issued",
+    notes: "Summarises the HR Policy Framework closure position for management visibility (architecture doc §16.4).",
   },
   {
     id: "d13", docId: "SVEGIP-GV-002", title: "Enterprise Architecture Briefing Notes",
@@ -723,19 +767,37 @@ const MEETINGS = [
 
 // TASKS (Actions & Follow-Up): waitingOn names who the NEXT action actually
 // belongs to (architecture doc §15.4) — null/omitted means it's on me.
+// managementVisible (§16.2/§16.3) is meaningful only for the waiting-on
+// subset — it decides whether Management Progress's Waiting On section may
+// show it; every on-me task leaves it false since that section is the only
+// place a Task can ever appear on that page.
 const TASKS = [
-  { id: "t1", title: "Confirm VT overtime policy wording with internal legal", clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", due: "2026-09-26", done: false, documentId: "d04", waitingOn: null },
-  { id: "t2", title: "Send MRE Operating Model proposal v0.2 to Daniel Foo", clientId: "mre-asia", matterId: "matter-mre-opmodel", due: "2026-09-30", done: false, documentId: "d08", waitingOn: null },
-  { id: "t3", title: "Get Ravi Menon's sign-off on HR-025 v0.4", clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", due: "2026-09-30", done: false, documentId: "d02", waitingOn: "Ravi Menon" },
-  { id: "t4", title: "Circulate Management Review to Eric Tang", clientId: "sve-gep", matterId: "matter-svegip-platform", due: "2026-09-28", done: false, documentId: "d12", waitingOn: null },
-  { id: "t5", title: "Decide: restart or archive Business Continuity Plan Update", clientId: "internal-governance", matterId: "matter-intgov-policy", due: "2026-09-27", done: false, documentId: "d20", waitingOn: null },
-  { id: "t6", title: "Prepare Internal Management Review pack", clientId: "internal-governance", matterId: "matter-intgov-policy", due: "2026-09-21", done: false, documentId: "d16b", waitingOn: null },
-  { id: "t7", title: "Confirm Litigation Strategy Call agenda with external counsel", clientId: "internal-governance", matterId: "matter-intgov-litigation", due: "2026-09-23", done: false, documentId: "d17c", waitingOn: "External Counsel" },
+  { id: "t1", title: "Confirm VT overtime policy wording with internal legal", clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", due: "2026-09-26", done: false, documentId: "d04", waitingOn: null, managementVisible: false },
+  { id: "t2", title: "Send MRE Operating Model proposal v0.2 to Daniel Foo", clientId: "mre-asia", matterId: "matter-mre-opmodel", due: "2026-09-30", done: false, documentId: "d08", waitingOn: null, managementVisible: false },
+  { id: "t3", title: "Get Ravi Menon's sign-off on HR-025 v0.4", clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", due: "2026-09-30", done: false, documentId: "d02", waitingOn: "Ravi Menon", managementVisible: true },
+  { id: "t4", title: "Circulate Management Review to Eric Tang", clientId: "sve-gep", matterId: "matter-svegip-platform", due: "2026-09-28", done: false, documentId: "d12", waitingOn: null, managementVisible: false },
+  { id: "t5", title: "Decide: restart or archive Business Continuity Plan Update", clientId: "internal-governance", matterId: "matter-intgov-policy", due: "2026-09-27", done: false, documentId: "d20", waitingOn: null, managementVisible: false },
+  { id: "t6", title: "Prepare Internal Management Review pack", clientId: "internal-governance", matterId: "matter-intgov-policy", due: "2026-09-21", done: false, documentId: "d16b", waitingOn: null, managementVisible: false },
+  { id: "t7", title: "Confirm Litigation Strategy Call agenda with external counsel", clientId: "internal-governance", matterId: "matter-intgov-litigation", due: "2026-09-23", done: false, documentId: "d17c", waitingOn: "External Counsel", managementVisible: false },
+  { id: "t8", title: "Awaiting workforce & contractor headcount information from MRE Asia", clientId: "mre-asia", matterId: "matter-mre-opmodel", due: "2026-10-01", done: false, documentId: null, waitingOn: "Daniel Foo (MRE Asia)", managementVisible: true },
+];
+
+// PROGRESS_NOTES: short, hand-selected narrative highlights (architecture
+// doc §16.2) — never a duplicate of Task records. includeInManagementUpdate
+// is the user's own curation control; t8/t9 demonstrate an item deliberately
+// left out.
+const PROGRESS_NOTES = [
+  { id: "pn1", matterId: "matter-vt-hrtransform", text: "VT policy revisions completed", date: "2026-09-19", includeInManagementUpdate: true },
+  { id: "pn2", matterId: "matter-vt-hrtransform", text: "Lark HRMS implementation materials progressed", date: "2026-09-18", includeInManagementUpdate: true },
+  { id: "pn3", matterId: "matter-mre-opmodel", text: "MRE Asia client brief prepared", date: "2026-09-17", includeInManagementUpdate: true },
+  { id: "pn4", matterId: "matter-nus-strategy", text: "Nusantara Executive Summary completed", date: "2026-09-12", includeInManagementUpdate: true },
+  { id: "pn5", matterId: "matter-svegip-platform", text: "SVE Group Enterprise Platform management materials prepared", date: "2026-09-19", includeInManagementUpdate: true },
+  { id: "pn6", matterId: "matter-intgov-policy", text: "Internal admin filing cleanup completed", date: "2026-09-15", includeInManagementUpdate: false },
 ];
 
 window.VAULT_DATA = {
   CLASSIFICATIONS, STATUSES, FUNCTIONS, DOCUMENT_TYPES,
-  CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS,
+  CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS, PROGRESS_NOTES,
   TODAY: "2026-09-21", NOW: "08:30", USER_NAME: "Ching Yee",
 };
 

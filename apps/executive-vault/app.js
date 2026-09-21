@@ -25,9 +25,11 @@
 const D = window.VAULT_DATA;
 const {
   CLASSIFICATIONS, STATUSES, FUNCTIONS, DOCUMENT_TYPES,
-  CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS, TODAY, NOW, USER_NAME,
+  CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS, PROGRESS_NOTES, TODAY, NOW, USER_NAME,
 } = D;
 const DECISION_TYPES = ["Resolution", "Management Paper"];
+const MANAGEMENT_STATUSES = ["In Progress", "Awaiting Input", "Decision Required", "Complete", "On Hold"];
+const ATTENTION_LEVELS = ["Decision Required", "For Review", "Direction Required", "Approval Required"];
 
 const DRAFT_STATUSES = ["Draft", "Working Draft"];
 const REVIEW_STATUSES = ["Internal Review", "Management Review", "Client Review", "Pending Information"];
@@ -40,7 +42,10 @@ const STATE = {
   sidebarOpen: false,
   previewId: null,
   previewMeetingId: null,
+  previewMatterId: null,
   attentionOpen: false,
+  showGenerateUpdate: false,
+  updateFormat: "email",
   vaultSort: { key: "modified", dir: "desc" },
   expandedFolders: new Set(),
   showLegend: false,
@@ -161,6 +166,66 @@ function computeDecisionsRequired() {
 }
 /** Every open (not-done) task, on-me and waiting-on-others combined — used for the nav badge and the summary strip, where "still outstanding" is what matters regardless of whose turn it is. */
 function openTasksCount() { return TASKS.filter((t) => !t.done).length; }
+
+/* ==================== Management Progress (architecture doc §16) ==================== */
+// Privacy-by-default (§16.3): every function below only ever ADDS a filter
+// on top of the ordinary data — it never has a separate "show everything"
+// mode. isMatterManagementVisible() is the single gate every other
+// management-progress function is built from, so the Legacy check and the
+// managementVisible check only ever need to be written once.
+function isMatterManagementVisible(m) {
+  if (!m || !m.managementVisible) return false;
+  const eng = getEngagementRecord(m.engagementId);
+  const cl = eng ? getClient(eng.clientId) : null;
+  return !!(cl && !cl.legacy);
+}
+function managementVisibleMatters() { return MATTERS.filter(isMatterManagementVisible); }
+function managementVisibleDocs() {
+  return activeClassifiedDocs().filter((d) => {
+    const vis = d.managementVisibility || "None";
+    if (vis === "None") return false;
+    const m = d.matterId ? getMatter(d.matterId) : null;
+    if (m) return isMatterManagementVisible(m);
+    // A management-visible document with no Matter (e.g. an engagement-level
+    // paper) still needs SOME visible anchor — its Client must own at least
+    // one visible Matter, otherwise a document could leak a Client's
+    // existence onto the page with nothing else visible to give it context.
+    const cl = d.clientId ? getClient(d.clientId) : null;
+    return !!(cl && !cl.legacy && managementVisibleMatters().some((mm) => getEngagementRecord(mm.engagementId).clientId === d.clientId));
+  });
+}
+function computeManagementDecisions() {
+  return computeDecisionsRequired().filter((d) => (d.managementVisibility || "None") !== "None" && managementVisibleDocs().includes(d));
+}
+function decisionDisplayStatus(d) {
+  if (FINAL_STATUSES.includes(d.status)) return "Decided";
+  if (CLOSED_STATUSES.includes(d.status)) return "Superseded";
+  return "Pending";
+}
+function managementWaitingOn() {
+  return TASKS.filter((t) => !t.done && t.waitingOn && t.managementVisible && isMatterManagementVisible(getMatter(t.matterId)));
+}
+function managementProgressNotes() {
+  const visibleIds = new Set(managementVisibleMatters().map((m) => m.id));
+  return PROGRESS_NOTES.filter((p) => p.includeInManagementUpdate && visibleIds.has(p.matterId)).sort((a, b) => b.date.localeCompare(a.date));
+}
+function managementMeetings() {
+  const in7 = addDays(TODAY, 7);
+  return meetingsInRange(TODAY, in7).filter((m) => m.matterId && isMatterManagementVisible(getMatter(m.matterId)));
+}
+function computeManagementSummary() {
+  const matters = managementVisibleMatters();
+  return {
+    activeMatters: matters.filter((m) => m.managementStatus !== "Complete").length,
+    forReview: computeManagementDecisions().length,
+    awaitingInput: matters.filter((m) => m.managementStatus === "Awaiting Input").length,
+    decisionRequired: matters.filter((m) => m.managementStatus === "Decision Required").length,
+  };
+}
+function lastManagementUpdate() {
+  const dates = managementVisibleMatters().map((m) => m.managementUpdated).filter(Boolean);
+  return dates.length ? dates.sort().slice(-1)[0] : null;
+}
 
 function computeVaultDocs(query) {
   let list = activeClassifiedDocs();
@@ -283,9 +348,9 @@ function showToast(msg) {
 }
 function mockAction(msg) { showToast(msg); }
 function toggleSidebar() { STATE.sidebarOpen = !STATE.sidebarOpen; render(); }
-function openDocument(id) { STATE.previewId = id; STATE.previewMeetingId = null; STATE.showLegend = false; render(); }
-function closeDrawer() { STATE.previewId = null; STATE.previewMeetingId = null; render(); }
-function openMeeting(id) { STATE.previewMeetingId = id; STATE.previewId = null; render(); }
+function openDocument(id) { STATE.previewId = id; STATE.previewMeetingId = null; STATE.previewMatterId = null; STATE.showLegend = false; render(); }
+function closeDrawer() { STATE.previewId = null; STATE.previewMeetingId = null; STATE.previewMatterId = null; render(); }
+function openMeeting(id) { STATE.previewMeetingId = id; STATE.previewId = null; STATE.previewMatterId = null; render(); }
 function toggleStar(id, ev) { if (ev) ev.stopPropagation(); const d = getDocument(id); if (d) d.starred = !d.starred; render(); }
 function togglePin(id, ev) { if (ev) ev.stopPropagation(); const c = getClient(id); if (c) c.pinned = !c.pinned; render(); }
 function sortTable(key) {
@@ -311,6 +376,50 @@ function updateDocField(id, field, value) {
   if (field === "matterId") { d.workstream = null; }
   render();
 }
+
+/** Mutates the existing Matter record in place — architecture doc §16.6 — never a separate report record. */
+function updateMatterField(id, field, value) {
+  const m = getMatter(id);
+  if (!m) return;
+  if (field === "managementVisible") { m.managementVisible = value === "true" || value === true; }
+  else { m[field] = value === "" ? null : value; }
+  m.managementUpdated = TODAY;
+  render();
+}
+function openMatterEditor(id) { STATE.previewMatterId = id; STATE.previewId = null; STATE.previewMeetingId = null; render(); }
+function saveMatterEditor() { showToast("Management snapshot saved."); STATE.previewMatterId = null; render(); }
+
+function toggleGenerateUpdate() { STATE.showGenerateUpdate = !STATE.showGenerateUpdate; render(); }
+function setUpdateFormat(fmt) { STATE.updateFormat = fmt; render(); }
+function generateUpdateText(format) {
+  const matters = managementVisibleMatters();
+  const lines = [];
+  const heading = format === "brief" ? `CURRENT WORK UPDATE — ${fmtDateLong(TODAY)}` : `Current Work Update — ${fmtDate(TODAY)}`;
+  lines.push(heading, "");
+  matters.forEach((m) => {
+    const cn = clientName(getEngagementRecord(m.engagementId).clientId);
+    const bullet = format === "whatsapp" ? "•" : "";
+    const label = `${cn} — ${m.name}`;
+    const body = `${m.currentPosition || ""}${m.nextStep ? ` Next: ${m.nextStep}` : ""}`.trim();
+    lines.push(format === "email" ? `${label}\n${body}` : `${bullet} ${label}: ${body}`.trim());
+    if (format === "email") lines.push("");
+  });
+  const attention = matters.filter((m) => m.managementAttentionLevel);
+  if (attention.length) {
+    lines.push(format === "whatsapp" ? "Management attention:" : "Management attention:");
+    attention.forEach((m) => {
+      const cn = clientName(getEngagementRecord(m.engagementId).clientId);
+      lines.push(`${format === "whatsapp" ? "•" : "-"} ${cn} — ${m.managementAttentionLevel.toLowerCase()}${m.managementAttentionNote ? `: ${m.managementAttentionNote}` : ""}`);
+    });
+  }
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function copyGeneratedUpdate() {
+  const text = generateUpdateText(STATE.updateFormat || "email");
+  try { if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text); } catch (e) { /* clipboard unavailable */ }
+  showToast("Update text copied. Nothing is sent automatically — paste it wherever you need it.");
+}
+
 function fileToVault(id) {
   const d = getDocument(id);
   if (!d) return;
@@ -390,6 +499,9 @@ function navSections() {
       { id: "matters", label: "Projects / Matters", hash: "#/matters" },
       { id: "meetings", label: "Meetings & Decisions", hash: "#/meetings" },
       { id: "actions", label: "Actions & Follow-Up", hash: "#/actions", count: openTasksCount() },
+    ]},
+    { label: "Management", items: [
+      { id: "management", label: "Preview Management View", hash: "#/management" },
     ]},
     { label: "Document Vault", items: [
       { id: "vault", label: "My Document Vault", hash: "#/vault" },
@@ -477,7 +589,7 @@ function renderTopbar(query) {
         <span class="search-kbd">Enter ↵</span>
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-gold btn-sm" onclick="${call("mockAction", "Upload is mocked in this prototype: pick a file → optionally set Client and Document Type → Save. Everything else can be completed later from the Executive Inbox.")}">⭱ New</button>
+        <button class="btn btn-gold btn-sm" onclick="${call("mockAction", "Upload is mocked in this prototype: pick a file → optionally set Client and Document Type → Save. Everything else can be completed later from the Executive Inbox.")}">⭱<span class="new-label"> New</span></button>
         <div style="position:relative">
           <button class="btn btn-icon" onclick="${call("toggleAttentionPopover")}" title="Notifications / Attention" aria-label="Notifications">🔔${attnCount ? `<span class="n-badge">${attnCount}</span>` : ""}</button>
           ${renderNotificationsPopover()}
@@ -634,13 +746,56 @@ function meetingBriefContent(m) {
     </div>`;
 }
 
+function matterEditorContent(m) {
+  const eng = getEngagementRecord(m.engagementId);
+  const cn = clientName(eng.clientId);
+  const statusOptions = [`<option value="">—</option>`].concat(MANAGEMENT_STATUSES.map((s) => `<option value="${s}" ${m.managementStatus === s ? "selected" : ""}>${s}</option>`)).join("");
+  const levelOptions = [`<option value="">None (routine)</option>`].concat(ATTENTION_LEVELS.map((s) => `<option value="${s}" ${m.managementAttentionLevel === s ? "selected" : ""}>${s}</option>`)).join("");
+  return `
+    <div class="drawer-head">
+      <div>
+        <div class="breadcrumbs">${cn} · Management Snapshot</div>
+        <h3 style="font-size:17px;max-width:340px">${m.name}</h3>
+      </div>
+      <button class="drawer-close" onclick="${call("closeDrawer")}">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="callout" style="margin-bottom:16px"><span>ℹ</span><div>These fields supplement this Matter's own record — nothing here creates a separate report (architecture doc §16.6). Only visible on Management Progress when "Show on Management Progress" is checked.</div></div>
+      <label class="dfield" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" ${m.managementVisible ? "checked" : ""} onchange="${callWithValue("updateMatterField", m.id, "managementVisible").replace("this.value", "this.checked")}"/>
+        <span class="dfield-label" style="margin:0">Show on Management Progress</span>
+      </label>
+      <div class="dfield"><div class="dfield-label">Status</div>
+        <select class="filter-select" style="width:100%" onchange="${callWithValue("updateMatterField", m.id, "managementStatus")}">${statusOptions}</select>
+      </div>
+      <div class="dfield"><div class="dfield-label">Current Position</div>
+        <textarea class="filter-search" style="width:100%;min-height:60px" onchange="${callWithValue("updateMatterField", m.id, "currentPosition")}">${attrSafe(m.currentPosition || "")}</textarea>
+      </div>
+      <div class="dfield"><div class="dfield-label">Next Step</div>
+        <textarea class="filter-search" style="width:100%;min-height:44px" onchange="${callWithValue("updateMatterField", m.id, "nextStep")}">${attrSafe(m.nextStep || "")}</textarea>
+      </div>
+      <div class="dfield"><div class="dfield-label">Management Attention Level</div>
+        <select class="filter-select" style="width:100%" onchange="${callWithValue("updateMatterField", m.id, "managementAttentionLevel")}">${levelOptions}</select>
+      </div>
+      <div class="dfield"><div class="dfield-label">Management Attention Note</div>
+        <input class="filter-search" style="width:100%" value="${attrSafe(m.managementAttentionNote || "")}" onchange="${callWithValue("updateMatterField", m.id, "managementAttentionNote")}"/>
+      </div>
+      <div class="dfield"><div class="dfield-label">Last Updated</div><div class="dfield-value">${fmtDate(m.managementUpdated)}</div></div>
+      <div class="drawer-actions">
+        <button class="btn btn-gold" onclick="${call("saveMatterEditor")}">Done</button>
+        <button class="btn" onclick="${call("navigate", "#/management")}">Preview Management View</button>
+      </div>
+    </div>`;
+}
+
 function renderDrawer() {
   const d = STATE.previewId ? getDocument(STATE.previewId) : null;
   const m = STATE.previewMeetingId ? getMeeting(STATE.previewMeetingId) : null;
-  const open = !!(d || m);
+  const mt = STATE.previewMatterId ? getMatter(STATE.previewMatterId) : null;
+  const open = !!(d || m || mt);
   return `
     <div class="overlay${open ? " show" : ""}" onclick="${call("closeDrawer")}"></div>
-    <aside class="drawer${open ? " open" : ""}">${d ? drawerContent(d) : (m ? meetingBriefContent(m) : "")}</aside>`;
+    <aside class="drawer${open ? " open" : ""}">${d ? drawerContent(d) : (m ? meetingBriefContent(m) : (mt ? matterEditorContent(mt) : ""))}</aside>`;
 }
 
 /* ============================ Shared table/tree ============================ */
@@ -994,7 +1149,10 @@ function renderClientStructureSummary(cl) {
           const matterDocs = classifiedDocs().filter((d) => d.matterId === m.id);
           return `
           <div style="margin:6px 0 0 12px;padding-left:10px;border-left:2px solid var(--line)">
-            <div style="font-size:12px"><b>${m.name}</b> <span class="muted">— Project/Matter · ${statusChip(m.status)} · ${matterDocs.length} docs</span></div>
+            <div style="font-size:12px;display:flex;align-items:center;gap:8px">
+              <span><b>${m.name}</b> <span class="muted">— Project/Matter · ${statusChip(m.status)} · ${matterDocs.length} docs${m.managementVisible ? ' · <span class="chip fn-chip">On Management Progress</span>' : ""}</span></span>
+              <button class="btn btn-sm btn-ghost" style="margin-left:auto;padding:2px 9px;font-size:10.5px" onclick="${call("openMatterEditor", m.id)}">Edit Management Snapshot</button>
+            </div>
             ${m.workstreams.length ? m.workstreams.map((w) => {
               const wDocs = matterDocs.filter((d) => d.workstream === w);
               return `
@@ -1224,6 +1382,157 @@ function renderOutlookScreen() {
   `;
 }
 
+/* ============================ Management Progress ============================ */
+
+/** "Client — Title" without the doubled-up look when Title already names the Client (several document/meeting titles do, by naming convention, §6) — checked loosely (the Client's first word) since a title may carry a shortened form ("Nusantara" for "Nusantara Project"). */
+function mgmtLabel(clientId, title) {
+  const cn = clientName(clientId);
+  const firstWord = cn.split(" ")[0];
+  return title.toLowerCase().includes(firstWord.toLowerCase()) ? title : `${cn} — ${title}`;
+}
+
+function mgmtMatterCard(m) {
+  const eng = getEngagementRecord(m.engagementId);
+  const cn = clientName(eng.clientId);
+  return `
+    <div class="mgmt-card">
+      <div class="mgmt-card-top">
+        <div>
+          <div class="mgmt-card-client">${cn}</div>
+          <div class="mgmt-card-name">${m.name}</div>
+        </div>
+        <span class="mgmt-status mgmt-status-${slug(m.managementStatus || "")}">${m.managementStatus || "—"}</span>
+      </div>
+      <div class="mgmt-field"><span class="mgmt-field-label">Current Position</span>${m.currentPosition || "—"}</div>
+      ${m.workstreams.length ? `<div class="mgmt-field"><span class="mgmt-field-label">Active Workstreams</span>${m.workstreams.join(", ")}</div>` : ""}
+      <div class="mgmt-field"><span class="mgmt-field-label">Next Step</span>${m.nextStep || "—"}</div>
+      <div class="mgmt-field"><span class="mgmt-field-label">Management Attention</span>${m.managementAttentionNote || "None."}</div>
+    </div>`;
+}
+
+function renderManagementProgress() {
+  const matters = managementVisibleMatters();
+  const summary = computeManagementSummary();
+  const attentionMatters = matters.filter((m) => m.managementAttentionLevel);
+  const waiting = managementWaitingOn();
+  const notes = managementProgressNotes();
+  const decisions = computeManagementDecisions();
+  const docs = managementVisibleDocs();
+  const meetings = managementMeetings();
+  const lastUpdated = lastManagementUpdate();
+
+  const summaryLine = [
+    `${summary.activeMatters} Active Matter${summary.activeMatters === 1 ? "" : "s"}`,
+    `${summary.forReview} For Review`,
+    `${summary.awaitingInput} Awaiting Input`,
+    `${summary.decisionRequired} Decision Required`,
+  ].join(" · ");
+
+  return `
+    <div class="mgmt-preview-banner">
+      <span>You are previewing the Management View — this is exactly what would be shared.</span>
+      <button class="btn btn-sm" onclick="${call("navigate", "#/home")}">Exit Preview</button>
+    </div>
+    <div class="mgmt-page">
+      <div class="mgmt-header">
+        <div>
+          <div class="mgmt-title">Management Progress</div>
+          <div class="mgmt-subtitle">Executive Office — Current Work &amp; Priorities</div>
+        </div>
+        <div class="mgmt-updated">Last Updated: ${lastUpdated ? fmtDate(lastUpdated) : "—"}</div>
+      </div>
+
+      <div class="mgmt-summary">${summaryLine}</div>
+
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Current Priorities</div>
+        ${matters.length ? matters.map(mgmtMatterCard).join("") : '<div class="mgmt-empty">No Matters currently selected for management visibility.</div>'}
+      </div>
+
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Management Attention</div>
+        ${attentionMatters.length ? attentionMatters.map((m) => {
+          const eng = getEngagementRecord(m.engagementId);
+          const cn = clientName(eng.clientId);
+          const supportingDoc = docs.find((d) => d.matterId === m.id && d.managementVisibility === "For Review");
+          return `
+          <div class="mgmt-attention-card">
+            <div class="mgmt-attention-top">
+              <span class="mgmt-attention-level">${m.managementAttentionLevel}</span>
+              <span class="mgmt-attention-who">${cn} — ${m.name}</span>
+            </div>
+            <div class="mgmt-attention-note">${m.managementAttentionNote || ""}</div>
+            <div class="mgmt-attention-actions">
+              <button class="btn btn-sm" onclick="${call("navigate", "#/client/" + eng.clientId + "?tab=documents&matter=" + m.id)}">View Matter</button>
+              ${supportingDoc ? `<button class="btn btn-sm btn-ghost" onclick="${call("openDocument", supportingDoc.id)}">View Supporting Document</button>` : ""}
+            </div>
+          </div>`;
+        }).join("") : '<div class="mgmt-empty">No immediate management action required.</div>'}
+      </div>
+
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Waiting On — Awaiting Input / External Dependency</div>
+        ${waiting.length ? waiting.map((t) => `
+          <div class="mgmt-line"><b>${clientName(t.clientId)}</b> — ${t.title}${t.waitingOn ? ` <span class="muted">(${t.waitingOn})</span>` : ""}</div>
+        `).join("") : '<div class="mgmt-empty">Nothing currently awaiting external input.</div>'}
+      </div>
+
+      <div class="grid grid-2" style="gap:24px;align-items:start">
+        <div class="mgmt-section">
+          <div class="mgmt-section-title">Progress Since Last Update</div>
+          ${notes.length ? notes.map((n) => `<div class="mgmt-line">✓ ${n.text}</div>`).join("") : '<div class="mgmt-empty">Nothing selected yet.</div>'}
+        </div>
+        <div class="mgmt-section">
+          <div class="mgmt-section-title">Next 7 Days</div>
+          ${matters.filter((m) => m.nextStep).length ? matters.filter((m) => m.nextStep).map((m) => {
+            const cn = clientName(getEngagementRecord(m.engagementId).clientId);
+            return `<div class="mgmt-line"><b>${cn}</b> — ${m.nextStep}</div>`;
+          }).join("") : '<div class="mgmt-empty">Nothing notable in the coming week.</div>'}
+        </div>
+      </div>
+
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Decisions / Direction Required</div>
+        ${decisions.length ? decisions.map((d) => `
+          <div class="mgmt-line mgmt-line-click" onclick="${call("openDocument", d.id)}">
+            <b>${mgmtLabel(d.clientId, d.title)}</b> <span class="muted">· Requested ${fmtDate(d.created)} · ${decisionDisplayStatus(d)}</span>
+          </div>`).join("") : '<div class="mgmt-empty">Nothing currently pending a decision.</div>'}
+      </div>
+
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Supporting Documents</div>
+        ${docs.length ? docs.map((d) => `
+          <div class="mgmt-line mgmt-line-click" onclick="${call("openDocument", d.id)}">
+            <span class="mgmt-doc-tag">${(d.managementVisibility || "None").toUpperCase()}</span> ${mgmtLabel(d.clientId, d.title)}
+          </div>`).join("") : '<div class="mgmt-empty">No documents selected for management visibility.</div>'}
+      </div>
+
+      ${meetings.length ? `
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Meetings — Upcoming</div>
+        ${meetings.map((m) => `
+          <div class="mgmt-line mgmt-line-click" onclick="${call("openMeeting", m.id)}">${mgmtLabel(m.clientId, m.title)} <span class="muted">· ${fmtDate(m.date)} · ${m.startTime}</span></div>
+        `).join("")}
+      </div>` : ""}
+
+      <div class="mgmt-generate">
+        <button class="btn btn-primary" onclick="${call("toggleGenerateUpdate")}">${STATE.showGenerateUpdate ? "Hide" : "Generate Management Update"}</button>
+        ${STATE.showGenerateUpdate ? `
+          <div class="mgmt-generate-panel">
+            <div class="view-toggle" style="margin-bottom:10px">
+              ${["email", "whatsapp", "brief"].map((f) => `<button class="${(STATE.updateFormat || "email") === f ? "active" : ""}" onclick="${call("setUpdateFormat", f)}">${f === "email" ? "Email" : f === "whatsapp" ? "WhatsApp" : "Executive Brief"}</button>`).join("")}
+            </div>
+            <textarea class="filter-search" style="width:100%;min-height:220px;font-family:inherit">${attrSafe(generateUpdateText(STATE.updateFormat || "email"))}</textarea>
+            <div class="drawer-actions" style="margin-top:10px">
+              <button class="btn btn-gold" onclick="${call("copyGeneratedUpdate")}">Copy Text</button>
+            </div>
+            <div class="mgmt-empty" style="margin-top:8px">Editable above. No email or WhatsApp is sent from here — copy and paste wherever you need it.</div>
+          </div>` : ""}
+      </div>
+    </div>
+  `;
+}
+
 function renderMeetingsScreen() {
   const sorted = MEETINGS.slice().sort((a, b) => (b.date + (b.startTime || "")).localeCompare(a.date + (a.startTime || "")));
   return `
@@ -1322,6 +1631,7 @@ function renderScreen(path, query) {
   if (path === "/settings") return renderSettingsScreen();
   if (path === "/drive") return renderDriveScreen();
   if (path === "/outlook") return renderOutlookScreen();
+  if (path === "/management") return renderManagementProgress();
   if (path.indexOf("/document/") === 0) {
     STATE.previewId = path.split("/")[2];
     return renderVaultScreen({});

@@ -6,7 +6,9 @@ A personal executive command centre, designed to sit over Google Drive and Outlo
 
 **v2** implements the Client → Engagement → Project/Matter → Workstream model, the Legacy business-line rule, and the revised Function/Document Type vocabularies approved after validating the architecture against the actual historical folder tree — see `docs/architecture/executive-document-vault-gap-analysis.md` for that validation record.
 
-**v3** adds the Command Centre layer (architecture doc §15): a redesigned Executive Home (work dashboard, not a document-count dashboard), My Day, This Week, the Meeting Brief, a cross-client Projects/Matters register, an On-Me/Waiting-On split for follow-ups, a header notifications popover, and the Outlook Calendar integration architecture (still mock data/architecture-only — no live Microsoft account connection). The boss-facing Management Progress Snapshot and production Outlook wiring are explicitly out of scope for this phase.
+**v3** adds the Command Centre layer (architecture doc §15): a redesigned Executive Home (work dashboard, not a document-count dashboard), My Day, This Week, the Meeting Brief, a cross-client Projects/Matters register, an On-Me/Waiting-On split for follow-ups, a header notifications popover, and the Outlook Calendar integration architecture (still mock data/architecture-only — no live Microsoft account connection).
+
+**v4** adds the Management Progress Snapshot (architecture doc §16): a boss-facing, privacy-by-default curated view over the same Command Centre data — never a second dataset. See the Final Report delivered alongside this phase for the full privacy/reuse/field breakdown. Production Outlook/Drive wiring and any real sharing/send mechanism remain explicitly out of scope.
 
 ## What this is — and isn't
 
@@ -16,6 +18,8 @@ A personal executive command centre, designed to sit over Google Drive and Outlo
 - **This app is fully isolated** from `apps/svegip/`, `apps/executive-briefing/`, and every `platform-services/*`/`packages/*` module. It does not import, fetch, link to, or depend on any of them.
 
 ## Screens implemented
+
+**Management Progress:** a curated, read-only, boss-facing page (`#/management`, reached via "Preview Management View") — compact header + Last Updated, a one-line derived summary, Current Priorities cards, Management Attention callouts, Waiting On, Progress Since Last Update, Next 7 Days, Decisions/Direction Required, Supporting Documents, upcoming Meetings, and Generate Management Update (Email/WhatsApp/Executive Brief text, editable, copy-only). An "Edit Management Snapshot" action on each Matter (in its Client Workspace) opens the same drawer mechanism to set its management fields. Privacy is default-off — see the architecture doc §16.3/§16.4.
 
 **Command Centre:** Executive Home (compact header/greeting, summary strip, Today, Attention Required + Waiting On, Recently Modified + Requires Review or Decision) · My Day · This Week · Meeting Brief (drawer, opened from any calendar event) · Projects / Matters (cross-client register) · a header Notifications/Attention popover · Outlook Calendar (placeholder).
 
