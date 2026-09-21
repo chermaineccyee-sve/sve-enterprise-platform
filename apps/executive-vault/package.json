@@ -1,0 +1,9 @@
+{
+  "name": "executive-vault",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Executive Vault — a personal executive document vault and command centre over Google Drive. Phase 3 prototype: static HTML/CSS/JS, mock data only, no build step, fully isolated from every other app/service in this repository.",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
