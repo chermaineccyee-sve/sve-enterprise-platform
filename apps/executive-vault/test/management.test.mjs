@@ -42,13 +42,16 @@ test("Management Progress shows exactly the four visible Matters as Current Prio
   assert.match(html, /Close outstanding HR \/ Legal confirmation items/); // real nextStep text, not a copy
 });
 
-test("Management Attention lists only Matters with a non-null managementAttentionLevel", () => {
+test("Management Attention lists only Matters with a non-null managementAttentionLevel, standardised on Decision Required (21 Sep 2026 terminology decision)", () => {
   const sandbox = loadApp();
   const attention = sandbox.managementVisibleMatters().filter((m) => m.managementAttentionLevel);
   assert.equal(attention.length, 1);
   assert.equal(attention[0].id, "matter-svegip-platform");
+  assert.equal(attention[0].managementAttentionLevel, "Decision Required");
   sandbox.navigate("#/management");
-  assert.match(sandbox.__appEl.innerHTML, /DIRECTION REQUIRED|Direction Required/i);
+  const html = sandbox.__appEl.innerHTML;
+  assert.match(html, /DECISION REQUIRED|Decision Required/i);
+  assert.match(html, /Management direction required on next-stage platform direction/i);
 });
 
 test("managementVisibleDocs() excludes documents with managementVisibility None (the default) and excludes Legacy", () => {
@@ -172,4 +175,34 @@ test("unclassified Inbox items and personal working files never appear on Manage
   const html = sandbox.__appEl.innerHTML;
   assert.doesNotMatch(html, /Scan_2026-09-19\.pdf/);
   assert.doesNotMatch(html, /IMG_Board_Pack_Sept\.pdf/);
+});
+
+test("a management-visible Matter shows a subtle 'Management Visible' indicator in its Client Workspace, so the account holder never has to open Management Progress to check", () => {
+  const sandbox = loadApp();
+  sandbox.navigate("#/client/vt-worldwide"); // owns matter-vt-hrtransform, managementVisible:true
+  const html = sandbox.__appEl.innerHTML;
+  assert.match(html, /Management Visible/);
+});
+
+test("a Matter NOT management-visible shows no such indicator", () => {
+  const sandbox = loadApp();
+  sandbox.navigate("#/client/internal-governance"); // owns two non-visible Matters
+  const html = sandbox.__appEl.innerHTML;
+  assert.doesNotMatch(html, /Management Visible/);
+});
+
+test("the Projects / Matters register also shows the 'Management Visible' indicator for visible Matters only", () => {
+  const sandbox = loadApp();
+  sandbox.navigate("#/matters");
+  const html = sandbox.__appEl.innerHTML;
+  const visibleCount = (html.match(/Management Visible/g) || []).length;
+  assert.equal(visibleCount, sandbox.managementVisibleMatters().length);
+});
+
+test("a management-visible document shows a subtle 'Management: <level>' indicator on its own Document Detail drawer", () => {
+  const sandbox = loadApp();
+  sandbox.openDocument("d12"); // managementVisibility: "For Review"
+  assert.match(sandbox.__appEl.innerHTML, /Management: For Review/);
+  sandbox.openDocument("d01"); // no managementVisibility set at all
+  assert.doesNotMatch(sandbox.__appEl.innerHTML, /Management: /);
 });

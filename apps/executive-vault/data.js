@@ -181,10 +181,16 @@ const MATTERS = [
     managementVisible: true, managementStatus: "Decision Required",
     currentPosition: "Management concept, architecture and supporting governance framework prepared.",
     nextStep: "Proceed to priority implementation following management direction.",
-    managementAttentionLevel: "Direction Required", managementAttentionNote: "Confirm next-stage platform direction and priority modules.",
-    managementUpdated: "2026-09-19",
+    // Attention level standardised on "Decision Required" (matches managementStatus) per
+    // the 21 Sep 2026 decision record — the description, not the level, carries the nuance
+    // that what's needed is management direction.
+    managementAttentionLevel: "Decision Required", managementAttentionNote: "Management direction required on next-stage platform direction / priority implementation.",
+    managementUpdated: "2026-09-21",
   },
   {
+    // Confirmed decision (21 Sep 2026): stays private to the Command Centre —
+    // available to switch on later (via "Edit Management Snapshot") where
+    // management visibility is actually required, never broadened by default.
     id: "matter-intgov-policy", engagementId: "eng-intgov", name: "Group Policy & Governance Administration", status: "active",
     owner: "Me", startDate: "2026-01-01", targetDate: null, currentStage: "Ongoing",
     workstreams: ["Board & Governance", "Group Policy"],
@@ -192,6 +198,9 @@ const MATTERS = [
     managementAttentionLevel: null, managementAttentionNote: "", managementUpdated: null,
   },
   {
+    // Confirmed decision (21 Sep 2026): stays private — litigation is the
+    // clearest case for keeping the default off until visibility is a
+    // deliberate, explicit choice.
     id: "matter-intgov-litigation", engagementId: "eng-intgov", name: "Contract Dispute — Vendor XYZ", status: "active",
     owner: "Me", startDate: "2026-08-01", targetDate: null, currentStage: "Active Dispute",
     workstreams: [],

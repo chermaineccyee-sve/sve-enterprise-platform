@@ -694,6 +694,7 @@ function drawerContent(d) {
         <div class="dfield-label">Google Drive location</div>
         <div class="dfield-value muted">${d.drivePath}</div>
       </div>
+      ${d.managementVisibility && d.managementVisibility !== "None" ? `<div class="dfield"><span class="chip fn-chip" style="font-size:9px" title="Shown on the Management Progress page">Management: ${d.managementVisibility}</span></div>` : ""}
       ${d.notes ? `<div class="dfield"><div class="dfield-label">Notes</div><div class="notes-box">${d.notes}</div></div>` : ""}
       ${d.possibleDuplicateOf ? `<div class="callout"><span>⚠</span><div>Flagged as a <b>possible duplicate</b> of ${getDocument(d.possibleDuplicateOf) ? getDocument(d.possibleDuplicateOf).title : "another document"}.</div></div>` : ""}
       <div class="drawer-actions">
@@ -1150,7 +1151,7 @@ function renderClientStructureSummary(cl) {
           return `
           <div style="margin:6px 0 0 12px;padding-left:10px;border-left:2px solid var(--line)">
             <div style="font-size:12px;display:flex;align-items:center;gap:8px">
-              <span><b>${m.name}</b> <span class="muted">— Project/Matter · ${statusChip(m.status)} · ${matterDocs.length} docs${m.managementVisible ? ' · <span class="chip fn-chip">On Management Progress</span>' : ""}</span></span>
+              <span><b>${m.name}</b> <span class="muted">— Project/Matter · ${statusChip(m.status)} · ${matterDocs.length} docs${m.managementVisible ? ' · <span class="chip fn-chip" title="Shown on the Management Progress page">Management Visible</span>' : ""}</span></span>
               <button class="btn btn-sm btn-ghost" style="margin-left:auto;padding:2px 9px;font-size:10.5px" onclick="${call("openMatterEditor", m.id)}">Edit Management Snapshot</button>
             </div>
             ${m.workstreams.length ? m.workstreams.map((w) => {
@@ -1361,7 +1362,7 @@ function renderMattersScreen() {
         <thead><tr><th>Matter</th><th>Client</th><th>Engagement</th><th>Status</th><th>Stage</th><th>Workstreams</th><th>Open Docs</th><th>Target Date</th></tr></thead>
         <tbody>${rows.map((r) => `
           <tr onclick="${call("navigate", "#/client/" + r.cl.id + "?tab=documents&matter=" + r.m.id)}">
-            <td><b>${r.m.name}</b></td>
+            <td><b>${r.m.name}</b>${r.m.managementVisible ? ' <span class="chip fn-chip" style="font-size:9px" title="Shown on the Management Progress page">Management Visible</span>' : ""}</td>
             <td>${r.cl.name}</td>
             <td>${r.eng.name}</td>
             <td>${statusChip(r.m.status)}</td>
