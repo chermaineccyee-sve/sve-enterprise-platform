@@ -1,6 +1,8 @@
-# Executive Vault — Personal Executive Document Vault
+# Executive Vault → Personal Executive Command Centre
 
-Status: **Phase 1 (information architecture) + Phase 2 (UX architecture), validated against the actual historical Executive Office Hub folder tree and approved.** Phase 3 (visual prototype, mock data) is built at `apps/executive-vault/` — see that app's own `README.md`. **Phase 4 (production Google Drive integration) is intentionally not started** — per the brief, it only gets designed once the interface and information architecture below are confirmed.
+Status: **Phase 1–2 (information architecture / UX architecture) approved and validated against the historical Executive Office Hub folder tree. Phase 3a (Document Vault prototype) built.** This document now also covers **Phase 3b: the Command Centre evolution** (§15 onward) — Executive Home redesign, My Day, This Week, Meeting↔Client/Engagement/Matter/Workstream linking, and the Outlook Calendar integration architecture. Phase 3b is, like Phase 3a, **mock data only** — see `apps/executive-vault/README.md`. **Production Google Drive integration and production Outlook Calendar integration are both intentionally not started.**
+
+The product is evolving from a document vault into a **Personal Executive Command Centre**, with the Document Vault as one major module inside it rather than the whole product — see §15. Everything in §0–§14 below (the vault's own information architecture) is unchanged and remains authoritative for that module.
 
 This is a **personal** professional workspace for one user (initially Chermaine/the account this repository belongs to), not a company-wide document management system, not a multi-tenant product, and not the same thing as `platform-services/data-vault` (see [§0](#0-relationship-to-the-existing-sve-data-vault) — that is a separate, RBAC-gated, Postgres-native evidence register for SVE Group governance; this is a Drive-backed personal filing and retrieval layer). Nothing in this document changes, depends on, or is consumed by `apps/svegip`, `platform-services/*`, or `packages/*`.
 
@@ -420,5 +422,155 @@ Addressed as the Intelligent View tab of My Document Vault (§13.2) rather than 
 
 1. ~~Review this document~~ — **done.** The root folder set (§2), the client template (§3), the classification tiers (§4), the Client/Engagement/Project-Matter/Workstream model (§3.1), the Legacy treatment (§3a), and the Function/Document Type vocabularies (§5.1/§5.2) have all been validated against the actual historical Executive Office Hub folder tree and approved — see `executive-document-vault-gap-analysis.md` for the full reasoning.
 2. ~~Share the actual existing Drive hierarchy~~ — **done**, and validated branch-by-branch.
-3. `apps/executive-vault/` is being updated to match this approved architecture (Client/Engagement/Project-Matter/Workstream nesting, the revised vocabularies, Legacy handling, workstream promotion) — still mock data, still no live Drive connection.
-4. Only after 3 is settled: scope Phase 4 (real OAuth, real Drive API wiring, real sync) as its own, separate piece of work.
+3. ~~`apps/executive-vault/` is being updated to match this approved architecture~~ — **done** (Client/Engagement/Project-Matter/Workstream nesting, the revised vocabularies, Legacy handling, workstream promotion) — still mock data, still no live Drive connection.
+4. The product is now evolving into a Personal Executive Command Centre (§15) — Executive Home redesign, My Day, This Week, Meeting↔Matter linking, and the Outlook Calendar integration architecture.
+5. Only after 15 is settled and its prototype validated: scope production Drive integration and production Outlook Calendar integration (both still architecture-only today, §8 and §15.6) as their own, separate pieces of work. The boss-facing Management Progress Snapshot is explicitly deferred past this phase too — not designed here.
+
+---
+
+## 15. Personal Executive Command Centre
+
+The Document Vault (§0–§14) becomes one module inside a broader personal work surface. Nothing about the Vault's own information architecture changes — the Command Centre is additive, built from data the Vault (and, from this phase on, a calendar) already holds, never a parallel dataset.
+
+**Revised information architecture:**
+
+```
+PERSONAL EXECUTIVE COMMAND CENTRE
+│
+├── Executive Home        redesigned, §15.1 — work dashboard, not a document-count dashboard
+├── My Day                 §15.2 — today's schedule + today's follow-ups
+├── This Week              §15.2 — the week ahead, grouped by day
+│
+├── Clients & Engagements  unchanged (§13.3)
+├── Projects & Programmes  unchanged (§13.3) — internal, non-client Clients
+├── Projects / Matters     §15.5 — NEW: a flat, cross-client Project/Matter register
+├── Meetings & Decisions   extended, §15.3/§15.4 — now calendar-populated, not hand-entered only
+├── Actions & Follow-Up    renamed from "Tasks / Follow-Up" — unchanged screen, §13
+│
+├── Document Vault          §0–§14, unchanged — My Document Vault, Recent, Starred, Drafts, For
+│                            Review, Final/Issued, Executive Inbox, Archive/Legacy all still exist
+│                            exactly as before, just conceptually grouped under this label
+│
+├── Google Drive [production integration — future, §8, still not started]
+└── Outlook Calendar [production integration — future, §15.6, still not started]
+```
+
+Nothing under "Document Vault" moved, was renamed, or changed behaviour — §13's screens are all still there.
+
+### 15.1 Executive Home (redesigned)
+
+**Principle: this is a work dashboard, not a storage dashboard.** The previous Executive Home led with a six-card document-count grid; that is demoted to a single compact summary line, and the page now leads with what the brief's own six questions actually ask for: *what do I have today, what am I actively working on, what needs my attention, what am I waiting for, what's coming next, what did I recently touch, what needs a decision.*
+
+**Header** — compact, not another card:
+```
+Good morning, Ching Yee                         [Search]  [+ New]  [🔔]  [⚙]
+Monday, 21 September 2026
+```
+The greeting's time-of-day is derived from a single prototype "current time" value (data.js's `NOW`), not a real clock — see §15.7 on what's illustrative vs. real in this phase. `🔔` is the Notifications/Attention entry point (§15.4); `+ New` is the same progressive-disclosure upload/create action already in the top bar, promoted into the header's line.
+
+**Summary strip** — one line of small, clickable counts, not KPI cards, and only counts that drive action:
+```
+4 Active Matters · 3 Meetings Today · 4 Follow-Ups · 2 For Review · 1 Decision Required
+```
+Each number navigates straight to its filtered view (Matters register, My Day, Actions & Follow-Up, Vault "For Review" saved view, or the Decisions section below) — the strip holds no information that isn't one click from being acted on.
+
+**Body**, two columns:
+- **Today** — a condensed version of My Day's timeline (§15.2): time, title, Client, and a status dot for past/in-progress/upcoming: clicking opens the Meeting Brief (§15.3) directly from Home.
+- **Attention Required** — unchanged content from §13.1 (awaiting review, unclassified, duplicates, stale drafts, missing version, confidential, follow-ups), now visually paired with:
+- **Waiting On** — NEW: follow-up items where the next action is someone *else's*, not mine (§15.4) — answers "what am I waiting for?" as its own list, not buried inside a generic follow-up count.
+- **Recently Modified** — unchanged from §13.1.
+- **Requires Review or Decision** — NEW: documents whose Document Type is `Resolution` or `Management Paper` and whose status is not yet Final/Approved/Issued — a governance decision genuinely pending, distinct from the broader "awaiting review" bucket (a Working Draft under Internal Review is not the same kind of pending as a Board Resolution sitting in Management Review).
+
+Quick Access (Starred/Pinned/Templates) drops off Home in this revision — it now lives inside My Document Vault and the Client Workspace, where it's already reachable; Home's real estate goes to work-in-progress, not shortcuts, per the "work dashboard, not storage dashboard" principle.
+
+### 15.2 My Day / This Week
+
+**My Day** is today's calendar as the primary component, plus today's due follow-ups beneath it:
+```
+09:00  Internal Management Review              Internal Governance · Board & Governance
+11:00  VT Worldwide — HR Transformation Review  VT Worldwide · HR Transformation · HR Policy
+                                                 Framework, HR Digitalisation / HRMS
+14:30  MRE Asia — HR Operating Model Follow-Up  MRE Asia · HR Operating Model Design
+16:00  Nusantara — Documentation Review         Nusantara · Strategic Advisory
+```
+Each event shows time, title, and — wherever the underlying meeting record has them set (§15.3) — Client, Engagement, Project/Matter, Workstream(s), participants, location/online-meeting link, and status. Clicking an event opens its Meeting Brief (§15.3). Today's open follow-ups (Actions & Follow-Up items due today) render beneath the timeline in the same screen, so "what's on today" always includes both meetings and to-dos in one place.
+
+**This Week** groups the same underlying meetings + follow-ups by day across the calendar week containing today (Monday–Sunday), each day collapsed to its meeting count until expanded — a week-ahead scan, not a full grid calendar (a grid adds visual weight the brief's "compact executive header," "not excessive KPI cards" instinct argues against, and a list scans faster for 5–10 items than a grid does).
+
+### 15.3 Meeting Brief
+
+The detail screen/drawer every calendar event opens into — same interaction pattern as the Document Detail drawer (§13.6), reusing the same slide-in mechanism so the two feel like one system rather than two:
+
+```
+VT Worldwide — HR Transformation Review
+11:00 AM – 1:00 PM · Confirmed · Microsoft Teams
+
+Client:              VT Worldwide
+Engagement:          HR Transformation / HR Advisory
+Project/Matter:      HR Transformation
+Related Workstreams: HR Policy Framework, HR Digitalisation / HRMS
+
+Participants:        Ravi Menon (Group CHRO), Aisha Rahman (HR Transformation Lead)
+
+Agenda:               VT-MT-013 — Steering Committee Agenda — September 2026  [open]
+Minutes:               (not yet recorded — this meeting hasn't happened yet)
+
+Decisions:            (recorded after the meeting, from the linked minutes — §15.4)
+```
+
+**Interaction:** "Open related Matter" jumps to that Matter's Client Workspace (§13.3), pre-filtered to it (§15.5's deep-link pattern); the Agenda/Minutes links open the Document Detail drawer directly (replacing the Meeting Brief, not stacking on top of it — one drawer open at a time, exactly like the existing Document drawer never stacks a second Document drawer). A meeting with no linked documents, no Matter, or no participants set simply omits those rows rather than showing an empty placeholder — same progressive-disclosure principle as the document metadata panel (§9.2's "only Name is ever required" carries over: only Title/Date/Time are ever required on a meeting record).
+
+### 15.4 Meeting ↔ Client/Engagement/Matter/Workstream relationships, and Attention/Follow-Up visibility
+
+**The relationship is a reference, not a duplication.** A meeting record holds `clientId` (required for anything work-related), an optional `matterId`, and an optional list of related Workstream names — exactly the same three-level reference a Document already carries (§3.1's field table), reusing the identical model rather than inventing a parallel "meeting project" concept. A meeting with no Client set (a personal appointment, say) is valid and simply carries no work context — it still shows on My Day/This Week, just without the Client/Matter/Workstream row in its Brief.
+
+**Decisions stay attached to their meeting, not duplicated into a separate decision log.** When a meeting's minutes are recorded (linked via the same `documentId` reference the Meetings & Decisions screen already used pre-Command-Centre, §13), any decisions captured in those minutes surface on the Meeting Brief directly — there is still no standalone Decision Tracker module (§11 excludes that), only a decision *recorded against the meeting that made it*.
+
+**"What am I waiting for?" is a first-class distinction, not a sub-case of "what do I need to do."** A follow-up item (§13's existing Actions & Follow-Up record) gains an optional `waitingOn` field naming who the next action actually belongs to. Actions & Follow-Up (renamed from Tasks/Follow-Up, same screen) splits into **On Me** and **Waiting On Others** using this field; Executive Home's "Waiting On" section (§15.1) surfaces just the second group, so "what am I waiting for" is answered without scanning a mixed list.
+
+**Attention/Follow-up visibility is centralised, not scattered.** Three sources — Attention Required's existing buckets (§13.1), Waiting On, and Requires Review or Decision (§15.1) — are all reachable from exactly two places: Executive Home's body, and the header's `🔔` Notifications/Attention control, which opens a compact popover summarising the same three lists with the same click-through behaviour, for the moments a user is somewhere other than Home and still wants the answer to "what needs me" without navigating back. The popover is a second *view* onto the same computed lists, never a second computation or a stored notification log.
+
+### 15.5 Projects / Matters (register)
+
+A new, flat, cross-client table — every Project/Matter (§3.1) regardless of which Client or Engagement owns it, columns: Matter name, Client, Engagement, Status, Current Stage, Workstream count, open Document count, Owner, Target Date. This answers "what am I actively working on" at the Matter level directly, without going Client-by-Client through Clients & Engagements first. It does not replace the Client Workspace's own nested Engagement → Matter → Workstream summary (§13.3) — that view answers "everything about this one client"; the register answers "everything across every client, at the Matter level." Clicking a row deep-links into that Matter's owning Client Workspace, Documents tab, pre-filtered to it — one screen reused with a filter, not a second Matter Detail screen built in parallel.
+
+### 15.6 Outlook Calendar integration architecture
+
+Same rigor and the same "state real limitations, don't design around them silently" principle as §8's Google Drive architecture — and, like §8, **architecture only; nothing here is built or connected in this phase.**
+
+**Auth & scopes:**
+- Microsoft identity platform (Entra ID / Azure AD) OAuth 2.0 via MSAL, user-consent flow, refresh token stored server-side (encrypted at rest), never in the browser — same custody model as §8's Drive tokens.
+- **Minimum scope: `Calendars.Read`** — read-only. A "My Day/This Week" surface never needs to create or modify calendar events, so **`Calendars.ReadWrite` is explicitly not requested** in this phase. If a later feature genuinely wants to create events from the app (e.g. "schedule a follow-up call" from a Meeting Brief), that is a deliberate, separately-justified scope escalation, exactly the posture §8 takes with Drive's `drive.file` vs. full `drive`.
+- No credentials/client secrets/tokens hard-coded; `.env.example`-documented variable names only, per this repository's existing convention.
+
+**What the API is actually used for:**
+
+| Capability | Microsoft Graph surface | Notes / limitations |
+|---|---|---|
+| Read today's/this week's events | `GET /me/calendarView?startDateTime=…&endDateTime=…` | Straightforward, the primary call for My Day/This Week |
+| Incremental sync | `GET /me/events/delta` | Avoids a full re-pull on every load, mirrors §8's `changes.list` approach for Drive |
+| Event detail (title, time, location, online-meeting link, attendees) | Fields already included in the calendarView/delta response | No separate call needed per event |
+| Open the real meeting (Teams/Zoom link) | The event's `onlineMeeting.joinUrl` (or `location.displayName` for a physical room) | The app opens it, never renders a competing meeting client — same "open the original, don't rebuild it" principle as §8's `webViewLink` |
+
+**What is deliberately not built via Graph:** no writing events, no meeting-response (accept/decline) handling, no free/busy lookups for scheduling assistance, no recurring-event expansion logic beyond what `calendarView` already flattens for the requested date range — all plausible later features, none needed for My Day/This Week.
+
+**The real limitation, stated plainly:** Outlook calendar events have no native concept of Client/Engagement/Matter/Workstream — Microsoft Graph cannot tell the app which client a meeting belongs to. Two options were considered:
+
+1. *Convention-parse the event title/category* (e.g. a `[VT]` prefix or an Outlook category matching a Client code) — fast, but brittle: it only works for meetings the user remembers to tag correctly *in Outlook*, at the point of scheduling, which defeats the "capture now, classify later" principle the whole app is built around (§9.2/§13.8).
+2. **Adopted: an Unlinked Meetings queue, mirroring the Executive Inbox exactly.** A newly synced event lands unlinked — visible on My Day/This Week with its raw Outlook title and time, no Client/Matter/Workstream row — until classified through the same progressive-disclosure panel the Meeting Brief already has (§15.3), at the user's convenience, never blocking the event from showing up on the calendar views in the meantime. This reuses a pattern the app already teaches (§13.8's Inbox) instead of inventing a second one, and it is the direct reason the Meeting record's Client/Matter/Workstream fields are all optional (§15.4) rather than required at sync time.
+
+**Privacy note:** a real Outlook calendar mixes work and personal events. Nothing in this architecture filters that automatically — every synced event appears (unlinked, if personal), and it is the user's own classification action (or simply leaving it unlinked) that keeps personal events out of client-linked reporting. No event content is ever sent anywhere beyond what My Day/This Week/the Meeting Brief display.
+
+### 15.7 What's illustrative vs. real in apps/executive-vault/ this phase
+
+- `NOW` (a fixed prototype "current time," e.g. `08:30` on the fixed `TODAY`) drives the greeting and past/upcoming meeting styling — a real build reads the actual device/server clock; nothing here pretends otherwise.
+- All meetings in this phase are mock data in `data.js`, exactly like the Document Vault's mock documents — there is no calendar connection, and the Outlook Calendar nav item is a placeholder screen stating that plainly (mirroring the existing Google Drive placeholder, §8).
+- The Unlinked Meetings queue (§15.6) is designed but not populated in this phase's mock data — the mock meetings are all pre-linked, since the point of this phase is validating the Command Centre screens, not simulating an unclassified backlog (that pattern is already proven by the Executive Inbox, §13.8).
+
+### 15.8 What should NOT be built yet (extends §11)
+
+- **No Management Progress Snapshot** (a boss-facing summary/report surface) — explicitly out of scope for this phase.
+- **No production Outlook Calendar connection** — §15.6 is architecture only.
+- **No standalone Decision Tracker module** — §11's existing exclusion stands; decisions stay attached to the meeting/document that produced them (§15.4).
+- **No meeting scheduling/response handling** (accept/decline, free/busy, creating events) — read-only calendar surfacing only.
+- **No notification delivery** (email/push/desktop alerts) — the `🔔` control is an in-app summary view, not a notification system.
