@@ -1,9 +1,19 @@
 /**
- * Executive Vault — Phase 3 prototype. Vanilla JS, no framework, no build
- * step, no network calls of any kind — matches apps/executive-briefing's
- * convention. All data comes from data.js's window.VAULT_DATA (mock only,
- * see README.md). Classification/tagging edits made in this prototype are
- * held in memory only and are lost on reload — there is no backend.
+ * Executive Vault — Phase 3 prototype, v2. Vanilla JS, no framework, no
+ * build step, no network calls of any kind — matches
+ * apps/executive-briefing's convention. All data comes from data.js's
+ * window.VAULT_DATA (mock only, see README.md). Classification/tagging
+ * edits made in this prototype are held in memory only and are lost on
+ * reload — there is no backend.
+ *
+ * v2 implements the approved Client -> Engagement -> Project/Matter ->
+ * Workstream model (docs/architecture/executive-document-vault.md §3.1),
+ * the Legacy business-line rule (§3a), and the revised Function/Document
+ * Type vocabularies (§5.1/§5.2). A Document carries clientId (required for
+ * anything client/project-scoped) and matterId (optional, finer nesting);
+ * Engagement is derived through Matter, not stored directly on Document,
+ * since most documents care which Matter they belong to, not which
+ * contract wrapper — see the architecture doc §5's field table.
  *
  * Structure: data helpers -> router -> action handlers -> nav -> screen
  * renderers -> dispatcher/init. Screens are rendered as full innerHTML
@@ -13,7 +23,10 @@
  */
 
 const D = window.VAULT_DATA;
-const { CLASSIFICATIONS, STATUSES, FUNCTIONS, ENGAGEMENTS, DOCUMENTS, MEETINGS, TASKS, TODAY } = D;
+const {
+  CLASSIFICATIONS, STATUSES, FUNCTIONS, DOCUMENT_TYPES,
+  CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS, TODAY,
+} = D;
 
 const DRAFT_STATUSES = ["Draft", "Working Draft"];
 const REVIEW_STATUSES = ["Internal Review", "Management Review", "Client Review", "Pending Information"];
@@ -30,6 +43,7 @@ const STATE = {
   toast: null,
 };
 let toastSeq = 0;
+let matterSeq = 0;
 
 /* ============================== Utilities ============================== */
 
@@ -55,10 +69,20 @@ function callWithValue(fnName, ...fixedArgs) {
 
 /* ============================ Data helpers =============================== */
 
-function getEngagement(id) { return ENGAGEMENTS.find((e) => e.id === id) || null; }
+function getClient(id) { return CLIENTS.find((c) => c.id === id) || null; }
+function getEngagementRecord(id) { return ENGAGEMENTS.find((e) => e.id === id) || null; }
+function getMatter(id) { return MATTERS.find((m) => m.id === id) || null; }
 function getDocument(id) { return DOCUMENTS.find((d) => d.id === id) || null; }
-function engName(id) { const e = getEngagement(id); return e ? e.name : "—"; }
+function clientName(id) { const c = getClient(id); return c ? c.name : "—"; }
+function matterName(id) { const m = getMatter(id); return m ? m.name : null; }
 function classificationMeta(id) { return CLASSIFICATIONS.find((c) => c.id === id) || CLASSIFICATIONS[4]; }
+
+function engagementsForClient(clientId) { return ENGAGEMENTS.filter((e) => e.clientId === clientId); }
+function mattersForClient(clientId) {
+  const engIds = engagementsForClient(clientId).map((e) => e.id);
+  return MATTERS.filter((m) => engIds.includes(m.engagementId));
+}
+function isLegacyDoc(d) { const c = d.clientId && getClient(d.clientId); return !!(c && c.legacy); }
 
 function tierChip(id, withDot = true) {
   const c = classificationMeta(id);
@@ -72,9 +96,11 @@ function fnChip(fn) { return fn ? `<span class="chip fn-chip">${fn}</span>` : `<
 
 function classifiedDocs() { return DOCUMENTS.filter((d) => d.classified); }
 function unclassifiedDocs() { return DOCUMENTS.filter((d) => !d.classified); }
+/** Classified docs, excluding Legacy business-line material (architecture doc §3a) — the default working set. */
+function activeClassifiedDocs() { return classifiedDocs().filter((d) => !isLegacyDoc(d)); }
 
 function computeAttention() {
-  const c = classifiedDocs();
+  const c = activeClassifiedDocs();
   return {
     awaitingReview: c.filter((d) => REVIEW_STATUSES.includes(d.status)),
     unclassified: unclassifiedDocs(),
@@ -87,9 +113,11 @@ function computeAttention() {
 }
 
 function computeVaultDocs(query) {
-  let list = classifiedDocs();
-  if (query.engagementId) list = list.filter((d) => d.engagementId === query.engagementId);
+  let list = activeClassifiedDocs();
+  if (query.clientId) list = list.filter((d) => d.clientId === query.clientId);
+  if (query.matterId) list = list.filter((d) => d.matterId === query.matterId);
   if (query.function) list = list.filter((d) => d.function === query.function);
+  if (query.docType) list = list.filter((d) => d.docType === query.docType);
   if (query.status) list = list.filter((d) => d.status === query.status);
   if (query.confidentiality) list = list.filter((d) => d.confidentiality === query.confidentiality);
   if (query.tag) list = list.filter((d) => d.tags.includes(query.tag));
@@ -109,8 +137,8 @@ function sortDocs(docs) {
   const { key, dir } = STATE.vaultSort;
   const copy = docs.slice();
   copy.sort((a, b) => {
-    let av = key === "engagementId" ? engName(a.engagementId) : a[key] || "";
-    let bv = key === "engagementId" ? engName(b.engagementId) : b[key] || "";
+    let av = key === "clientId" ? clientName(a.clientId) : a[key] || "";
+    let bv = key === "clientId" ? clientName(b.clientId) : b[key] || "";
     if (av < bv) return dir === "asc" ? -1 : 1;
     if (av > bv) return dir === "asc" ? 1 : -1;
     return 0;
@@ -118,13 +146,14 @@ function sortDocs(docs) {
   return copy;
 }
 
-function searchAll(q) {
+function searchAll(q, includeLegacy) {
   const needle = q.trim().toLowerCase();
   if (!needle) return [];
+  const pool = includeLegacy ? DOCUMENTS : DOCUMENTS.filter((d) => !isLegacyDoc(d));
   const results = [];
-  DOCUMENTS.forEach((d) => {
-    const eng = engName(d.engagementId);
-    const metaBlob = `${d.docId || ""} ${d.title} ${eng} ${d.function || ""} ${d.docType || ""} ${(d.tags || []).join(" ")}`.toLowerCase();
+  pool.forEach((d) => {
+    const cn = clientName(d.clientId);
+    const metaBlob = `${d.docId || ""} ${d.title} ${cn} ${d.function || ""} ${d.docType || ""} ${(d.tags || []).join(" ")}`.toLowerCase();
     if (metaBlob.includes(needle)) { results.push({ doc: d, match: "metadata" }); return; }
     if ((d.notes || "").toLowerCase().includes(needle)) { results.push({ doc: d, match: "content" }); }
   });
@@ -190,6 +219,7 @@ function applyFilter(key, value) {
   if (value) next[key] = value; else delete next[key];
   navigate(buildHash(path, next));
 }
+function applyFilterAndGo(key, value) { navigate(buildHash("/vault", { [key]: value })); }
 function goVaultBucket(bucket) { navigate(buildHash("/vault", bucket ? { bucket } : {})); }
 
 /* ============================ Action handlers ============================= */
@@ -205,7 +235,7 @@ function toggleSidebar() { STATE.sidebarOpen = !STATE.sidebarOpen; render(); }
 function openDocument(id) { STATE.previewId = id; STATE.showLegend = false; render(); }
 function closeDrawer() { STATE.previewId = null; render(); }
 function toggleStar(id, ev) { if (ev) ev.stopPropagation(); const d = getDocument(id); if (d) d.starred = !d.starred; render(); }
-function togglePin(id, ev) { if (ev) ev.stopPropagation(); const e = getEngagement(id); if (e) e.pinned = !e.pinned; render(); }
+function togglePin(id, ev) { if (ev) ev.stopPropagation(); const c = getClient(id); if (c) c.pinned = !c.pinned; render(); }
 function sortTable(key) {
   if (STATE.vaultSort.key === key) STATE.vaultSort.dir = STATE.vaultSort.dir === "asc" ? "desc" : "asc";
   else STATE.vaultSort = { key, dir: key === "modified" ? "desc" : "asc" };
@@ -221,6 +251,12 @@ function updateDocField(id, field, value) {
   const d = getDocument(id);
   if (!d) return;
   d[field] = value === "" ? null : value;
+  // Cascading resets: a Matter only makes sense under its own Client, and a
+  // Workstream only makes sense under its own Matter (§3.1) — clearing the
+  // dependent fields on change avoids leaving a document pointed at a
+  // Matter/Workstream that no longer matches its Client.
+  if (field === "clientId") { d.matterId = null; d.workstream = null; }
+  if (field === "matterId") { d.workstream = null; }
   render();
 }
 function fileToVault(id) {
@@ -257,7 +293,31 @@ function copyDriveLocation(path) {
   showToast("Drive location copied.");
 }
 function runGlobalSearch(value) { navigate(buildHash("/search", { q: value })); }
-function onSearchKeydown(ev, value) { if (ev.key === "Enter") runGlobalSearch(value); }
+
+/** Promotes a Workstream to its own standalone Project/Matter under the same
+ * Engagement (architecture doc §3.1) — creates the new Matter, reassigns
+ * every document carrying that Workstream under the source Matter to it,
+ * and removes the Workstream from the source Matter's own list. A data
+ * operation, not a Drive folder move. */
+function promoteWorkstreamToMatter(sourceMatterId, workstreamName) {
+  const source = getMatter(sourceMatterId);
+  if (!source) return;
+  const newId = "matter-" + slug(workstreamName) + "-" + (++matterSeq);
+  const newMatter = {
+    id: newId, engagementId: source.engagementId, name: workstreamName, status: "active",
+    owner: "Me", startDate: TODAY, targetDate: null, currentStage: "Newly Promoted", workstreams: [],
+  };
+  MATTERS.push(newMatter);
+  DOCUMENTS.forEach((d) => {
+    if (d.matterId === sourceMatterId && d.workstream === workstreamName) {
+      d.matterId = newId;
+      d.workstream = null;
+    }
+  });
+  source.workstreams = source.workstreams.filter((w) => w !== workstreamName);
+  showToast(`“${workstreamName}” promoted to its own standalone Project/Matter.`);
+  render();
+}
 
 /* ================================= Nav ==================================== */
 
@@ -350,34 +410,42 @@ function tierLegendHtml() {
 }
 
 function docFieldSelects(d) {
-  const engOptions = [`<option value="">—</option>`].concat(
-    ENGAGEMENTS.map((e) => `<option value="${e.id}" ${d.engagementId === e.id ? "selected" : ""}>${e.name}</option>`)
+  const selectableClients = CLIENTS.filter((c) => !c.legacy || c.id === d.clientId);
+  const clientOptions = [`<option value="">—</option>`].concat(
+    selectableClients.map((c) => `<option value="${c.id}" ${d.clientId === c.id ? "selected" : ""}>${c.name}${c.legacy ? " (Legacy)" : ""}</option>`)
+  ).join("");
+  const matters = d.clientId ? mattersForClient(d.clientId) : [];
+  const matterOptions = [`<option value="">— (Engagement-level, no specific Matter)</option>`].concat(
+    matters.map((m) => `<option value="${m.id}" ${d.matterId === m.id ? "selected" : ""}>${m.name}</option>`)
   ).join("");
   const fnOptions = [`<option value="">—</option>`].concat(
     FUNCTIONS.map((f) => `<option value="${f}" ${d.function === f ? "selected" : ""}>${f}</option>`)
   ).join("");
-  const typeOptions = ["Policy","Policy Set","Contract","Minutes","Proposal","Report","Deliverable","Template","Correspondence","Note","Register","Other"];
   const typeOptionsHtml = [`<option value="">—</option>`].concat(
-    typeOptions.map((t) => `<option value="${t}" ${d.docType === t ? "selected" : ""}>${t}</option>`)
+    DOCUMENT_TYPES.map((t) => `<option value="${t}" ${d.docType === t ? "selected" : ""}>${t}</option>`)
   ).join("");
   const statusOptionsHtml = STATUSES.map((s) => `<option value="${s}" ${d.status === s ? "selected" : ""}>${s}</option>`).join("");
   const confOptionsHtml = CLASSIFICATIONS.map((c) => `<option value="${c.id}" ${d.confidentiality === c.id ? "selected" : ""}>${c.label}</option>`).join("");
-  return { engOptions, fnOptions, typeOptionsHtml, statusOptionsHtml, confOptionsHtml };
+  const currentMatter = d.matterId ? getMatter(d.matterId) : null;
+  const workstreamSuggestions = currentMatter ? currentMatter.workstreams : [];
+  return { clientOptions, matterOptions, fnOptions, typeOptionsHtml, statusOptionsHtml, confOptionsHtml, workstreamSuggestions };
 }
 
 function drawerContent(d) {
   const o = docFieldSelects(d);
   const versionChain = (d.versionChain && d.versionChain.length ? d.versionChain : [d.version]).filter(Boolean);
+  const legacyDoc = isLegacyDoc(d);
   return `
     <div class="drawer-head">
       <div>
-        <div class="breadcrumbs">${d.docId ? d.docId + " · " : ""}${engName(d.engagementId)}</div>
+        <div class="breadcrumbs">${d.docId ? d.docId + " · " : ""}${clientName(d.clientId)}${matterName(d.matterId) ? " · " + matterName(d.matterId) : ""}</div>
         <h3 style="font-size:17px;max-width:340px">${d.title}</h3>
       </div>
       <button class="drawer-close" onclick="${call("closeDrawer")}">✕</button>
     </div>
     <div class="drawer-body">
       ${!d.classified ? `<div class="callout" style="margin-bottom:16px"><span>📥</span><div><b>Sitting in the Executive Inbox.</b> Set a Client and Function below, then <em>File to Vault</em> — everything else can stay blank for now.</div></div>` : ""}
+      ${legacyDoc ? `<div class="callout" style="margin-bottom:16px"><span>🗄</span><div><b>Legacy business line.</b> Historical material from a discontinued line of work — excluded from active pickers, dashboard counts and default search (architecture doc §3a).</div></div>` : ""}
       <div class="dfield">
         <div class="dfield-label">Classification
           <a style="cursor:pointer;color:var(--gold-deep);font-weight:700" onclick="${call("toggleLegend")}"> ${STATE.showLegend ? "(hide legend)" : "(what do these mean?)"}</a>
@@ -385,10 +453,19 @@ function drawerContent(d) {
         <select class="filter-select" style="width:100%" onchange="${callWithValue("updateDocField", d.id, "confidentiality")}">${o.confOptionsHtml}</select>
         ${STATE.showLegend ? tierLegendHtml() : ""}
       </div>
+      <div class="dfield"><div class="dfield-label">Client / Entity</div>
+        <select class="filter-select" style="width:100%" onchange="${callWithValue("updateDocField", d.id, "clientId")}">${o.clientOptions}</select>
+      </div>
+      <div class="dfield"><div class="dfield-label">Project / Matter</div>
+        <select class="filter-select" style="width:100%" onchange="${callWithValue("updateDocField", d.id, "matterId")}" ${!d.clientId ? "disabled" : ""}>${o.matterOptions}</select>
+      </div>
+      <div class="dfield"><div class="dfield-label">Workstream</div>
+        <input class="filter-search" style="width:100%" list="workstream-suggestions" value="${attrSafe(d.workstream || "")}"
+          placeholder="${o.workstreamSuggestions.length ? "Pick or type a new one" : "Free text, scoped to the Matter above"}"
+          onchange="${callWithValue("updateDocField", d.id, "workstream")}"/>
+        <datalist id="workstream-suggestions">${o.workstreamSuggestions.map((w) => `<option value="${attrSafe(w)}"></option>`).join("")}</datalist>
+      </div>
       <div class="grid grid-2" style="gap:10px">
-        <div class="dfield"><div class="dfield-label">Client / Entity</div>
-          <select class="filter-select" style="width:100%" onchange="${callWithValue("updateDocField", d.id, "engagementId")}">${o.engOptions}</select>
-        </div>
         <div class="dfield"><div class="dfield-label">Function</div>
           <select class="filter-select" style="width:100%" onchange="${callWithValue("updateDocField", d.id, "function")}">${o.fnOptions}</select>
         </div>
@@ -441,7 +518,7 @@ function renderDrawer() {
 
 const REG_COLUMNS = [
   { key: "title", label: "Document" },
-  { key: "engagementId", label: "Client / Entity" },
+  { key: "clientId", label: "Client / Entity" },
   { key: "function", label: "Function" },
   { key: "docType", label: "Type" },
   { key: "version", label: "Version" },
@@ -457,7 +534,11 @@ function renderRegistryTable(docs, emptyLabel) {
   }
   const sorted = sortDocs(docs);
   const { key: sortKey, dir } = STATE.vaultSort;
-  const rows = sorted.map((d) => `
+  const rows = sorted.map((d) => {
+    const subParts = [d.docId || "no document ID"];
+    if (matterName(d.matterId)) subParts.push(matterName(d.matterId));
+    if (d.workstream) subParts.push(d.workstream);
+    return `
     <tr onclick="${call("openDocument", d.id)}">
       <td>
         <span class="star${d.starred ? "" : " off"}" onclick="${call("toggleStar", d.id)}">★</span>
@@ -465,10 +546,10 @@ function renderRegistryTable(docs, emptyLabel) {
       <td>
         <div class="doc-title-cell">
           <span class="doc-title-main">${d.title}</span>
-          <span class="doc-title-id">${d.docId || "no document ID"}${d.workstream ? " · " + d.workstream : ""}</span>
+          <span class="doc-title-id">${subParts.join(" · ")}</span>
         </div>
       </td>
-      <td>${engName(d.engagementId)}</td>
+      <td>${clientName(d.clientId)}</td>
       <td>${d.function || '<span class="muted">—</span>'}</td>
       <td>${d.docType || '<span class="muted">—</span>'}</td>
       <td>${d.version || '<span class="muted">missing</span>'}</td>
@@ -476,7 +557,8 @@ function renderRegistryTable(docs, emptyLabel) {
       <td>${tierChip(d.confidentiality)}</td>
       <td>${fmtDate(d.modified)}</td>
       <td>${fmtDate(d.reviewDate)}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
   const heads = REG_COLUMNS.map((c) => `<th onclick="${call("sortTable", c.key)}">${c.label}${sortKey === c.key ? (dir === "asc" ? " ▲" : " ▼") : ""}</th>`).join("");
   return `
     <div class="table-wrap">
@@ -517,7 +599,7 @@ function renderFolderView(docs) {
 /* ================================ Screens ================================== */
 
 function renderHome() {
-  const c = classifiedDocs();
+  const c = activeClassifiedDocs();
   const a = attention();
   const stats = [
     { label: "Total Documents", value: c.length, hash: "#/vault" },
@@ -527,14 +609,15 @@ function renderHome() {
     { label: "Final Documents", value: c.filter((d) => FINAL_STATUSES.includes(d.status)).length, hash: "#/vault?bucket=final" },
     { label: "Archived / Superseded", value: c.filter((d) => CLOSED_STATUSES.includes(d.status)).length, hash: "#/archive" },
   ];
-  const activeClients = ENGAGEMENTS.filter((e) => e.type === "client" && e.status === "active");
-  const activeProjects = ENGAGEMENTS.filter((e) => e.type === "project" && e.status === "active");
-  const workstreams = [...new Set(ENGAGEMENTS.flatMap((e) => e.workstreams || []))];
+  const activeClients = CLIENTS.filter((cl) => cl.type === "client" && cl.status === "active" && !cl.legacy);
+  const activeProjects = CLIENTS.filter((cl) => cl.type === "project" && cl.status === "active" && !cl.legacy);
+  const activeMatterIds = new Set(mattersForActiveClients().map((m) => m.id));
+  const workstreams = [...new Set(MATTERS.filter((m) => activeMatterIds.has(m.id)).flatMap((m) => m.workstreams || []))];
   const upcomingReviews = c.filter((d) => d.reviewDate).sort((x, y) => x.reviewDate.localeCompare(y.reviewDate)).slice(0, 5);
   const recent = c.slice().sort((x, y) => y.modified.localeCompare(x.modified)).slice(0, 6);
   const starred = c.filter((d) => d.starred).slice(0, 5);
-  const pinnedClients = ENGAGEMENTS.filter((e) => e.pinned && e.type === "client");
-  const pinnedProjects = ENGAGEMENTS.filter((e) => e.pinned && e.type === "project");
+  const pinnedClients = CLIENTS.filter((cl) => cl.pinned && cl.type === "client" && !cl.legacy);
+  const pinnedProjects = CLIENTS.filter((cl) => cl.pinned && cl.type === "project" && !cl.legacy);
   const templates = c.filter((d) => d.docType === "Template");
 
   const attentionRows = [
@@ -571,7 +654,7 @@ function renderHome() {
           </div>
           <div class="dfield-label" style="margin-bottom:6px">Upcoming Reviews</div>
           <div class="quick-list">${upcomingReviews.length ? upcomingReviews.map((d) => `
-            <div class="quick-row" onclick="${call("openDocument", d.id)}"><span>${fmtDate(d.reviewDate)}</span><span>${d.title}</span><span class="muted" style="margin-left:auto">${engName(d.engagementId)}</span></div>
+            <div class="quick-row" onclick="${call("openDocument", d.id)}"><span>${fmtDate(d.reviewDate)}</span><span>${d.title}</span><span class="muted" style="margin-left:auto">${clientName(d.clientId)}</span></div>
           `).join("") : '<div class="muted" style="padding:6px 4px">Nothing scheduled.</div>'}</div>
         </div>
       </div>
@@ -606,7 +689,7 @@ function renderHome() {
           <div class="dfield-label" style="margin-bottom:6px">Starred</div>
           <div class="quick-list" style="margin-bottom:14px">${starred.length ? starred.map((d) => `<div class="quick-row" onclick="${call("openDocument", d.id)}">★ ${d.title}</div>`).join("") : '<div class="muted" style="padding:4px">Nothing starred yet.</div>'}</div>
           <div class="dfield-label" style="margin-bottom:6px">Pinned Clients &amp; Projects</div>
-          <div class="quick-list" style="margin-bottom:14px">${pinnedClients.concat(pinnedProjects).map((e) => `<div class="quick-row" onclick="${call("navigate", "#/engagement/" + e.id)}">${e.name}</div>`).join("") || '<div class="muted" style="padding:4px">Pin a client or project to see it here.</div>'}</div>
+          <div class="quick-list" style="margin-bottom:14px">${pinnedClients.concat(pinnedProjects).map((cl) => `<div class="quick-row" onclick="${call("navigate", "#/client/" + cl.id)}">${cl.name}</div>`).join("") || '<div class="muted" style="padding:4px">Pin a client or project to see it here.</div>'}</div>
           <div class="dfield-label" style="margin-bottom:6px">Templates</div>
           <div class="quick-list">${templates.map((d) => `<div class="quick-row" onclick="${call("openDocument", d.id)}">${d.title}</div>`).join("")}</div>
         </div>
@@ -614,13 +697,21 @@ function renderHome() {
     </div>
   `;
 }
+function mattersForActiveClients() {
+  const activeClientIds = new Set(CLIENTS.filter((c) => !c.legacy).map((c) => c.id));
+  const activeEngIds = new Set(ENGAGEMENTS.filter((e) => activeClientIds.has(e.clientId)).map((e) => e.id));
+  return MATTERS.filter((m) => activeEngIds.has(m.engagementId));
+}
 
 function filterBarHtml(query, extra) {
-  const engOptions = [`<option value="">All Clients / Engagements</option>`].concat(
-    ENGAGEMENTS.map((e) => `<option value="${e.id}" ${query.engagementId === e.id ? "selected" : ""}>${e.name}</option>`)
+  const clientOptions = [`<option value="">All Clients / Engagements</option>`].concat(
+    CLIENTS.filter((c) => !c.legacy).map((c) => `<option value="${c.id}" ${query.clientId === c.id ? "selected" : ""}>${c.name}</option>`)
   ).join("");
   const fnOptions = [`<option value="">All Functions</option>`].concat(
     FUNCTIONS.map((f) => `<option value="${f}" ${query.function === f ? "selected" : ""}>${f}</option>`)
+  ).join("");
+  const typeOptions = [`<option value="">All Document Types</option>`].concat(
+    DOCUMENT_TYPES.map((t) => `<option value="${t}" ${query.docType === t ? "selected" : ""}>${t}</option>`)
   ).join("");
   const statusOptions = [`<option value="">All Statuses</option>`].concat(
     STATUSES.map((s) => `<option value="${s}" ${query.status === s ? "selected" : ""}>${s}</option>`)
@@ -633,8 +724,9 @@ function filterBarHtml(query, extra) {
       <input class="filter-search" placeholder="Filter this view…" value="${attrSafe(query.q || "")}"
         onkeydown="if(event.key==='Enter'){applyFilter('q', this.value)}"
       />
-      <select class="filter-select" onchange="${callWithValue("applyFilter", "engagementId")}">${engOptions}</select>
+      <select class="filter-select" onchange="${callWithValue("applyFilter", "clientId")}">${clientOptions}</select>
       <select class="filter-select" onchange="${callWithValue("applyFilter", "function")}">${fnOptions}</select>
+      <select class="filter-select" onchange="${callWithValue("applyFilter", "docType")}">${typeOptions}</select>
       <select class="filter-select" onchange="${callWithValue("applyFilter", "status")}">${statusOptions}</select>
       <select class="filter-select" onchange="${callWithValue("applyFilter", "confidentiality")}">${confOptions}</select>
       ${extra || ""}
@@ -677,39 +769,66 @@ function renderVaultScreen(query) {
   `;
 }
 
-function engagementCard(e) {
-  const docs = classifiedDocs().filter((d) => d.engagementId === e.id);
+function clientCard(cl) {
+  const docs = classifiedDocs().filter((d) => d.clientId === cl.id);
   const outstanding = docs.filter((d) => !FINAL_STATUSES.includes(d.status) && !CLOSED_STATUSES.includes(d.status)).length;
   return `
-    <div class="card engagement-card" onclick="${call("navigate", "#/engagement/" + e.id)}">
+    <div class="card engagement-card" onclick="${call("navigate", "#/client/" + cl.id)}">
       <div class="eng-card-top">
-        <div><div class="eng-name">${e.name}</div><div class="eng-type">${e.type === "client" ? "Client" : "Internal Project"}</div></div>
-        <span class="pin-star" onclick="${call("togglePin", e.id)}" title="Pin">${e.pinned ? "★" : "☆"}</span>
+        <div><div class="eng-name">${cl.name}</div><div class="eng-type">${cl.type === "client" ? "Client" : "Internal Project"}</div></div>
+        <span class="pin-star" onclick="${call("togglePin", cl.id)}" title="Pin">${cl.pinned ? "★" : "☆"}</span>
       </div>
-      <div class="eng-summary">${e.summary}</div>
+      <div class="eng-summary">${cl.summary}</div>
       <div class="eng-meta">${docs.length} documents · ${outstanding} outstanding</div>
     </div>`;
 }
 
-function renderEngagementListScreen(type) {
-  const list = ENGAGEMENTS.filter((e) => e.type === type);
+function renderClientListScreen(type) {
+  const list = CLIENTS.filter((c) => c.type === type && !c.legacy);
   return `
     <div class="page-head">
       <div><div class="page-title">${type === "client" ? "Clients & Engagements" : "Projects & Programmes"}</div>
         <div class="page-sub">${type === "client" ? "One workspace per client, following the standard 00–99 folder template." : "Internal, non-client initiatives — same workspace template as a client engagement."}</div></div>
       <div class="page-head-actions"><button class="btn btn-primary btn-sm" onclick="${call("mockAction", "New Client Workspace scaffolds 00 – Client Overview through 99 – Archive in Drive, then lands you on the Overview tab to fill in what you know. (Mock action in this prototype.)")}">+ New ${type === "client" ? "Client Workspace" : "Project Workspace"}</button></div>
     </div>
-    <div class="grid grid-3">${list.map(engagementCard).join("")}</div>
+    <div class="grid grid-3">${list.map(clientCard).join("")}</div>
   `;
 }
 
-function renderEngagementWorkspace(id, tab) {
-  const e = getEngagement(id);
-  if (!e) return `<div class="empty-state"><h3>Not found</h3></div>`;
+function renderClientStructureSummary(cl) {
+  const engs = engagementsForClient(cl.id);
+  if (!engs.length) return `<div class="muted">No Engagement recorded yet.</div>`;
+  return engs.map((eng) => {
+    const matters = MATTERS.filter((m) => m.engagementId === eng.id);
+    return `
+      <div style="margin-bottom:14px">
+        <div style="font-weight:700;font-size:12.5px">${eng.name}<span class="muted" style="font-weight:400"> — Engagement</span></div>
+        ${matters.map((m) => {
+          const matterDocs = classifiedDocs().filter((d) => d.matterId === m.id);
+          return `
+          <div style="margin:6px 0 0 12px;padding-left:10px;border-left:2px solid var(--line)">
+            <div style="font-size:12px"><b>${m.name}</b> <span class="muted">— Project/Matter · ${statusChip(m.status)} · ${matterDocs.length} docs</span></div>
+            ${m.workstreams.length ? m.workstreams.map((w) => {
+              const wDocs = matterDocs.filter((d) => d.workstream === w);
+              return `
+              <div style="display:flex;align-items:center;gap:8px;margin:4px 0 0 12px;font-size:11.5px;color:var(--ink-soft)">
+                <span>↳ ${w} (${wDocs.length})</span>
+                <button class="btn btn-sm btn-ghost" style="margin-left:auto;padding:2px 9px;font-size:10.5px" onclick="${call("promoteWorkstreamToMatter", m.id, w)}">Promote to Matter</button>
+              </div>`;
+            }).join("") : `<div style="margin:4px 0 0 12px;font-size:11.5px" class="muted">No workstreams yet.</div>`}
+          </div>`;
+        }).join("") || `<div class="muted" style="margin-left:12px;font-size:12px">No Project/Matter recorded yet.</div>`}
+      </div>`;
+  }).join("");
+}
+
+function renderClientWorkspace(id, tab) {
+  const cl = getClient(id);
+  if (!cl) return `<div class="empty-state"><h3>Not found</h3></div>`;
   tab = tab || "overview";
-  const docs = classifiedDocs().filter((d) => d.engagementId === id);
-  const meetings = MEETINGS.filter((m) => m.engagementId === id);
-  const tasks = TASKS.filter((t) => t.engagementId === id);
+  const docs = classifiedDocs().filter((d) => d.clientId === id);
+  const meetings = MEETINGS.filter((m) => m.clientId === id);
+  const tasks = TASKS.filter((t) => t.clientId === id);
   const archived = docs.filter((d) => CLOSED_STATUSES.includes(d.status));
   const deliverables = docs.filter((d) => ["Deliverable", "Proposal", "Report"].includes(d.docType));
   const finalDocs = docs.filter((d) => FINAL_STATUSES.includes(d.status));
@@ -726,14 +845,15 @@ function renderEngagementWorkspace(id, tab) {
   let body = "";
   if (tab === "overview") {
     body = `
+      ${cl.legacy ? `<div class="callout" style="margin-bottom:16px"><span>🗄</span><div><b>Legacy business line.</b> Discontinued — excluded from the active Clients &amp; Engagements / Projects &amp; Programmes lists, the Vault's default view, dashboard counts, and search unless explicitly included. Reachable here and from Archive only.</div></div>` : ""}
       <div class="grid grid-2" style="align-items:start">
         <div class="card card-pad">
           <div class="dfield-label" style="margin-bottom:8px">Contacts</div>
-          ${e.contacts.map((c) => `<div style="margin-bottom:6px"><b>${c.name}</b><br/><span class="muted">${c.role}</span></div>`).join("")}
+          ${cl.contacts.length ? cl.contacts.map((c) => `<div style="margin-bottom:6px"><b>${c.name}</b><br/><span class="muted">${c.role}</span></div>`).join("") : '<div class="muted">None recorded.</div>'}
           <div class="dfield-label" style="margin:14px 0 8px">Key Dates</div>
-          ${e.keyDates.map((k) => `<div class="quick-row" style="padding-left:0">${fmtDate(k.date)} — ${k.label}</div>`).join("")}
+          ${cl.keyDates.length ? cl.keyDates.map((k) => `<div class="quick-row" style="padding-left:0">${fmtDate(k.date)} — ${k.label}</div>`).join("") : '<div class="muted">None recorded.</div>'}
           <div class="dfield-label" style="margin:14px 0 8px">Google Drive Folder</div>
-          <div class="muted">${e.driveFolder}</div>
+          <div class="muted">${cl.driveFolder}</div>
         </div>
         <div class="card card-pad">
           <div class="dfield-label" style="margin-bottom:8px">What have I done for this client?</div>
@@ -743,6 +863,10 @@ function renderEngagementWorkspace(id, tab) {
           <div class="dfield-label" style="margin-bottom:8px">What was the latest document?</div>
           <div>${lastDoc ? `<a style="cursor:pointer;color:var(--gold-deep);font-weight:700" onclick="${call("openDocument", lastDoc.id)}">${lastDoc.title}</a> — ${statusChip(lastDoc.status)} · ${fmtDate(lastDoc.modified)}` : '<span class="muted">No documents yet.</span>'}</div>
         </div>
+      </div>
+      <div class="section" style="margin-top:20px">
+        <div class="section-head"><div class="section-title">Engagement → Project/Matter → Workstream</div></div>
+        <div class="card card-pad">${renderClientStructureSummary(cl)}</div>
       </div>`;
   } else if (tab === "documents") {
     body = renderRegistryTable(docs.filter((d) => !CLOSED_STATUSES.includes(d.status)), "No active documents for this engagement yet.");
@@ -771,20 +895,21 @@ function renderEngagementWorkspace(id, tab) {
   }
 
   return `
-    <div class="breadcrumbs"><a onclick="${call("navigate", e.type === "client" ? "#/clients" : "#/projects")}">${e.type === "client" ? "Clients & Engagements" : "Projects & Programmes"}</a> / ${e.name}</div>
+    <div class="breadcrumbs"><a onclick="${call("navigate", cl.type === "client" ? "#/clients" : "#/projects")}">${cl.type === "client" ? "Clients & Engagements" : "Projects & Programmes"}</a> / ${cl.name}</div>
     <div class="page-head">
-      <div><div class="page-title">${e.name} <span class="pin-star" style="font-size:16px;cursor:pointer" onclick="${call("togglePin", e.id)}">${e.pinned ? "★" : "☆"}</span></div>
-      <div class="page-sub">${e.summary}</div></div>
+      <div><div class="page-title">${cl.name} <span class="pin-star" style="font-size:16px;cursor:pointer" onclick="${call("togglePin", cl.id)}">${cl.pinned ? "★" : "☆"}</span></div>
+      <div class="page-sub">${cl.summary}</div></div>
     </div>
-    <div class="tabs">${tabs.map((t) => `<button class="tab${tab === t.id ? " active" : ""}" onclick="${call("navigate", "#/engagement/" + e.id + "?tab=" + t.id)}">${t.label}</button>`).join("")}</div>
+    <div class="tabs">${tabs.map((t) => `<button class="tab${tab === t.id ? " active" : ""}" onclick="${call("navigate", "#/client/" + cl.id + "?tab=" + t.id)}">${t.label}</button>`).join("")}</div>
     ${body}
   `;
 }
 
 function renderSearchScreen(query) {
   const q = query.q || "";
-  let results = searchAll(q);
-  if (query.engagementId) results = results.filter((r) => r.doc.engagementId === query.engagementId);
+  const includeLegacy = query.legacy === "1";
+  let results = searchAll(q, includeLegacy);
+  if (query.clientId) results = results.filter((r) => r.doc.clientId === query.clientId);
   if (query.function) results = results.filter((r) => r.doc.function === query.function);
   if (query.status) results = results.filter((r) => r.doc.status === query.status);
   if (query.confidentiality) results = results.filter((r) => r.doc.confidentiality === query.confidentiality);
@@ -794,6 +919,7 @@ function renderSearchScreen(query) {
       <div><div class="page-title">Search</div><div class="page-sub">${q ? `Results for “${q}”` : "Type a query in the search bar above."}</div></div>
     </div>
     ${q ? filterBarHtml(query, "") : ""}
+    ${q ? `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);margin:-6px 0 14px"><input type="checkbox" ${includeLegacy ? "checked" : ""} onchange="${callWithValue("applyFilter", "legacy").replace("this.value", "this.checked?'1':''")}"/> Include Legacy business lines</label>` : ""}
     ${!q ? `<div class="empty-state"><h3>Nothing to show yet</h3><div>Try “VT overtime policy”, “HR-124”, “Nusantara minutes September”, “Labuan fund”, or “Eric review.”</div></div>` : ""}
     ${q && !results.length ? `<div class="empty-state"><h3>No matches</h3><div>No title, ID, tag, or note text matched “${q}.” Google Drive full-text search does not reliably cover every file type — see Settings for what's indexed.</div></div>` : ""}
     ${results.length ? `<div class="table-wrap">${results.map((r) => `
@@ -801,8 +927,9 @@ function renderSearchScreen(query) {
         <div class="search-result-icon">${(r.doc.docType || "DOC").slice(0, 2).toUpperCase()}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <b>${engName(r.doc.engagementId)}</b>
+            <b>${clientName(r.doc.clientId)}</b>
             <span class="match-badge${r.match === "content" ? " content" : ""}">${r.match === "content" ? "Content match" : "Metadata match"}</span>
+            ${isLegacyDoc(r.doc) ? `<span class="match-badge">Legacy</span>` : ""}
           </div>
           <div style="margin-top:2px">${r.doc.docId ? r.doc.docId + " – " : ""}${r.doc.title}</div>
           <div class="search-meta-line">${r.doc.docType || "—"} · ${r.doc.version || "no version"} · ${statusChip(r.doc.status)} · Modified ${fmtDate(r.doc.modified)}</div>
@@ -827,11 +954,17 @@ function renderInboxScreen() {
   `;
 }
 
-function renderArchiveScreen() {
-  const docs = classifiedDocs().filter((d) => CLOSED_STATUSES.includes(d.status));
+function renderArchiveScreen(query) {
+  const legacyFilter = query.legacyFilter || "";
+  let docs = classifiedDocs().filter((d) => CLOSED_STATUSES.includes(d.status));
+  if (legacyFilter === "only") docs = docs.filter((d) => isLegacyDoc(d));
   return `
     <div class="page-head">
-      <div><div class="page-title">Archive</div><div class="page-sub">Superseded and archived documents — kept reachable, never hidden.</div></div>
+      <div><div class="page-title">Archive</div><div class="page-sub">Superseded and archived documents — kept reachable, never hidden. Legacy business-line material (§3a) lives here too, never in the active Vault.</div></div>
+    </div>
+    <div class="saved-views">
+      <button class="saved-view-chip${legacyFilter === "" ? " active" : ""}" onclick="${call("applyFilter", "legacyFilter", "")}">All Archived</button>
+      <button class="saved-view-chip${legacyFilter === "only" ? " active" : ""}" onclick="${call("applyFilter", "legacyFilter", "only")}">Legacy Only</button>
     </div>
     ${renderRegistryTable(docs, "Nothing archived yet.")}
   `;
@@ -844,7 +977,7 @@ function renderTasksScreen() {
     <div class="quick-row" style="padding:10px 4px">
       <input type="checkbox" ${t.done ? "checked" : ""} onchange="${call("toggleTask", t.id)}"/>
       <span style="${t.done ? "text-decoration:line-through;color:var(--ink-faint)" : ""}">${t.title}</span>
-      <span class="muted">· ${engName(t.engagementId)}</span>
+      <span class="muted">· ${clientName(t.clientId)}</span>
       <span class="muted" style="margin-left:auto">Due ${fmtDate(t.due)}</span>
     </div>`;
   return `
@@ -863,7 +996,7 @@ function renderMeetingsScreen() {
     ${MEETINGS.map((m) => `
       <div class="card card-pad" style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <b>${m.title}</b><span class="muted">${engName(m.engagementId)} · ${fmtDate(m.date)}</span>
+          <b>${m.title}</b><span class="muted">${clientName(m.clientId)} · ${fmtDate(m.date)}</span>
         </div>
         <ul style="margin:10px 0 0;padding-left:18px">${m.decisions.map((dec) => `<li style="margin-bottom:4px">${dec}</li>`).join("")}</ul>
         ${m.documentId ? `<div style="margin-top:10px"><a style="cursor:pointer;color:var(--gold-deep);font-weight:700" onclick="${call("openDocument", m.documentId)}">View minutes →</a></div>` : ""}
@@ -873,13 +1006,21 @@ function renderMeetingsScreen() {
 
 function renderTagsScreen() {
   const tagCounts = {};
-  classifiedDocs().forEach((d) => (d.tags || []).forEach((t) => (tagCounts[t] = (tagCounts[t] || 0) + 1)));
+  activeClassifiedDocs().forEach((d) => (d.tags || []).forEach((t) => (tagCounts[t] = (tagCounts[t] || 0) + 1)));
   const tags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
   return `
-    <div class="page-head"><div><div class="page-title">Tags & Classification</div><div class="page-sub">The confidentiality model and every free tag in current use.</div></div></div>
+    <div class="page-head"><div><div class="page-title">Tags & Classification</div><div class="page-sub">The confidentiality model, the Function/Document Type vocabularies, and every free tag in current use.</div></div></div>
     <div class="section">
       <div class="section-title" style="margin-bottom:10px">Confidentiality Tiers</div>
       <div class="card card-pad">${tierLegendHtml()}</div>
+    </div>
+    <div class="section">
+      <div class="section-title" style="margin-bottom:10px">Function Vocabulary (${FUNCTIONS.length})</div>
+      <div class="card card-pad"><div class="pill-select">${FUNCTIONS.map((f) => `<span class="chip fn-chip" style="cursor:pointer" onclick="${call("applyFilterAndGo", "function", f)}">${f}</span>`).join("")}</div></div>
+    </div>
+    <div class="section">
+      <div class="section-title" style="margin-bottom:10px">Document Type Vocabulary (${DOCUMENT_TYPES.length})</div>
+      <div class="card card-pad"><div class="pill-select">${DOCUMENT_TYPES.map((t) => `<span class="chip fn-chip" style="cursor:pointer" onclick="${call("applyFilterAndGo", "docType", t)}">${t}</span>`).join("")}</div></div>
     </div>
     <div class="section">
       <div class="section-title" style="margin-bottom:10px">Tags in Use</div>
@@ -887,10 +1028,9 @@ function renderTagsScreen() {
     </div>
   `;
 }
-function applyFilterAndGo(key, value) { navigate(buildHash("/vault", { [key]: value })); }
 
 function renderTemplatesScreen() {
-  const templates = classifiedDocs().filter((d) => d.docType === "Template");
+  const templates = activeClassifiedDocs().filter((d) => d.docType === "Template");
   return `
     <div class="page-head"><div><div class="page-title">Templates</div><div class="page-sub">Reusable starting points — engagement letters, board papers, policy templates.</div></div></div>
     ${renderRegistryTable(templates, "No templates on file yet.")}
@@ -911,8 +1051,10 @@ function renderSettingsScreen() {
       <div class="card card-pad">
         <div class="dfield-label" style="margin-bottom:8px">Workspace</div>
         <div style="margin-bottom:10px">Single-user personal workspace — no team members, sharing, or permission model in this phase.</div>
+        <div class="dfield-label" style="margin-bottom:8px">Scope boundary</div>
+        <div class="muted" style="margin-bottom:10px">This vault does not manage operational accounting — general ledger, routine bookkeeping, payroll processing, or routine expense processing. It does accommodate management/strategic financial documentation (management financial reports, investment papers, forecasts, valuations, funding/banking documentation, project budgets) under Finance &amp; Investment.</div>
         <div class="dfield-label" style="margin-bottom:6px">Reference</div>
-        <div class="muted">See <code>docs/architecture/executive-document-vault.md</code> in this repository for the full information architecture behind this prototype.</div>
+        <div class="muted">See <code>docs/architecture/executive-document-vault.md</code> and <code>docs/architecture/executive-document-vault-gap-analysis.md</code> in this repository for the full information architecture behind this prototype.</div>
       </div>
     </div>
   `;
@@ -930,12 +1072,12 @@ function renderDriveScreen() {
 function renderScreen(path, query) {
   if (path === "/home") return renderHome();
   if (path === "/vault") return renderVaultScreen(query);
-  if (path === "/clients") return renderEngagementListScreen("client");
-  if (path === "/projects") return renderEngagementListScreen("project");
-  if (path.indexOf("/engagement/") === 0) return renderEngagementWorkspace(path.split("/")[2], query.tab);
+  if (path === "/clients") return renderClientListScreen("client");
+  if (path === "/projects") return renderClientListScreen("project");
+  if (path.indexOf("/client/") === 0) return renderClientWorkspace(path.split("/")[2], query.tab);
   if (path === "/search") return renderSearchScreen(query);
   if (path === "/inbox") return renderInboxScreen();
-  if (path === "/archive") return renderArchiveScreen();
+  if (path === "/archive") return renderArchiveScreen(query);
   if (path === "/tasks") return renderTasksScreen();
   if (path === "/meetings") return renderMeetingsScreen();
   if (path === "/tags") return renderTagsScreen();

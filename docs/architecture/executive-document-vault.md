@@ -207,10 +207,10 @@ Policy                       Contract / Agreement          Minutes              
 Resolution                   Proposal                      Report                        Management Paper
 Framework                    Deliverable                   Template                      Correspondence
 Note                         Executive Summary              Certificate / Registration    Briefing Note
-Itinerary                    Litigation File
+Itinerary                    Litigation File                Other
 ```
 
-Eighteen values — each a genuinely distinct document *shape*, never a subject-matter variant. The literal folder tree's regulator/jurisdiction/tax-type folder splits (MAS/IRAS/ACRA, GST/Corporate Tax, Trademark/Copyright, Malaysia/Singapore) are exactly the pattern this model exists to absorb: those become free tags on top of one of the eighteen types (e.g. `Certificate / Registration` + tag `Trademark`), never a nineteenth, twentieth, twenty-first type. `Management Paper` covers board/decision-facing papers (governance content, any Function); `Litigation File` is used on documents inside a Litigation Matter (§3.1 — litigation is matter-based, not a standing folder); `Briefing Note`/`Itinerary`/`Agenda` cover Executive Office scheduling-adjacent material without needing an Outlook Calendar integration (explicitly out of scope, §11) — they're documents *about* scheduled things, not a live calendar.
+Eighteen named shapes, plus `Other` as a deliberate escape hatch — each a genuinely distinct document *shape*, never a subject-matter variant. `Other` exists so an unusual document is never forced into a bad-fit category; it is not an invitation to avoid the other eighteen. The literal folder tree's regulator/jurisdiction/tax-type folder splits (MAS/IRAS/ACRA, GST/Corporate Tax, Trademark/Copyright, Malaysia/Singapore) are exactly the pattern this model exists to absorb: those become free tags on top of one of the eighteen types (e.g. `Certificate / Registration` + tag `Trademark`), never a nineteenth, twentieth, twenty-first type. `Management Paper` covers board/decision-facing papers (governance content, any Function); `Litigation File` is used on documents inside a Litigation Matter (§3.1 — litigation is matter-based, not a standing folder); `Briefing Note`/`Itinerary`/`Agenda` cover Executive Office scheduling-adjacent material without needing an Outlook Calendar integration (explicitly out of scope, §11) — they're documents *about* scheduled things, not a live calendar.
 
 ---
 

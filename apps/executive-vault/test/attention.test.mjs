@@ -2,6 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadApp } from "./loadApp.mjs";
 
+function activeDocs(sandbox) {
+  const { CLIENTS, DOCUMENTS } = sandbox.VAULT_DATA;
+  const legacyIds = new Set(CLIENTS.filter((c) => c.legacy).map((c) => c.id));
+  return DOCUMENTS.filter((d) => d.classified && !legacyIds.has(d.clientId));
+}
+
 test("computeAttention()'s unclassified list matches exactly the documents with classified:false", () => {
   const sandbox = loadApp();
   const { DOCUMENTS } = sandbox.VAULT_DATA;
@@ -10,20 +16,30 @@ test("computeAttention()'s unclassified list matches exactly the documents with 
   assert.deepEqual(actual, expected);
 });
 
-test("computeAttention()'s duplicates list matches exactly the documents flagged possibleDuplicateOf", () => {
+test("computeAttention()'s duplicates list matches exactly the (non-legacy) documents flagged possibleDuplicateOf", () => {
   const sandbox = loadApp();
-  const { DOCUMENTS } = sandbox.VAULT_DATA;
-  const expected = DOCUMENTS.filter((d) => d.classified && d.possibleDuplicateOf).map((d) => d.id).sort();
+  const expected = activeDocs(sandbox).filter((d) => d.possibleDuplicateOf).map((d) => d.id).sort();
   const actual = sandbox.computeAttention().duplicates.map((d) => d.id).sort();
   assert.deepEqual(actual, expected);
 });
 
-test("computeAttention()'s confidentialFlagged list is exactly the Highly Confidential classified documents", () => {
+test("computeAttention()'s confidentialFlagged list is exactly the Highly Confidential, non-legacy classified documents", () => {
   const sandbox = loadApp();
-  const { DOCUMENTS } = sandbox.VAULT_DATA;
-  const expected = DOCUMENTS.filter((d) => d.classified && d.confidentiality === "highly-confidential").map((d) => d.id).sort();
+  const expected = activeDocs(sandbox).filter((d) => d.confidentiality === "highly-confidential").map((d) => d.id).sort();
   const actual = sandbox.computeAttention().confidentialFlagged.map((d) => d.id).sort();
   assert.deepEqual(actual, expected);
+});
+
+test("computeAttention() and Executive Home dashboard counts exclude Legacy business-line documents entirely", () => {
+  const sandbox = loadApp();
+  const a = sandbox.computeAttention();
+  const allFlagged = [].concat(a.awaitingReview, a.duplicates, a.staleDrafts, a.missingVersion, a.confidentialFlagged);
+  for (const d of allFlagged) {
+    const client = sandbox.getClient(d.clientId);
+    assert.ok(!client || !client.legacy, `${d.id} belongs to a Legacy client and must not appear in Attention Required`);
+  }
+  sandbox.navigate("#/home");
+  assert.doesNotMatch(sandbox.__appEl.innerHTML, /Sabah/);
 });
 
 test("computeAttention()'s followUps list is exactly the not-done tasks", () => {
