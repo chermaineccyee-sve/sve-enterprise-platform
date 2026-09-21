@@ -683,3 +683,11 @@ A **Generate Management Update** action on the Management Progress page composes
 - No public sharing, no send integration, no live Outlook/Drive — §16.8.
 - No second Decision Tracker, blocker system, or report-record type distinct from the Matter/Document/Task records it curates.
 - No approval workflow (routing, sign-off states, notifications on `managementAttentionLevel` changes) — the attention levels are status labels for a human to read, not a triggered process.
+
+---
+
+## 17. Production Foundation — Executive Command Centre Login
+
+**Status: implemented (`apps/executive-vault` v5).** Before any production Outlook Calendar work (§15.6, and the separate readiness review `outlook-calendar-readiness-review.md`) could begin, the app needed its first genuinely production piece: a real login gating the whole Command Centre, since until this phase the app had no backend, no deployment, and no authentication of any kind.
+
+Full detail — including why a shared application password was rejected in favour of an identity-bound single-user account, the database/Functions/frontend design, and the explicit two-layer boundary against the future Microsoft Account Connection — lives in its own document: **`docs/architecture/executive-command-centre-authentication.md`**. The short version: **Layer 1** (this section) is "am I the authorised user of my own Command Centre" — implemented, single-user (Ching Yee), capable of evolving to more accounts later without a redesign. **Layer 2** (Microsoft Account Connection / Outlook OAuth) is a separate, later grant against Microsoft's own sign-in/consent flow — still not implemented, still no Microsoft credential ever touching this app, exactly as §15.6 already specified.

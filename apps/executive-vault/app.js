@@ -44,6 +44,7 @@ const STATE = {
   previewMeetingId: null,
   previewMatterId: null,
   attentionOpen: false,
+  userMenuOpen: false,
   showGenerateUpdate: false,
   updateFormat: "email",
   vaultSort: { key: "modified", dir: "desc" },
@@ -53,6 +54,26 @@ const STATE = {
 };
 let toastSeq = 0;
 let matterSeq = 0;
+
+/**
+ * Executive Command Centre Login (Layer 1) — session state only. See
+ * docs/architecture/executive-command-centre-authentication.md. This is
+ * unrelated to the future Layer 2 Microsoft Account Connection: nothing
+ * here ever holds, requests, or transmits a Microsoft credential.
+ *
+ * `authenticated` starts false and `render()` (bottom of this file) shows
+ * the login screen instead of the app shell until it becomes true — either
+ * via a verified /api/session check (initApp, real browser) or immediately
+ * in the non-browser test sandbox, where there is no server to check
+ * against and every existing test expects the app shell to render directly
+ * (see test/loadApp.mjs — no fetch is stubbed there on purpose).
+ */
+const AUTH = { authenticated: false, checked: false, user: null, error: null };
+function currentUserDisplayName() { return (AUTH.user && AUTH.user.name) || USER_NAME; }
+function currentUserInitials() {
+  const parts = currentUserDisplayName().trim().split(/\s+/);
+  return ((parts[0] || "")[0] || "") .concat((parts[1] || "")[0] || "").toUpperCase() || "?";
+}
 
 /* ============================== Utilities ============================== */
 
@@ -549,7 +570,7 @@ function renderSidebar(currentHash) {
         </div>
       </div>
       <div class="sidebar-scroll">${groups}</div>
-      <div class="sidebar-foot">Phase 3 prototype · mock data<br/>No live Google Drive connection</div>
+      <div class="sidebar-foot">${attrSafe(currentUserDisplayName())} · Personal Executive Command Centre<br/>Document/meeting data is mock · No live Google Drive or Outlook connection</div>
     </nav>`;
 }
 
@@ -595,9 +616,24 @@ function renderTopbar(query) {
           ${renderNotificationsPopover()}
         </div>
         <button class="btn btn-icon" onclick="${call("navigate", "#/settings")}" title="Settings" aria-label="Settings">⚙</button>
-        <div class="topbar-user" title="Personal workspace — single user">EV</div>
+        <div style="position:relative">
+          <button class="topbar-user" onclick="${call("toggleUserMenu")}" title="${attrSafe(currentUserDisplayName())} — Personal Executive Command Centre" aria-label="Account">${attrSafe(currentUserInitials())}</button>
+          ${renderUserMenuPopover()}
+        </div>
       </div>
     </header>`;
+}
+
+function toggleUserMenu(ev) { if (ev) ev.stopPropagation(); STATE.userMenuOpen = !STATE.userMenuOpen; render(); }
+function renderUserMenuPopover() {
+  if (!STATE.userMenuOpen) return "";
+  return `
+    <div class="notif-popover" style="width:220px">
+      <div class="dfield-label" style="margin-bottom:2px">Signed in as</div>
+      <div style="font-weight:700;margin-bottom:2px">${attrSafe(currentUserDisplayName())}</div>
+      <div class="muted" style="font-size:11.5px;margin-bottom:12px">${attrSafe((AUTH.user && AUTH.user.email) || "")}</div>
+      <button class="btn btn-sm" style="width:100%" onclick="${call("signOut")}">Sign Out</button>
+    </div>`;
 }
 
 /* ================================ Drawer =================================== */
@@ -929,7 +965,7 @@ function renderHome() {
 
   return `
     <div class="page-head">
-      <div><div class="page-title">${greetingWord()}, ${USER_NAME}</div><div class="page-sub">${fmtDateLong(TODAY)}</div></div>
+      <div><div class="page-title">${greetingWord()}, ${currentUserDisplayName()}</div><div class="page-sub">${fmtDateLong(TODAY)}</div></div>
     </div>
 
     <div class="summary-strip">${summaryChips.map((s) => `<span class="summary-chip" onclick="${call("navigate", s.hash)}">${s.label}</span>`).join('<span class="summary-sep">·</span>')}</div>
@@ -1644,7 +1680,114 @@ function renderScreen(path, query) {
   return renderHome();
 }
 
+/* ============================ Executive Command Centre Login ============================
+ * Layer 1 only — "am I the authorised user of my own Command Centre." See
+ * docs/architecture/executive-command-centre-authentication.md. Separate
+ * and unrelated to the future Layer 2 Microsoft Account Connection
+ * (Outlook OAuth): nothing below ever collects, stores, or transmits a
+ * Microsoft credential — only this app's own email/password against its
+ * own /api/login. */
+
+function renderLoginScreen() {
+  return `
+    <div class="login-screen">
+      <div class="login-card">
+        <div class="login-brand">
+          <div class="brand-mark">V</div>
+          <div>
+            <div class="brand-text-title" style="color:var(--ink)">Executive Vault</div>
+            <div class="login-owner">Personal Executive Command Centre — Ching Yee</div>
+          </div>
+        </div>
+        <div class="login-fields">
+          <label class="login-label">Email<input class="login-input" type="email" id="loginEmail" autocomplete="username" placeholder="you@example.com"/></label>
+          <label class="login-label">Password<input class="login-input" type="password" id="loginPassword" autocomplete="current-password"/></label>
+          ${AUTH.error ? `<div class="login-error">${attrSafe(AUTH.error)}</div>` : ""}
+          <button class="btn btn-gold" style="width:100%;margin-top:4px;justify-content:center" onclick="${call("handleLoginFormSubmit")}">Sign In</button>
+        </div>
+        <div class="login-footnote">Single-user personal workspace. Only the authorised account holder can sign in.</div>
+      </div>
+    </div>`;
+}
+
+function renderAuthGateShell() {
+  const appEl = document.getElementById("app");
+  if (!appEl) return;
+  appEl.innerHTML = renderLoginScreen();
+}
+
+function handleLoginFormSubmit() {
+  const emailEl = document.getElementById("loginEmail");
+  const passwordEl = document.getElementById("loginPassword");
+  submitLogin(emailEl ? emailEl.value : "", passwordEl ? passwordEl.value : "");
+}
+
+/** Exposed separately from handleLoginFormSubmit so it's directly testable without a DOM. */
+async function submitLogin(email, password) {
+  AUTH.error = null;
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.ok) {
+      AUTH.error = body.error || "Invalid email or password.";
+      renderAuthGateShell();
+      return;
+    }
+    AUTH.authenticated = true;
+    AUTH.checked = true;
+    AUTH.user = body.user;
+    render();
+  } catch (e) {
+    AUTH.error = "Unable to reach the Command Centre. Check your connection and try again.";
+    renderAuthGateShell();
+  }
+}
+
+async function signOut() {
+  try { await fetch("/api/logout", { method: "POST" }); } catch (e) { /* cookie may already be gone; still reset local state */ }
+  AUTH.authenticated = false;
+  AUTH.checked = true;
+  AUTH.user = null;
+  STATE.userMenuOpen = false;
+  renderAuthGateShell();
+}
+
+/** Real-browser entry point (replaces the old unconditional render() at the bottom of this file). */
+async function initApp() {
+  if (typeof fetch !== "function") {
+    // Non-browser test sandbox (test/loadApp.mjs): no server to check a
+    // session against, and every existing test expects the app shell to
+    // render directly — see this const's own doc comment above.
+    AUTH.authenticated = true;
+    AUTH.checked = true;
+    render();
+    return;
+  }
+  const appEl = document.getElementById("app");
+  if (appEl) appEl.innerHTML = '<div class="auth-loading">Loading Executive Vault…</div>';
+  try {
+    const res = await fetch("/api/session", { credentials: "same-origin" });
+    if (res.ok) {
+      const body = await res.json();
+      AUTH.authenticated = !!body.authenticated;
+      AUTH.user = body.user || null;
+    } else {
+      AUTH.authenticated = false;
+    }
+  } catch (e) {
+    AUTH.authenticated = false;
+    AUTH.error = "Unable to reach the Command Centre.";
+  }
+  AUTH.checked = true;
+  if (AUTH.authenticated) render(); else renderAuthGateShell();
+}
+
 function render() {
+  if (!AUTH.authenticated) { renderAuthGateShell(); return; }
   const { path, query } = parseHash();
   const content = renderScreen(path, query);
   const currentHash = buildHash(path, query);
@@ -1680,4 +1823,4 @@ if (typeof document !== "undefined") {
 if (typeof window !== "undefined" && window.addEventListener) {
   window.addEventListener("hashchange", render);
 }
-render();
+initApp();

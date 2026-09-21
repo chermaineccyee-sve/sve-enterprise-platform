@@ -10,12 +10,14 @@ A personal executive command centre, designed to sit over Google Drive and Outlo
 
 **v4** adds the Management Progress Snapshot (architecture doc §16): a boss-facing, privacy-by-default curated view over the same Command Centre data — never a second dataset. See the Final Report delivered alongside this phase for the full privacy/reuse/field breakdown. Production Outlook/Drive wiring and any real sharing/send mechanism remain explicitly out of scope.
 
+**v5** adds the **Production Foundation — Executive Command Centre Login** (Layer 1 only; see `docs/architecture/executive-command-centre-authentication.md`): a real, single-user login gate in front of the whole app, backed by Netlify Functions and a Postgres `command_centre_users` table (via Netlify DB — the same mechanism `apps/svegip` already uses), with a PBKDF2-hashed password tied to one named account (Ching Yee), never a bare shared application password. This is deliberately **not** the Microsoft Account Connection — Layer 2 (Outlook OAuth, `docs/architecture/outlook-calendar-readiness-review.md`) remains architecture-only; nothing here requests, stores, or transmits a Microsoft credential.
+
 ## What this is — and isn't
 
-- **All data is mock data**, written in `data.js` for this prototype (5 active clients/projects, a Legacy business line, 40+ illustrative documents, and a full week of calendar meetings). None of it comes from a real Google Drive or Microsoft account.
-- **No network call of any kind is made anywhere in this app.** "Open Original in Drive," "Copy Drive Location," "Upload," "Connect Google Drive," "Join / Open Meeting," and "New Client Workspace" are all clearly labelled mock actions (a toast explaining what the real action will do once production integration is built) — never presented as a live integration. See the Settings and Outlook Calendar screens.
-- **Classification/tagging edits you make while using the prototype are real, but in-memory only** — they demonstrate progressive disclosure and quick reclassification (e.g. filing an Executive Inbox item, changing a document's status or confidentiality from the preview drawer, promoting a workstream to its own Matter, ticking off a follow-up) and are lost on reload. There is no backend and no database.
-- **This app is fully isolated** from `apps/svegip/`, `apps/executive-briefing/`, and every `platform-services/*`/`packages/*` module. It does not import, fetch, link to, or depend on any of them.
+- **Document/meeting data is still mock data**, written in `data.js` (5 active clients/projects, a Legacy business line, 40+ illustrative documents, and a full week of calendar meetings). None of it comes from a real Google Drive or Microsoft account.
+- **Signing in is now a real network call** (`POST /api/login`, `GET /api/session`, `POST /api/logout` — Netlify Functions under `netlify/functions/`, added in v5) — this is the one exception to the "no network call" posture earlier versions of this app held. Every *content* action remains a clearly labelled mock: "Open Original in Drive," "Copy Drive Location," "Upload," "Connect Google Drive," "Join / Open Meeting," "New Client Workspace," and (still not built) an actual Outlook connection all show a toast explaining what the real action will do once that specific integration is built — never presented as live. See the Settings and Outlook Calendar screens.
+- **Classification/tagging edits you make while using the prototype are real, but in-memory only** — they demonstrate progressive disclosure and quick reclassification (e.g. filing an Executive Inbox item, changing a document's status or confidentiality from the preview drawer, promoting a workstream to its own Matter, ticking off a follow-up) and are lost on reload. There is no persistence for any of this yet — only the login layer (v5) touches a real database.
+- **This app's frontend is still fully isolated** from `apps/svegip/`, `apps/executive-briefing/`, and every `platform-services/*`/`packages/*` module — no import, fetch, link, or dependency on any of them. Its new `netlify/functions/` backend (v5) does not import from them either; it independently reuses the same *pattern* `apps/svegip`'s own Functions already established (Netlify Functions + `@netlify/database` + an HMAC-signed cookie), not any of its code.
 
 ## Screens implemented
 
@@ -29,7 +31,9 @@ Try the search examples from the brief this was built against: **"VT overtime po
 
 ## Stack
 
-Vanilla HTML/CSS/JS. No framework, no bundler, no build step — matches `apps/svegip` and `apps/executive-briefing`'s own convention. `package.json` has no runtime dependencies; `test` runs Node's built-in test runner (`node --test`) against `test/*.test.mjs`.
+**Frontend:** vanilla HTML/CSS/JS. No framework, no bundler, no build step — matches `apps/svegip` and `apps/executive-briefing`'s own convention.
+
+**Backend (new in v5, Layer 1 login only):** Netlify Functions (`netlify/functions/*.mts`) + Postgres via `@netlify/database` (Netlify DB) — the identical pattern `apps/svegip` already runs in production, reused independently rather than shared code. `package.json` now lists `@netlify/database` (dependency) and `@netlify/functions` (devDependency, for local `netlify dev`); the frontend itself still has zero runtime dependencies. `test` runs Node's built-in test runner (`node --test`) against `test/*.test.mjs` — this exercises the frontend's routing/rendering/auth-gating logic in a `vm` sandbox with no real network or database; the Functions themselves are not covered by this suite (see "Tests" below).
 
 ## Structure
 
@@ -41,19 +45,45 @@ data.js        mock dataset (window.VAULT_DATA) — wrapped in an IIFE so its
 styles.css     design tokens (navy/brass executive command-centre palette,
                system fonts only) + layout
 app.js         router (hash-based), data/filter/search helpers, action
-               handlers, and every screen renderer
+               handlers, screen renderers, and (v5) the Executive Command
+               Centre Login gate — AUTH state, renderLoginScreen(),
+               submitLogin()/signOut(), initApp()
 test/          node:test suites, run with `npm test`
+netlify.toml   Netlify site config (v5) — publish dir + functions dir +
+               security headers, matching apps/svegip/netlify.toml
+netlify/functions/   Login/session/logout/one-time-bootstrap Functions (v5)
+               — see docs/architecture/executive-command-centre-authentication.md
+netlify/database/migrations/   command_centre_users table (v5)
+.env.example   variable NAMES only, verified against every Netlify.env.get()
+               call — never real values (v5)
 ```
 
 ## Running locally
 
-Any static file server works, e.g.:
+**Frontend only, against mock data with no login gate exercised** (the login gate itself needs `fetch` to reach something — a browser opening this over a plain static server, with no `/api/*` present, gets a real 401/404 from those requests and correctly shows the sign-in screen rather than the app; there is no bypass):
 
 ```
 npx --yes http-server apps/executive-vault
 ```
 
-or simply open `index.html` directly in a browser.
+**With the Login gate and Netlify Functions actually working** (requires the Netlify CLI and a Netlify DB-enabled site):
+
+```
+cd apps/executive-vault
+npm install
+npm run dev   # netlify dev
+```
+
+Then, once, provision the one authorised account (see `.env.example` for `EXECUTIVE_VAULT_BOOTSTRAP_SECRET`):
+
+```
+curl -X POST http://localhost:8888/api/bootstrap-user \
+  -H "x-bootstrap-secret: <the temporary secret you set>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","name":"Ching Yee","password":"<a real password>"}'
+```
+
+This endpoint self-disables the moment one account row exists — remove `EXECUTIVE_VAULT_BOOTSTRAP_SECRET` afterwards.
 
 ## Tests
 
@@ -62,9 +92,11 @@ cd apps/executive-vault
 npm test
 ```
 
+Covers frontend routing/rendering/data logic and (v5) the Login gate's client-side behaviour (login/logout state transitions, error handling, that a signed-out render never leaks the app shell or mock data) with a mocked `fetch` — it does not exercise the real Netlify Functions or a real database, which need `netlify dev`/a live Netlify DB to test end-to-end.
+
 ## What production integration (not built here) will change
 
 - **Google Drive** — per architecture doc §8: real Google OAuth (minimum-necessary scopes — `drive.readonly` + `drive.file`, never a blanket `drive` scope), real Drive API calls for browse/upload/move/rename/search, and a real metadata database behind classification/tags/relationships/saved views.
-- **Outlook Calendar** — per architecture doc §15.6: Microsoft Graph via MSAL OAuth, a read-only `Calendars.Read` scope, real calendar sync for My Day/This Week, and an Unlinked Meetings queue (mirroring the Executive Inbox) for events Graph can't map to a Client/Matter/Workstream on its own.
+- **Outlook Calendar (Microsoft Account Connection, Layer 2)** — per architecture doc §15.6 and `docs/architecture/outlook-calendar-readiness-review.md`: Microsoft Graph via MSAL OAuth, a read-only `Calendars.Read` scope, real calendar sync for My Day/This Week, and an Unlinked Meetings queue (mirroring the Executive Inbox) for events Graph can't map to a Client/Matter/Workstream on its own. This is a separate, later grant against Microsoft's own sign-in/consent flow — never a password collected by this app, and never mixed into the Executive Command Centre Login (Layer 1, v5) above.
 
-Neither exists yet, by design — this prototype exists to validate the information architecture and screens first.
+Neither exists yet, by design — the Login gate (v5) is the first piece of this app that is genuinely production, not a prototype; Drive/Outlook remain to validate architecture first.
