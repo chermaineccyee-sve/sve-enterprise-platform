@@ -1,10 +1,10 @@
 # Executive Vault — Personal Executive Document Vault
 
-Status: **Phase 1 (information architecture) + Phase 2 (UX architecture), proposed for review.** Phase 3 (visual prototype, mock data) is built at `apps/executive-vault/` — see that app's own `README.md`. **Phase 4 (production Google Drive integration) is intentionally not started** — per the brief, it only gets designed once the interface and information architecture below are confirmed.
+Status: **Phase 1 (information architecture) + Phase 2 (UX architecture), validated against the actual historical Executive Office Hub folder tree and approved.** Phase 3 (visual prototype, mock data) is built at `apps/executive-vault/` — see that app's own `README.md`. **Phase 4 (production Google Drive integration) is intentionally not started** — per the brief, it only gets designed once the interface and information architecture below are confirmed.
 
 This is a **personal** professional workspace for one user (initially Chermaine/the account this repository belongs to), not a company-wide document management system, not a multi-tenant product, and not the same thing as `platform-services/data-vault` (see [§0](#0-relationship-to-the-existing-sve-data-vault) — that is a separate, RBAC-gated, Postgres-native evidence register for SVE Group governance; this is a Drive-backed personal filing and retrieval layer). Nothing in this document changes, depends on, or is consumed by `apps/svegip`, `platform-services/*`, or `packages/*`.
 
-**Open input needed:** §13–§15 of the brief ("use my existing folder hierarchy") were sent with the placeholder unfilled — no actual Drive tree was provided. Everything below is derived from the *working patterns* described throughout the brief (the VT Worldwide example, the HR-124/HR-025 document IDs, the stated overlaps) rather than from a concrete existing tree. Once the real hierarchy is shared, treat this as v1 and run a one-time gap/migration pass against it rather than starting over.
+**Validation record:** the root structure, classification model, Function vocabulary, Document Type vocabulary, and the Client/Engagement/Project-Matter/Workstream model below were checked line-by-line against the actual historical "Executive Office Hub" folder tree and revised in light of it. The full reasoning — what was found duplicated, what was retired, what became metadata, what was confirmed unchanged — is recorded in `docs/architecture/executive-document-vault-gap-analysis.md` and is not repeated here; this document states the *resulting, approved* architecture only.
 
 ---
 
@@ -50,8 +50,12 @@ The proposed root in §14 of the brief is sound and is adopted with one adjustme
 10 – Templates & Reference        Document templates, style guides, boilerplate clauses, naming-convention reference.
 90 – Personal Working Files       Genuinely personal scratch material — not a "everything I haven't filed" dumping
                                    ground (that's 00); this is stuff that will never become a permanent record.
-99 – Archive                      Superseded/closed material relocated out of active folders (see §7's lifecycle).
+99 – Archive                      Superseded/closed material relocated out of active folders (see §7's lifecycle),
+                                   plus a distinct "Legacy Business Lines" partition (see §3a) for material from a
+                                   discontinued line of work — kept apart from ordinary superseded-version archiving.
 ```
+
+**Root structure confirmed unchanged by the literal folder-tree validation.** Every branch of the actual historical Executive Office Hub tree maps into this existing skeleton via metadata, a Client/Engagement/Project-Matter relocation, or the Legacy/Retire treatment in §3a — zero new top-level folders were required. See the gap analysis document for the branch-by-branch evidence.
 
 **The rule that resolves the overlap problem named throughout the brief:** *if a document belongs to a specific client, project, or matter, it lives under `03`/`04` under that engagement's folder — full stop, even if its subject matter is HR, Legal, Finance, or Governance.* The functional roots (`02`, `05`–`09`) hold only material that is genuinely **not** tied to one engagement — group policy masters, templates, reference research. A VT Worldwide HR policy is filed once, under `03 – Clients & Engagements / VT Worldwide / …`, and is *findable* under "Human Resources" in the application through the **Function** metadata tag (§6), not through a second copy or a second folder. This is exactly why the application's Intelligent View (§9.2, screen 2) and Knowledge nav section (§9's nav table) exist: Drive folders answer "where does this physically live," the app's tags answer "what else is this," and a document never needs two homes to answer both questions.
 
@@ -81,7 +85,52 @@ The brief's proposed `00`–`99` client structure is fundamentally sound; kept w
 
 Every new client workspace is created from this same template (§9, screen "Client Workspace" has a "New Client Workspace" action that scaffolds exactly `00`–`08`, `99` and nothing else — no workstream folders, no year folders).
 
-**Projects/Programmes (`04` root) use the identical template.** The application does not model "Client" and "Project" as different data types — both are instances of one underlying **Engagement** entity (§6), distinguished only by an `engagementType: client | internal-project` field. This is why §16 of the brief ("Project/Matter Dashboard") and §7 ("Client & Engagement Workspaces") end up as the same screen in the UX architecture (§9) rather than two parallel builds.
+**Projects/Programmes (`04` root) use the identical template.** The application does not model "Client" and "Project" as different data types — both are instances of one underlying record, distinguished only by a `type: client | internal-project` field.
+
+### 3.1 Client → Engagement → Project/Matter → Workstream
+
+**Revised from the original Phase 1 draft**, which flattened Client and Engagement into one record. The gap analysis (see `executive-document-vault-gap-analysis.md` §E) found that flattening breaks down for a repeat client with two engagements a year apart, or a client running two genuinely separate pieces of work at once (e.g. an HR advisory and an unrelated legal matter, simultaneously) — both real situations, not edge cases invented for their own sake. The approved model is a four-level chain:
+
+```
+Client              An enduring relationship — e.g. "VT Worldwide." Owns the contact list, the relationship
+                     summary, and the Drive folder root (§3's template). Pinned/browsable as a top-level entity.
+  └─ Engagement      A discrete, time-bound contract or SOW — e.g. "HR Transformation / HR Advisory." A client can
+                     have more than one, concurrently or over time (a 2027 renewal, an unrelated matter).
+      └─ Project/Matter   A specific initiative inside that engagement — e.g. "HR Transformation." Has its own
+                     status, owner, target date and current stage (§16 of the brief, "Project/Matter Dashboard").
+          └─ Workstream   A thread of work inside that project/matter — e.g. "HR Digitalisation / HRMS,"
+                     "Performance Management," "HR Policy Framework," "Implementation / Training." A tag on the
+                     document, scoped to its Project/Matter, not a folder.
+              └─ Document
+```
+
+**Worked example**, matching the one this was approved against — `HR-124 – Lark Digital Acknowledgement Workflow Specification` sits at:
+
+```
+Client:        VT Worldwide
+  Engagement:  HR Transformation / HR Advisory
+    Matter:    HR Transformation
+      Workstream: HR Digitalisation / HRMS
+        Document: HR-124
+```
+
+**For most clients today, this collapses to exactly what existed before** — one Client, one Engagement, one Matter — so nothing changes for VT Worldwide, MRE Asia, or Nusantara as they stand; the model exists so it *doesn't break* the day a client needs a second engagement or a separate matter, rather than because today's roster needs four visible levels.
+
+**A Workstream can be promoted to its own standalone Project/Matter later**, when its scope becomes sufficiently independent to warrant it (e.g. HR Digitalisation growing from "a workstream inside HR Transformation" into its own tracked initiative with its own milestones). Promotion creates a new Project/Matter record under the same Engagement and reassigns that workstream's documents to it — a data operation, not a folder move; the underlying Drive location is unaffected unless a physical reorganisation is separately requested.
+
+**Why this doesn't become four separate CRUD screens:** the Client Workspace (§13.3) is still the one screen a client is managed from — it lists its Engagement(s), each expandable to its Matter(s) and their Workstreams, rather than requiring separate top-level navigation for Engagement and Matter. The nesting is a data model decision, not a UI proliferation decision.
+
+### 3a. Legacy business lines
+
+**The distinction that matters:** *historical business-line structure* is Legacy; *future subject matter arising through a live engagement* is Active — these are independent questions, not the same thing. A discontinued line of work (e.g. a past physical-development/resort-operations business, or a past regional business-development effort in a jurisdiction no longer active) does not get an active root folder, an active Function, or a slot in the Client/Engagement picker used to classify new documents — but if a *future* client or project genuinely involves infrastructure, logistics, construction, property, or that same jurisdiction again, those new documents are never blocked from entering normally through Client → Engagement → Project/Matter → Workstream with whatever Function/Document Type/tags actually fit. Nothing about a subject matter is permanently excluded — only the old *business-line-as-structure* is retired.
+
+**Mechanically:** a Client (or, exceptionally, an individual document) can be flagged `legacy: true`. A legacy-flagged Client:
+- is excluded from the active Client/Engagement picker used when classifying a new or Inbox document, so it cannot accidentally be reused as a home for new work;
+- is excluded from every Executive Home dashboard count (Total/Active/Drafts/Review/Final and every Attention Required bucket);
+- is excluded from the Clients & Engagements / Projects & Programmes workspace lists;
+- remains fully reachable from the Archive screen, with its own visible "Legacy" filter — findable on purpose, never surfaced as if it were current, never deleted.
+
+Physically, legacy material sits under `99 – Archive / Legacy Business Lines / …`, kept apart from ordinary Superseded/Archived material (which is old *versions* of still-active client/project work, a different thing — see §7).
 
 ---
 
@@ -110,10 +159,12 @@ One record per document. **Only Document Name and a Google Drive reference are e
 | Document Name | **Required** | text | See naming convention, §6 |
 | Google Drive File ID / URL | **Required** | text (system-set on save/link) | The single source of truth for the actual file |
 | Document ID | Optional | text | e.g. `HR-124`; auto-suggested per Function+sequence, editable |
-| Client / Entity | Optional | reference → Engagement | One engagement per document (a document that genuinely serves two engagements gets a second lightweight link, not a duplicate record) |
-| Project / Workstream | Optional | reference → Workstream (child of Engagement) | |
-| Function | Optional | tag (single-select, fixed list — §2's functional roots) | |
-| Document Type | Optional | tag (single-select) | Policy, Contract, Minutes, Proposal, Report, Deliverable, Template, Correspondence, Note, Register, Other |
+| Client / Entity | Optional | reference → Client | One Client per document (a document that genuinely serves two clients gets a second lightweight link, not a duplicate record) |
+| Engagement | Optional | reference → Engagement (child of Client) | §3.1 — usually implied once Client is set, since most clients have exactly one |
+| Project / Matter | Optional | reference → Project/Matter (child of Engagement) | §3.1 |
+| Workstream | Optional | tag, scoped to the chosen Project/Matter | §3.1 — free text, but the app suggests the values already used on that Matter |
+| Function | Optional | tag (single-select, fixed list — §2's functional roots) | `Executive Office`, `Governance & Strategy`, `Legal & Compliance`, `Human Resources`, `Project & Programme Management`, `Finance & Investment`, `Operations & Administration`, `Research & Intelligence` — eight, deliberately short and stable (see §5.1) |
+| Document Type | Optional | tag (single-select, fixed list — see §5.2) | |
 | Jurisdiction | Optional | tag (multi-select) | Malaysia, Singapore, Labuan, Hong Kong, UAE, Timor-Leste, ASEAN, Global, … |
 | Version | Optional | text, freeform but pattern-checked | `v0.1`…`v1.0 Final` — see §7 |
 | Status | Optional, defaults to **Working Draft** | enum | See lifecycle, §7 |
@@ -127,6 +178,39 @@ One record per document. **Only Document Name and a Google Drive reference are e
 | Starred / Priority | Optional | boolean | |
 
 **Why Client/Project/Function/Type/Jurisdiction/Status/Confidentiality/Version/Year are metadata and never folders:** every one of them is a dimension a single document can need simultaneously (the brief's own VT Worldwide/HR/Policy/Working Time/v0.3 example needs Client **and** Function **and** Type **and** Status **and** Confidentiality **and** Jurisdiction **and** Version all at once) — a folder tree can only ever express one hierarchy at a time. Client and Function/Type are asymmetric on purpose: Client *is* a folder (§2's rule) because "where does this physically live" needs exactly one right answer; Function/Type/etc. are tags because "what else is this" needs several right answers.
+
+### 5.1 Function vocabulary — approved
+
+```
+Executive Office
+Governance & Strategy
+Legal & Compliance
+Human Resources
+Project & Programme Management
+Finance & Investment
+Operations & Administration
+Research & Intelligence
+```
+
+Kept deliberately short and stable — validated against the literal folder-tree gap analysis, which found no case needing a ninth. In particular, HR's real internal variety (Governance & Policy, Digitalisation/HRMS, Performance Management) is carried by **Workstream** (§3.1), not by splitting Human Resources into three Functions — the same fragmentation the brief opened by objecting to. "Clients & Consulting Engagements" is deliberately *not* a Function value: Client/Engagement is already its own dimension (§3.1); making it a Function too would collapse two orthogonal axes back into one.
+
+**Succession Planning is the one topic that genuinely splits by context rather than defaulting to a single Function:** ordinary succession/leadership-development material is `Human Resources`; board- or executive-level succession (CEO succession, board composition planning) is `Governance & Strategy`. The document's actual audience and stakes decide which, not a fixed rule — consistent with the general principle that Function follows subject matter, not who happens to be handling it (§C of the gap analysis).
+
+**Finance & Investment scope boundary:** this Function covers executive/strategic/investment-level financial documentation the account holder personally handles — management financial reports, investment papers, financial forecasts, valuation reports, funding/banking documentation, project budgets, fund/investment structuring notes, and financial information supporting a management decision or forming part of a client/project/matter. It explicitly **excludes** operational accounting/bookkeeping — general ledger processing, routine bookkeeping, payroll processing, routine expense processing, and other transactional accounting operations. That material is out of scope for Executive Vault entirely (it belongs to a ledger/payroll system — the platform's own separately-scaffolded `platform-services/payroll`, or an external bookkeeping tool) and is never migrated into this vault, active or archived. The dividing line: **accounting transaction processing is out of scope; executive/strategic/investment/project financial documentation is in scope.**
+
+**Property, vendor, and safety/security material** (office leases, vendor and supplier contracts, safety/security compliance documents) gets **no dedicated Function or folder** — it may legitimately arise under `Operations & Administration`, inside a Client Engagement or Project/Matter, or under `Legal & Compliance`, depending entirely on context. Document Type and free tags carry it; no permanent branch is created for it.
+
+### 5.2 Document Type vocabulary — approved
+
+```
+Policy                       Contract / Agreement          Minutes                       Agenda
+Resolution                   Proposal                      Report                        Management Paper
+Framework                    Deliverable                   Template                      Correspondence
+Note                         Executive Summary              Certificate / Registration    Briefing Note
+Itinerary                    Litigation File
+```
+
+Eighteen values — each a genuinely distinct document *shape*, never a subject-matter variant. The literal folder tree's regulator/jurisdiction/tax-type folder splits (MAS/IRAS/ACRA, GST/Corporate Tax, Trademark/Copyright, Malaysia/Singapore) are exactly the pattern this model exists to absorb: those become free tags on top of one of the eighteen types (e.g. `Certificate / Registration` + tag `Trademark`), never a nineteenth, twentieth, twenty-first type. `Management Paper` covers board/decision-facing papers (governance content, any Function); `Litigation File` is used on documents inside a Litigation Matter (§3.1 — litigation is matter-based, not a standing folder); `Briefing Note`/`Itinerary`/`Agenda` cover Executive Office scheduling-adjacent material without needing an Outlook Calendar integration (explicitly out of scope, §11) — they're documents *about* scheduled things, not a live calendar.
 
 ---
 
@@ -203,7 +287,7 @@ Universal, command-style search (§9.9 below covers the UI). Under the hood, one
 1. **Application metadata search** (title, Document ID, Client, Project, Function, Document Type, Tags, Notes) — a straightforward indexed query against the app database. Instant, and the primary source of the rich result context the brief asks for ("VT Worldwide · HR-124 · Policy · v0.1 · Working Draft · Modified 18 Sep 2026 · Google Drive › Clients › VT Worldwide › HR Transformation").
 2. **Drive content search** (`fullText contains`, §8) — run in parallel for the same query string, results merged in and marked as content matches rather than metadata matches.
 
-Ranking: exact Document ID match first, then title match, then metadata-field match, then content-only match. Filters (Client, Project, Document Type, Year, Status, Confidentiality, Jurisdiction, File Type) apply to the merged set. A query with no metadata record for a file that Drive still knows about (i.e., something in Drive that was never opened/classified in the app) still surfaces — labeled unclassified — rather than being invisible until someone files it.
+Ranking: exact Document ID match first, then title match, then metadata-field match, then content-only match. Filters (Client, Engagement, Project/Matter, Document Type, Year, Status, Confidentiality, Jurisdiction, File Type) apply to the merged set. A query with no metadata record for a file that Drive still knows about (i.e., something in Drive that was never opened/classified in the app) still surfaces — labeled unclassified — rather than being invisible until someone files it. Legacy-flagged clients (§3a) are excluded from search by default, with an explicit "include Legacy" toggle to bring them back in when actually looking for old material.
 
 ---
 
@@ -211,7 +295,8 @@ Ranking: exact Document ID match first, then title match, then metadata-field ma
 
 | Concept | Physical Drive folder? | Application metadata/tag? |
 |---|---|---|
-| Client / Engagement | **Yes** (`03`/`04` root) | Also a reference field, for filtering/search/workspace grouping |
+| Client | **Yes** (`03`/`04` root) | Also a reference field, for filtering/search/workspace grouping |
+| Engagement / Project-Matter | No — nested *inside* the Client's Drive folder only via the Workstream subfolder-on-demand rule (§3), never their own folder layer | **Yes** — §3.1's reference chain, always available for filtering/grouping regardless of physical layout |
 | Function (HR, Legal, Governance, …) | Only at the *group* level (§2 roots `02`,`05`–`09`) — never duplicated inside a client folder | **Yes**, always — this is how a client's HR document surfaces under "Human Resources" |
 | Document Type | No | Yes |
 | Status | No | Yes |
@@ -219,7 +304,9 @@ Ranking: exact Document ID match first, then title match, then metadata-field ma
 | Version | No (Drive's native revision history covers byte-level version; the label chain is metadata, §7) | Yes |
 | Jurisdiction | No | Yes |
 | Year | No | Derived from Created/Modified date, not stored separately |
-| Workstream | Only once a client has 2+ concurrent workstreams (§3) | Always available as a tag regardless |
+| Workstream | Only once a client has 2+ concurrent workstreams (§3) | Always available as a tag regardless, scoped to its Project/Matter (§3.1) |
+| Regulator (MAS/IRAS/ACRA, …) | No | Yes — a free tag alongside Jurisdiction, not a folder split |
+| Legacy business line | No — never an active root folder | Client-level `legacy: true` flag (§3a); physically relocated to `99 – Archive / Legacy Business Lines` |
 | Confidentiality-tier visual flag | No | Yes (display only, §4) |
 
 ---
@@ -270,9 +357,10 @@ KNOWLEDGE
   Governance & Strategy
   Legal & Compliance
   Human Resources
+  Project & Programme Management
   Finance & Investment
-  Operations
-  Research & Reference
+  Operations & Administration
+  Research & Intelligence
 
 SYSTEM
   Executive Inbox           (§9.8 — promoted out of DOCUMENTS since it's a distinct workflow, not a filed state)
@@ -300,10 +388,10 @@ SYSTEM
 **Interaction:** the two views share one underlying dataset and one preview drawer; switching views never loses the current filter/search state.
 
 ### 13.3 Client Workspace / 13.4 Project Workspace
-**Purpose:** answer the brief's own six questions for one engagement — what's been done, what's outstanding, latest document, what version was sent, what the client confirmed, what still needs closing — without leaving the engagement's context.
-**Contains:** Overview (key contacts/dates), the engagement's Drive subfolder structure (§3) as a scoped Folder View, a scoped Intelligent View for just this engagement's documents, Meetings & Decisions, Action Items/Deliverables, and an Archive tab.
-**Client vs. Project:** the same screen template, since both are Engagement records (§3) — a Project Workspace simply has no "Client Overview" contact-card content and is filed under root `04` instead of `03`.
-**Interaction:** "What was the latest document?" and "What version was sent?" are answered by the Deliverables/Final-Issued tabs plus the version chain (§7) on any given document — not a separate feature.
+**Purpose:** answer the brief's own six questions for one client — what's been done, what's outstanding, latest document, what version was sent, what the client confirmed, what still needs closing — without leaving the client's context.
+**Contains:** Overview (key contacts/dates, plus a compact Engagement → Project/Matter → Workstream summary per §3.1 — not a separate screen, just a nested list with document counts per level), the client's Drive subfolder structure (§3) as a scoped Folder View, a scoped Intelligent View for just this client's documents (filterable by Engagement/Matter/Workstream), Meetings & Decisions, Action Items/Deliverables, and an Archive tab.
+**Client vs. Project:** the same screen template, since both are the same underlying record type (§3) — a Project Workspace simply has no "Client Overview" contact-card content and is filed under root `04` instead of `03`.
+**Interaction:** "What was the latest document?" and "What version was sent?" are answered by the Deliverables/Final-Issued tabs plus the version chain (§7) on any given document — not a separate feature. A Workstream row in the Overview's nested summary carries a "Promote to standalone Project/Matter" action (§3.1) for the case where a workstream has outgrown its parent matter.
 
 ### 13.5 Search Results
 **Purpose:** the command-palette query's landing screen when more than a quick jump is needed (the palette itself can also jump directly to a single unambiguous result).
@@ -330,7 +418,7 @@ Addressed as the Intelligent View tab of My Document Vault (§13.2) rather than 
 
 ## 14. Summary — what happens next
 
-1. Review this document; in particular, confirm or amend the root folder set (§2), the client template (§3), and the classification tiers (§4) — these three are the hardest to change once real content is filed against them.
-2. Share the actual existing Drive hierarchy (brief §13) so this can be re-run as a concrete gap/migration analysis instead of a pattern-based first draft.
-3. Use the Phase 3 prototype at `apps/executive-vault/` (realistic mock data, no live Drive connection — see its `README.md`) to pressure-test whether the screens in §13 actually match how the work happens day to day.
-4. Only after 1–3 are settled: scope Phase 4 (real OAuth, real Drive API wiring, real sync) as its own, separate piece of work.
+1. ~~Review this document~~ — **done.** The root folder set (§2), the client template (§3), the classification tiers (§4), the Client/Engagement/Project-Matter/Workstream model (§3.1), the Legacy treatment (§3a), and the Function/Document Type vocabularies (§5.1/§5.2) have all been validated against the actual historical Executive Office Hub folder tree and approved — see `executive-document-vault-gap-analysis.md` for the full reasoning.
+2. ~~Share the actual existing Drive hierarchy~~ — **done**, and validated branch-by-branch.
+3. `apps/executive-vault/` is being updated to match this approved architecture (Client/Engagement/Project-Matter/Workstream nesting, the revised vocabularies, Legacy handling, workstream promotion) — still mock data, still no live Drive connection.
+4. Only after 3 is settled: scope Phase 4 (real OAuth, real Drive API wiring, real sync) as its own, separate piece of work.
