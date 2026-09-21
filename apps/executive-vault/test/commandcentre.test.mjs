@@ -72,6 +72,65 @@ test("the Meeting Brief's Agenda link opens that document, replacing the Meeting
   assert.match(html, /Steering Committee Agenda/);
 });
 
+test("Meeting Brief offers a Prepare Meeting action for an upcoming meeting with a Client set", () => {
+  const sandbox = loadApp();
+  sandbox.openMeeting("m4"); // VT Worldwide — HR Transformation Review, today, upcoming
+  assert.match(sandbox.__appEl.innerHTML, /Prepare Meeting/);
+});
+
+test("Prepare Meeting is not offered for a meeting that has already happened", () => {
+  const sandbox = loadApp();
+  sandbox.openMeeting("m1"); // Steering Committee — September 2026, dated before TODAY
+  assert.doesNotMatch(sandbox.__appEl.innerHTML, /Prepare Meeting/);
+});
+
+test("computeMeetingPrep() reuses existing Document/Task/Meeting records scoped to the meeting's Client/Matter — no new dataset", () => {
+  const sandbox = loadApp();
+  const m = sandbox.getMeeting("m4");
+  const prep = sandbox.computeMeetingPrep(m);
+  const inScope = (clientId, matterId) => clientId === m.clientId && matterId === m.matterId;
+  const expectedDocs = sandbox.VAULT_DATA.DOCUMENTS.filter((d) => d.classified && inScope(d.clientId, d.matterId));
+  for (const d of prep.latestDocs) assert.ok(expectedDocs.some((e) => e.id === d.id), `${d.id} should be a real scoped document`);
+  for (const d of prep.forReview) assert.ok(["Internal Review", "Management Review", "Client Review", "Pending Information"].includes(d.status));
+  const expectedTasks = sandbox.VAULT_DATA.TASKS.filter((t) => !t.done && inScope(t.clientId, t.matterId));
+  for (const t of [...prep.outstandingActions, ...prep.waitingOn]) assert.ok(expectedTasks.some((e) => e.id === t.id), `${t.id} should be a real scoped task`);
+  assert.ok(prep.outstandingActions.every((t) => !t.waitingOn));
+  assert.ok(prep.waitingOn.every((t) => !!t.waitingOn));
+});
+
+test("openMeetingPrep() shows a consolidated, structured-data-only preparation state with an obvious way back", () => {
+  const sandbox = loadApp();
+  sandbox.openMeetingPrep("m4");
+  const html = sandbox.__appEl.innerHTML;
+  assert.match(html, /Prepare Meeting/);
+  assert.match(html, /Latest Relevant Documents/);
+  assert.match(html, /Documents For Review/);
+  assert.match(html, /Outstanding Actions/);
+  assert.match(html, /Waiting On/);
+  assert.match(html, /Pending Decisions/);
+  assert.match(html, /Previous Related Meeting/);
+  assert.match(html, /Back to Meeting Brief/);
+});
+
+test("Back to Meeting Brief returns from Prepare Meeting to the normal Meeting Brief for the same meeting", () => {
+  const sandbox = loadApp();
+  sandbox.openMeetingPrep("m4");
+  sandbox.backToMeetingBrief();
+  const html = sandbox.__appEl.innerHTML;
+  assert.match(html, /drawer open/);
+  assert.doesNotMatch(html, /Latest Relevant Documents/);
+  assert.match(html, /Agenda/); // back to the normal Meeting Brief's own field
+});
+
+test("opening a Document from Prepare Meeting exits prep mode, and re-opening the meeting lands back on the normal brief", () => {
+  const sandbox = loadApp();
+  sandbox.openMeetingPrep("m4");
+  sandbox.openDocument("d01");
+  assert.doesNotMatch(sandbox.__appEl.innerHTML, /Latest Relevant Documents/);
+  sandbox.openMeeting("m4");
+  assert.doesNotMatch(sandbox.__appEl.innerHTML, /Latest Relevant Documents/);
+});
+
 test("Projects / Matters register lists every non-legacy Matter with its Client and Engagement", () => {
   const sandbox = loadApp();
   sandbox.navigate("#/matters");

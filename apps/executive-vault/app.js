@@ -43,6 +43,7 @@ const STATE = {
   previewId: null,
   previewMeetingId: null,
   previewMatterId: null,
+  meetingPrepMode: false,
   attentionOpen: false,
   userMenuOpen: false,
   showGenerateUpdate: false,
@@ -369,9 +370,12 @@ function showToast(msg) {
 }
 function mockAction(msg) { showToast(msg); }
 function toggleSidebar() { STATE.sidebarOpen = !STATE.sidebarOpen; render(); }
-function openDocument(id) { STATE.previewId = id; STATE.previewMeetingId = null; STATE.previewMatterId = null; STATE.showLegend = false; render(); }
-function closeDrawer() { STATE.previewId = null; STATE.previewMeetingId = null; STATE.previewMatterId = null; render(); }
-function openMeeting(id) { STATE.previewMeetingId = id; STATE.previewId = null; STATE.previewMatterId = null; render(); }
+function openDocument(id) { STATE.previewId = id; STATE.previewMeetingId = null; STATE.previewMatterId = null; STATE.meetingPrepMode = false; STATE.showLegend = false; render(); }
+function closeDrawer() { STATE.previewId = null; STATE.previewMeetingId = null; STATE.previewMatterId = null; STATE.meetingPrepMode = false; render(); }
+function openMeeting(id) { STATE.previewMeetingId = id; STATE.previewId = null; STATE.previewMatterId = null; STATE.meetingPrepMode = false; render(); }
+/** Opens the same Meeting Brief drawer directly into its consolidated Prepare Meeting state (architecture: structured-data-driven, no AI summarisation, no new dataset — see meetingPrepContent()). */
+function openMeetingPrep(id) { STATE.previewMeetingId = id; STATE.previewId = null; STATE.previewMatterId = null; STATE.meetingPrepMode = true; render(); }
+function backToMeetingBrief() { STATE.meetingPrepMode = false; render(); }
 function toggleStar(id, ev) { if (ev) ev.stopPropagation(); const d = getDocument(id); if (d) d.starred = !d.starred; render(); }
 function togglePin(id, ev) { if (ev) ev.stopPropagation(); const c = getClient(id); if (c) c.pinned = !c.pinned; render(); }
 function sortTable(key) {
@@ -407,7 +411,7 @@ function updateMatterField(id, field, value) {
   m.managementUpdated = TODAY;
   render();
 }
-function openMatterEditor(id) { STATE.previewMatterId = id; STATE.previewId = null; STATE.previewMeetingId = null; render(); }
+function openMatterEditor(id) { STATE.previewMatterId = id; STATE.previewId = null; STATE.previewMeetingId = null; STATE.meetingPrepMode = false; render(); }
 function saveMatterEditor() { showToast("Management snapshot saved."); STATE.previewMatterId = null; render(); }
 
 function toggleGenerateUpdate() { STATE.showGenerateUpdate = !STATE.showGenerateUpdate; render(); }
@@ -785,7 +789,82 @@ function meetingBriefContent(m) {
       ${m.decisions && m.decisions.length ? `<div class="dfield"><div class="dfield-label">Decisions</div><ul style="margin:4px 0 0;padding-left:18px">${m.decisions.map((dec) => `<li style="margin-bottom:4px;font-size:12.5px">${dec}</li>`).join("")}</ul></div>` : ""}
       <div class="drawer-actions">
         <button class="btn btn-primary" onclick="${call("mockAction", "Opens the real meeting in Microsoft Teams/Zoom once Phase 5 (live Outlook Calendar integration) is built — see architecture doc §15.6.")}">Join / Open Meeting</button>
+        ${m.clientId && state !== "past" ? `<button class="btn btn-gold" onclick="${call("openMeetingPrep", m.id)}">Prepare Meeting</button>` : ""}
         ${m.clientId ? `<button class="btn" onclick="${call("navigate", "#/client/" + m.clientId + (m.matterId ? "?tab=documents&matter=" + m.matterId : ""))}">Open Related Matter</button>` : ""}
+      </div>
+    </div>`;
+}
+
+/**
+ * Prepare Meeting (formalising the Meeting Brief's existing pre-meeting
+ * workflow, not a new parallel dataset): every value here comes from
+ * existing records — documents, tasks, meetings — filtered to this
+ * meeting's Client/Matter scope. No AI summarisation, no Outlook
+ * dependency, no new storage; this is purely a read-only, structured-data
+ * assembly of what already exists elsewhere in the app.
+ */
+function computeMeetingPrep(m) {
+  const inScope = (recClientId, recMatterId) => m.clientId && recClientId === m.clientId && (!m.matterId || recMatterId === m.matterId);
+  const scopeDocs = activeClassifiedDocs().filter((d) => inScope(d.clientId, d.matterId));
+  const latestDocs = scopeDocs.slice().sort((a, b) => b.modified.localeCompare(a.modified)).slice(0, 5);
+  const forReview = scopeDocs.filter((d) => REVIEW_STATUSES.includes(d.status));
+  const decisions = computeDecisionsRequired().filter((d) => inScope(d.clientId, d.matterId));
+  const scopeTasks = TASKS.filter((t) => !t.done && inScope(t.clientId, t.matterId));
+  const outstandingActions = scopeTasks.filter((t) => !t.waitingOn);
+  const waitingOn = scopeTasks.filter((t) => t.waitingOn);
+  const previousMeeting = MEETINGS.filter((mm) => mm.id !== m.id && inScope(mm.clientId, mm.matterId) && mm.date < m.date)
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || ""))[0] || null;
+  return { latestDocs, forReview, decisions, outstandingActions, waitingOn, previousMeeting };
+}
+
+function meetingPrepContent(m) {
+  const cn = clientName(m.clientId);
+  const eng = m.matterId ? getEngagementRecord(getMatter(m.matterId).engagementId) : null;
+  const prep = computeMeetingPrep(m);
+  const docLine = (d) => `<div class="quick-row" onclick="${call("openDocument", d.id)}"><span>${d.title}</span><span class="muted" style="margin-left:auto">${statusChip(d.status)}</span></div>`;
+  const taskLine = (t) => `<div class="quick-row"><span>${t.title}</span><span class="muted" style="margin-left:auto">${t.waitingOn ? `Waiting on ${t.waitingOn}` : `Due ${fmtDate(t.due)}`}</span></div>`;
+  return `
+    <div class="drawer-head">
+      <div>
+        <div class="breadcrumbs">Prepare Meeting · ${fmtDateLong(m.date)}</div>
+        <h3 style="font-size:17px;max-width:340px">${m.title}</h3>
+      </div>
+      <button class="drawer-close" onclick="${call("closeDrawer")}">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="dfield">
+        <div class="dfield-value">${fmtTimeRange(m)} &nbsp;·&nbsp; ${statusChip(m.status)} &nbsp;·&nbsp; ${m.location || "—"}</div>
+      </div>
+      <div class="grid grid-2" style="gap:10px">
+        <div class="dfield"><div class="dfield-label">Client</div><div class="dfield-value">${cn}</div></div>
+        <div class="dfield"><div class="dfield-label">Engagement</div><div class="dfield-value">${eng ? eng.name : "—"}</div></div>
+        <div class="dfield"><div class="dfield-label">Project / Matter</div><div class="dfield-value">${matterName(m.matterId) || "—"}</div></div>
+        <div class="dfield"><div class="dfield-label">Related Workstreams</div><div class="dfield-value">${relatedWorkstreamsLabel(m) || "—"}</div></div>
+      </div>
+
+      <div class="dfield"><div class="dfield-label">Latest Relevant Documents</div>
+        ${prep.latestDocs.length ? prep.latestDocs.map(docLine).join("") : '<div class="muted" style="font-size:12.5px">Nothing on file yet for this Matter.</div>'}
+      </div>
+      <div class="dfield"><div class="dfield-label">Documents For Review</div>
+        ${prep.forReview.length ? prep.forReview.map(docLine).join("") : '<div class="muted" style="font-size:12.5px">Nothing currently in review.</div>'}
+      </div>
+      <div class="dfield"><div class="dfield-label">Outstanding Actions</div>
+        ${prep.outstandingActions.length ? prep.outstandingActions.map(taskLine).join("") : '<div class="muted" style="font-size:12.5px">Nothing outstanding on me for this Matter.</div>'}
+      </div>
+      <div class="dfield"><div class="dfield-label">Waiting On</div>
+        ${prep.waitingOn.length ? prep.waitingOn.map(taskLine).join("") : '<div class="muted" style="font-size:12.5px">Not waiting on anyone for this Matter.</div>'}
+      </div>
+      <div class="dfield"><div class="dfield-label">Pending Decisions</div>
+        ${prep.decisions.length ? prep.decisions.map(docLine).join("") : '<div class="muted" style="font-size:12.5px">No decision-type document currently outstanding.</div>'}
+      </div>
+      <div class="dfield"><div class="dfield-label">Previous Related Meeting</div>
+        ${prep.previousMeeting
+          ? `<div class="quick-row" onclick="${call("openMeeting", prep.previousMeeting.id)}"><span>${prep.previousMeeting.title}</span><span class="muted" style="margin-left:auto">${fmtDate(prep.previousMeeting.date)}</span></div>`
+          : '<div class="muted" style="font-size:12.5px">No earlier meeting recorded for this Matter.</div>'}
+      </div>
+
+      <div class="drawer-actions">
+        <button class="btn" onclick="${call("backToMeetingBrief")}">← Back to Meeting Brief</button>
       </div>
     </div>`;
 }
@@ -839,7 +918,7 @@ function renderDrawer() {
   const open = !!(d || m || mt);
   return `
     <div class="overlay${open ? " show" : ""}" onclick="${call("closeDrawer")}"></div>
-    <aside class="drawer${open ? " open" : ""}">${d ? drawerContent(d) : (m ? meetingBriefContent(m) : (mt ? matterEditorContent(mt) : ""))}</aside>`;
+    <aside class="drawer${open ? " open" : ""}">${d ? drawerContent(d) : (m ? (STATE.meetingPrepMode ? meetingPrepContent(m) : meetingBriefContent(m)) : (mt ? matterEditorContent(mt) : ""))}</aside>`;
 }
 
 /* ============================ Shared table/tree ============================ */
@@ -855,6 +934,22 @@ const REG_COLUMNS = [
   { key: "modified", label: "Modified" },
   { key: "reviewDate", label: "Review Date" },
 ];
+
+/** Identity/Context/State/Action only — Function, Version, dates stay in the Document Detail drawer one tap away, not duplicated here. */
+function docRecordCardHtml(d) {
+  const contextParts = [clientName(d.clientId)];
+  if (matterName(d.matterId)) contextParts.push(matterName(d.matterId));
+  else if (d.workstream) contextParts.push(d.workstream);
+  return `
+    <div class="record-card" onclick="${call("openDocument", d.id)}">
+      <div class="record-card-id">${d.docId ? d.docId + " · " : ""}${d.title}</div>
+      <div class="record-card-context">${contextParts.join(" · ")}</div>
+      <div class="record-card-state">
+        ${statusChip(d.status)}${tierChip(d.confidentiality)}
+        <span class="record-card-meta">${d.version || "no version"}</span>
+      </div>
+    </div>`;
+}
 
 function renderRegistryTable(docs, emptyLabel) {
   if (!docs.length) {
@@ -889,12 +984,13 @@ function renderRegistryTable(docs, emptyLabel) {
   }).join("");
   const heads = REG_COLUMNS.map((c) => `<th onclick="${call("sortTable", c.key)}">${c.label}${sortKey === c.key ? (dir === "asc" ? " ▲" : " ▼") : ""}</th>`).join("");
   return `
-    <div class="table-wrap">
+    <div class="table-wrap desktop-register">
       <table class="reg">
         <thead><tr><th></th>${heads}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
-    </div>`;
+    </div>
+    <div class="record-list">${sorted.map(docRecordCardHtml).join("")}</div>`;
 }
 
 function renderFolderNode(node, depth) {
@@ -1370,7 +1466,7 @@ function renderActionsScreen() {
   const waitingOn = TASKS.filter((t) => !t.done && t.waitingOn);
   const done = TASKS.filter((t) => t.done);
   const row = (t) => `
-    <div class="quick-row" style="padding:10px 4px">
+    <div class="quick-row action-row" style="padding:10px 4px">
       <input type="checkbox" ${t.done ? "checked" : ""} onchange="${call("toggleTask", t.id)}"/>
       <span style="${t.done ? "text-decoration:line-through;color:var(--ink-faint)" : ""}">${t.title}</span>
       <span class="muted">· ${clientName(t.clientId)}${matterName(t.matterId) ? " · " + matterName(t.matterId) : ""}</span>
@@ -1390,6 +1486,19 @@ function renderActionsScreen() {
   `;
 }
 
+/** Identity/Context/State/Action only — Stage, workstream/doc counts stay one tap away in the Client Workspace, not duplicated here. */
+function matterRecordCardHtml(r) {
+  return `
+    <div class="record-card" onclick="${call("navigate", "#/client/" + r.cl.id + "?tab=documents&matter=" + r.m.id)}">
+      <div class="record-card-id">${r.m.name}${r.m.managementVisible ? ' <span class="chip fn-chip" style="font-size:9px">Management Visible</span>' : ""}</div>
+      <div class="record-card-context">${r.cl.name} · ${r.eng.name}</div>
+      <div class="record-card-state">
+        ${statusChip(r.m.status)}
+        <span class="record-card-meta">Due ${fmtDate(r.m.targetDate)}</span>
+      </div>
+    </div>`;
+}
+
 function renderMattersScreen() {
   const rows = MATTERS.map((m) => {
     const eng = getEngagementRecord(m.engagementId);
@@ -1400,7 +1509,7 @@ function renderMattersScreen() {
   }).filter(Boolean);
   return `
     <div class="page-head"><div><div class="page-title">Projects / Matters</div><div class="page-sub">Every Project/Matter across every Client and Engagement, in one register — the cross-client view of what's active (architecture doc §15.5).</div></div></div>
-    <div class="table-wrap">
+    <div class="table-wrap desktop-register">
       <table class="reg">
         <thead><tr><th>Matter</th><th>Client</th><th>Engagement</th><th>Status</th><th>Stage</th><th>Workstreams</th><th>Open Docs</th><th>Target Date</th></tr></thead>
         <tbody>${rows.map((r) => `
@@ -1416,6 +1525,7 @@ function renderMattersScreen() {
           </tr>`).join("")}</tbody>
       </table>
     </div>
+    <div class="record-list">${rows.map(matterRecordCardHtml).join("")}</div>
   `;
 }
 

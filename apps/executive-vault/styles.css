@@ -94,6 +94,11 @@ a{color:inherit}
   .topbar-actions{gap:6px}
   .search-kbd{display:none}
   .new-label{display:none}
+  /* Actions & Follow-Up rows pack a checkbox + title + client/matter +
+     waiting-on/due into one flex line — fine on desktop, cramped at 390px.
+     Reflow the trailing meta onto its own line rather than truncating it. */
+  .action-row{flex-wrap:wrap}
+  .action-row>span:last-child{margin-left:0!important;width:100%;margin-top:2px}
 }
 
 /* ===== Buttons ===== */
@@ -209,6 +214,23 @@ table.reg tbody tr:last-child td{border-bottom:0}
 .muted{color:var(--ink-faint)}
 .empty-state{padding:60px 20px;text-align:center;color:var(--ink-faint)}
 .empty-state h3{color:var(--ink-soft);margin-bottom:6px}
+
+/* ===== Mobile record cards — register screens (Document Vault, Archive,
+   Projects/Matters) swap their desktop table for these below 600px,
+   adapting apps/svegip's .mobile-record-list/.mobile-record-card
+   principle: Identity/Context/State/Action only, never every column —
+   secondary metadata stays in the detail drawer, one tap away. ===== */
+.desktop-register{display:block}
+.record-list{display:none}
+@media (max-width:600px){
+  .desktop-register{display:none}
+  .record-list{display:grid;gap:10px}
+}
+.record-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow-card);cursor:pointer}
+.record-card-id{font-weight:700;color:var(--ink);font-size:13.5px;line-height:1.4}
+.record-card-context{font-size:11.5px;color:var(--ink-soft);margin-top:3px}
+.record-card-state{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px;padding-top:9px;border-top:1px solid var(--line-soft)}
+.record-card-meta{font-size:10.5px;color:var(--ink-faint)}
 
 /* ===== Folder view ===== */
 .folder-tree{background:var(--paper-raised);border:1px solid var(--line);border-radius:var(--radius-lg);padding:8px 6px;box-shadow:var(--shadow-card)}

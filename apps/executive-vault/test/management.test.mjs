@@ -196,7 +196,11 @@ test("the Projects / Matters register also shows the 'Management Visible' indica
   sandbox.navigate("#/matters");
   const html = sandbox.__appEl.innerHTML;
   const visibleCount = (html.match(/Management Visible/g) || []).length;
-  assert.equal(visibleCount, sandbox.managementVisibleMatters().length);
+  // The register renders both the desktop table and the mobile record-card
+  // list at once (CSS toggles which is visible per breakpoint — see
+  // .desktop-register/.record-list in styles.css) — one match per matter
+  // in each representation.
+  assert.equal(visibleCount, sandbox.managementVisibleMatters().length * 2);
 });
 
 test("a management-visible document shows a subtle 'Management: <level>' indicator on its own Document Detail drawer", () => {
