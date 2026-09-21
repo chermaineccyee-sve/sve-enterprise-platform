@@ -1,6 +1,6 @@
 # Executive Vault → Personal Executive Command Centre
 
-Status: **Phase 1–2 (information architecture / UX architecture) approved and validated against the historical Executive Office Hub folder tree. Phase 3a (Document Vault prototype) built.** This document now also covers **Phase 3b: the Command Centre evolution** (§15 onward) — Executive Home redesign, My Day, This Week, Meeting↔Client/Engagement/Matter/Workstream linking, and the Outlook Calendar integration architecture. Phase 3b is, like Phase 3a, **mock data only** — see `apps/executive-vault/README.md`. **Production Google Drive integration and production Outlook Calendar integration are both intentionally not started.**
+Status: **Phase 1–2 (information architecture / UX architecture) approved and validated against the historical Executive Office Hub folder tree. Phase 3a (Document Vault) and Phase 3b (Command Centre — My Day/This Week/Meetings) built.** This document now also covers **Phase 3c: the Management Progress Snapshot** (§16) — a boss-facing, privacy-by-default curated view over the same data, built into the same app. All three phases are **mock data only** — see `apps/executive-vault/README.md`. **Production Google Drive integration, production Outlook Calendar integration, and any real sharing/send mechanism are all intentionally not started.**
 
 The product is evolving from a document vault into a **Personal Executive Command Centre**, with the Document Vault as one major module inside it rather than the whole product — see §15. Everything in §0–§14 below (the vault's own information architecture) is unchanged and remains authoritative for that module.
 
@@ -569,8 +569,115 @@ Same rigor and the same "state real limitations, don't design around them silent
 
 ### 15.8 What should NOT be built yet (extends §11)
 
-- **No Management Progress Snapshot** (a boss-facing summary/report surface) — explicitly out of scope for this phase.
+- ~~No Management Progress Snapshot~~ — **built, §16.**
 - **No production Outlook Calendar connection** — §15.6 is architecture only.
-- **No standalone Decision Tracker module** — §11's existing exclusion stands; decisions stay attached to the meeting/document that produced them (§15.4).
+- **No standalone Decision Tracker module** — §11's existing exclusion stands; decisions stay attached to the meeting/document that produced them (§15.4), and the Management Progress view (§16) reuses this same model rather than adding a second one.
 - **No meeting scheduling/response handling** (accept/decline, free/busy, creating events) — read-only calendar surfacing only.
 - **No notification delivery** (email/push/desktop alerts) — the `🔔` control is an in-app summary view, not a notification system.
+
+---
+
+## 16. Management Progress Snapshot
+
+A boss-facing, read-only, curated view over the same Command Centre data — **not a second project-management system, not a parallel dataset.** Every fact on this page already lives on a Client/Engagement/Matter/Workstream/Document/Task record; the page adds a small number of *visibility and narrative* fields to those existing records, never a duplicate copy of them.
+
+```
+MY COMMAND CENTRE  (detailed working environment)
+        ↓  selected / curated, privacy-by-default
+MANAGEMENT PROGRESS  (executive read-only view)
+```
+
+### 16.1 Relationship to `apps/executive-briefing` — reviewed, not reused
+
+`apps/executive-briefing` was read before designing this (its `README.md`, `app.js`'s screen-registry/reveal-animation model, `styles.css`'s `status-pill` pattern). Conclusion: **no code or infrastructure reuse**, kept inside `apps/executive-vault` as an additional screen, for reasons specific to what each app actually is:
+
+- Executive Briefing is a **one-time narrative presentation** — "Intended audience: senior management, initially Eric Tang" (its own README) — built as a sequence of screens with progress dots and reveal animations, explaining a platform's evolution story once. Management Progress is the opposite: **a live position statement meant to stay useful indefinitely, updated in minutes whenever the picture changes** (§16.7) — a narrative-deck navigation model is the wrong shape for that.
+- Executive Briefing's data (`STAGE_DATA`, `LAYERS`) is hand-authored narrative content with no relationship to any live record. Management Progress must reuse the *exact* Client/Matter/Task/Document records the rest of Executive Vault already has (the brief's own core principle, §16 intro) — an entirely different data relationship that a narrative-deck app was never built to have.
+- The one genuinely reusable idea — a compact, colour-coded status-pill for conveying state at a glance to a non-technical reader — doesn't need importing: Executive Vault already has the equivalent (`statusChip`/`tierChip`, §4/§7) from its own Document Vault work, so the same visual language carries over for free without touching Executive Briefing's code at all.
+
+Per §19 of the brief's own instruction, absent a strong reason to split it out, Management Progress stays part of the Personal Executive Command Centre's single data model and single app — and nothing above constitutes that strong reason.
+
+### 16.2 New fields — supplementing existing records, never a separate report record
+
+**On a Project/Matter** (§3.1) — the management-facing position for that Matter, editable independently of its day-to-day working fields:
+
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `managementVisible` | boolean | **`false`** | Whether this Matter appears on the Management Progress page at all. Privacy by default (§16.4) — an executive opts a Matter in, never opts one out. |
+| `managementStatus` | enum: `In Progress` / `Awaiting Input` / `Decision Required` / `Complete` / `On Hold` | — | The Status badge on the Current Priorities card — a small, deliberately curated vocabulary distinct from Document Status (§7) or the internal `status` field already on Matter, because "how is this Matter positioned for management" is a different question from "is this Matter operationally active." |
+| `currentPosition` | text | empty | One or two sentences — the Current Position line. |
+| `nextStep` | text | empty | One sentence — the Next Step line, and the source for that Matter's line in Next 7 Days (§16's §7/§8 sections below need nothing extra). |
+| `managementAttentionLevel` | enum or null: `Decision Required` / `For Review` / `Direction Required` / `Approval Required` | `null` | Drives the dedicated Management Attention section (§16.3) — **null means routine, not shown there**, exactly per the brief's "ONLY matters requiring management action." |
+| `managementAttentionNote` | text | empty | The short explanatory line shown next to the Status badge and (when `managementAttentionLevel` is set) in the Management Attention section. |
+| `managementUpdated` | date | — | "Last Updated" for that Matter's management position specifically — distinct from any document's own modified date. |
+
+**On a Document** — `managementVisibility`: enum `None` (default) / `Reference` / `For Review`. Governs whether, and under which label, a document can appear in the Supporting Documents section (§16's §10). A document's ordinary Vault classification (§4–§7) is completely unaffected — this is an additional, independent visibility gate layered on top.
+
+**On a Task** (Actions & Follow-Up, §15.4) — `managementVisible`: boolean, default `false`. Only meaningful for the *waiting-on* subset (`waitingOn` set) — the Management Progress "Waiting On" section (§16's §6) shows only tasks with both `waitingOn` set **and** `managementVisible: true`. Ordinary on-me actions never appear on this page under any flag — Next 7 Days (§16's §8) is deliberately derived from each Matter's own `nextStep`, not from raw task titles, so routine task detail never needs its own visibility flag to stay off the page.
+
+**New, lightweight entity: `PROGRESS_NOTES`** — `{ id, matterId, text, date, includeInManagementUpdate }`. This is the one place a small new record type was justified rather than reusing an existing one, and it is *not* a duplicate of Actions: a completed action's own title ("Send MRE Operating Model proposal v0.2 to Daniel Foo") is rarely the sentence worth showing a boss ("MRE Asia client brief prepared") — Progress Notes are short, hand-written narrative highlights the account holder chooses to write and select, exactly matching the brief's own request for an `includeInManagementUpdate` control. It carries no status, owner, or lifecycle of its own — it is commentary, not a task.
+
+### 16.3 Privacy-by-default — the explicit visibility layer
+
+**Default is always "not visible to management."** Nothing added by this phase is visible on the Management Progress page unless explicitly opted in:
+
+- A Matter must have `managementVisible: true` — set on none of the six existing Matters by default; populated for exactly the four the brief's own examples describe (VT Worldwide HR Transformation, MRE Asia HR Operating Model, Nusantara Strategic Advisory, SVE Group Enterprise Platform Platform Architecture). The Internal Governance Matters (Group Policy & Governance Administration, and especially the Litigation matter) are deliberately left `false` — a live demonstration that privacy-by-default actually withholds something, not just a flag nobody ever tests.
+- A Document must have `managementVisibility` set to `Reference` or `For Review` — default `None` — to appear in Supporting Documents, *and* its owning Matter/Client must also be management-visible (a document can't leak onto the page via a Matter that itself isn't shown).
+- A waiting-on Task must have `managementVisible: true` *and* its Matter must be management-visible.
+- **Legacy clients/Matters (§3a) can never appear, full stop** — every Management Progress computation filters through the same `isLegacyDoc`/`legacy` checks the rest of the app already uses (§3a), with no override, regardless of any visibility flag someone might set by mistake.
+- **Unclassified Inbox documents, personal working files, the full calendar, and internal task detail are never candidates for inclusion at all** — there is no visibility flag on them because there is no code path that reads the Inbox, `90 – Personal Working Files`, `MEETINGS` beyond the next-7-days/management-visible-Matter filter, or raw Task titles when building this page. Absence of a code path is a stronger privacy guarantee than a flag that defaults correctly but could be flipped.
+
+### 16.4 Page content
+
+**Header:** page name **Management Progress**, subtitle **Executive Office — Current Work & Priorities**, and a **Last Updated** timestamp — the *latest* `managementUpdated` value across all visible Matters, so the page is honest about how current it actually is. Never called a "weekly report" (per the brief) — it has no cadence, only a last-touched time.
+
+**Top Summary:** one compact line, counts only, derived: *N Active Matters* (visible Matters, `managementStatus` not `Complete`) *· N For Review* (visible decision-shaped documents in review) *· N Awaiting Input* (visible Matters with `managementStatus = Awaiting Input`) *· N Decision Required* (visible Matters with `managementAttentionLevel = Decision Required`, plus visible pending decision documents). No document-volume statistics, no KPI cards — matches Executive Home's own "work dashboard, not storage dashboard" principle (§15.1), one level more restrained again.
+
+**Current Priorities:** one card per management-visible Matter — Matter name (Client · Matter), Status badge, Current Position, Active Workstreams (from the Matter's own `workstreams`, §3.1 — no separate list), Next Step, Management Attention note.
+
+**Management Attention:** only Matters with `managementAttentionLevel` set — level badge, note, **View Matter** (deep-links into the Client Workspace exactly as the Matters register already does, §15.5) and, where a specific document is the relevant support, **View Supporting Document** (opens that Document's existing detail drawer, §13.6 — never a copy). Shows "No immediate management action required." when empty — an explicit, calm null state, not a blank section.
+
+**Waiting On:** management-visible waiting-on tasks only, rendered as "Matter — Awaiting [what]," reusing Actions & Follow-Up's own `waitingOn` field (§15.4) — no second blocker-tracking mechanism.
+
+**Progress Since Last Update:** `PROGRESS_NOTES` where `includeInManagementUpdate: true`, most recent first, one line each.
+
+**Next 7 Days:** one line per management-visible Matter, from that Matter's own `nextStep` — genuinely derived, not a second editable list.
+
+**Decisions / Direction Required:** management-visible decision-shaped documents (`docType` ∈ {Resolution, Management Paper}, §5.2, filtered to `managementVisibility ≠ None`) — reusing `computeDecisionsRequired()` (§15.1) as the base set, then applying the visibility filter on top. Status shown is derived, not a new field: `Pending` while the document's own Status (§7) is a review stage, `Decided` once Final/Approved/Issued, `Superseded` once Superseded/Archived. Clicking opens the Document detail drawer — the same one Document Vault already uses.
+
+**Supporting Documents:** management-visible documents only, grouped by their `managementVisibility` label (`For Review` / `Reference`) — never a link into the full Vault.
+
+**Meetings:** upcoming meetings (next 7 days) whose Matter is management-visible — secondary placement, below the fold, never the full calendar.
+
+### 16.5 Preview Management View
+
+A **Preview Management View** entry inside the Command Centre nav opens the exact same Management Progress screen the page would show, with a persistent **Exit Preview** banner back to Executive Home. In this prototype (single app, no separate boss-facing deployment yet, §16.7) preview *is* the page — there's only one implementation to view, so "preview" means "look at it before you'd act on sharing it," not a second rendering path that could drift from the real one.
+
+### 16.6 Update experience
+
+Each management-visible Matter's own summary (already shown in the Client Workspace's Engagement → Matter → Workstream view, §13.3/§3.1) gains an **Edit Management Snapshot** action opening a small panel for exactly the §16.2 fields (`managementVisible`, `managementStatus`, `currentPosition`, `nextStep`, `managementAttentionLevel`/`Note`) — saving mutates that Matter record in place, never creates a new one. Reuses the app's existing slide-in panel mechanism (the same one Document Detail and Meeting Brief already use, §13.6/§15.3) as a third content type, so there is still only one drawer open at a time across the whole app. Designed to take a few minutes: every field is optional except `managementVisible` itself, and leaving the others blank simply keeps that Matter off the relevant sections rather than erroring.
+
+### 16.7 Generate Management Update
+
+A **Generate Management Update** action on the Management Progress page composes a structured text summary from the currently visible information — one short paragraph per management-visible Matter (Current Position + Next Step, in prose), plus a closing "Management attention" line for anything with `managementAttentionLevel` set. Three format presets (**Email** / **WhatsApp** / **Executive Brief**) adjust tone/length, not the underlying facts. The result renders into an editable text area — **generation only, no send integration of any kind** (§16.8) — with a copy-to-clipboard action, mirroring the same "copy, don't auto-send" posture the Vault already takes with Drive locations (§13.6).
+
+### 16.8 What is deliberately not built this phase
+
+- **No public internet sharing.** Nothing in this phase produces a link, a hosted page, or any URL a boss could open without going through this same authenticated app session.
+- **No email or WhatsApp sending** — Generate Management Update (§16.7) produces editable text and nothing else.
+- **No live Outlook Calendar or Google Drive integration** — unchanged from §8/§15.6.
+- **No second Decision Tracker or blocker-tracking system** — §16.2/§16.4 reuse the Document Type and `waitingOn` models exactly as they already exist.
+
+**Future secure sharing model (documented now, not built):** once a real recipient outside this session needs access, the options — in ascending order of what they're worth trusting with confidential management information — are:
+
+1. **Authenticated management login** — the boss gets a real account (most naturally through `platform-services/identity`, already the platform's own answer to "who is this and what may they see," §0) and the Management Progress route becomes a permission-gated view rather than a page anyone with a link can open. Strongest option; the right one if this becomes a standing, recurring thing multiple people read.
+2. **Restricted, revocable read-only link** — a signed, unguessable URL tied to a specific viewer/session, revocable at any time, with no edit capability — reasonable for a single recipient without provisioning a full account, provided the link itself is treated as a secret (not pasted into a public or persistent unencrypted channel).
+3. **Time-limited secure link** — the same as (2) plus an expiry, best for a one-off "here's where things stand this week" send rather than a durable reference.
+
+**An unauthenticated, permanent public URL for this page is explicitly not recommended at any point** — Management Progress routinely surfaces `managementAttentionLevel`/decision-document content that can carry Confidential or Highly Confidential material (§4) one click away (Supporting Documents, §16.4) purely by virtue of being marked management-visible; visibility-to-one-'s-own-boss and visibility-to-anyone-with-the-URL are not the same threat model, and this document does not conflate them.
+
+### 16.9 What should NOT be built yet (extends §11/§15.8)
+
+- No public sharing, no send integration, no live Outlook/Drive — §16.8.
+- No second Decision Tracker, blocker system, or report-record type distinct from the Matter/Document/Task records it curates.
+- No approval workflow (routing, sign-off states, notifications on `managementAttentionLevel` changes) — the attention levels are status labels for a human to read, not a triggered process.
