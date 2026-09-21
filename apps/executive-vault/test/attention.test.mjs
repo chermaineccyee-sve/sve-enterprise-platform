@@ -42,18 +42,38 @@ test("computeAttention() and Executive Home dashboard counts exclude Legacy busi
   assert.doesNotMatch(sandbox.__appEl.innerHTML, /Sabah/);
 });
 
-test("computeAttention()'s followUps list is exactly the not-done tasks", () => {
+test("computeAttention()'s followUps list is exactly the not-done, not-waiting-on-someone-else tasks", () => {
   const sandbox = loadApp();
   const { TASKS } = sandbox.VAULT_DATA;
-  const expected = TASKS.filter((t) => !t.done).map((t) => t.id).sort();
+  const expected = TASKS.filter((t) => !t.done && !t.waitingOn).map((t) => t.id).sort();
   const actual = sandbox.computeAttention().followUps.map((t) => t.id).sort();
   assert.deepEqual(actual, expected);
 });
 
-test("marking every task done empties followUps", () => {
+test("computeAttention()'s waitingOn list is exactly the not-done tasks with a waitingOn name set", () => {
+  const sandbox = loadApp();
+  const { TASKS } = sandbox.VAULT_DATA;
+  const expected = TASKS.filter((t) => !t.done && t.waitingOn).map((t) => t.id).sort();
+  const actual = sandbox.computeAttention().waitingOn.map((t) => t.id).sort();
+  assert.deepEqual(actual, expected);
+  assert.ok(expected.length > 0, "fixture should include at least one waiting-on-others task");
+});
+
+test("marking every task done empties both followUps and waitingOn", () => {
   const sandbox = loadApp();
   sandbox.VAULT_DATA.TASKS.forEach((t) => { if (!t.done) sandbox.toggleTask(t.id); });
   assert.equal(sandbox.computeAttention().followUps.length, 0);
+  assert.equal(sandbox.computeAttention().waitingOn.length, 0);
+});
+
+test("computeDecisionsRequired() returns only Resolution/Management Paper documents not yet Final/closed", () => {
+  const sandbox = loadApp();
+  const decisions = sandbox.computeDecisionsRequired();
+  assert.ok(decisions.length > 0, "fixture should include at least one pending decision document");
+  for (const d of decisions) {
+    assert.ok(["Resolution", "Management Paper"].includes(d.docType), `${d.id} has docType "${d.docType}", not a decision-shaped type`);
+    assert.ok(!["Final", "Issued", "Approved", "Superseded", "Archived"].includes(d.status), `${d.id} is already ${d.status} and should not be pending`);
+  }
 });
 
 test("Executive Home renders an Attention Required entry for every non-empty bucket", () => {

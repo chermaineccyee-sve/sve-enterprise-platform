@@ -477,6 +477,17 @@ const DOCUMENTS = [
     notes: "Litigation is matter-based — its own Project/Matter under the Internal Governance engagement, not a standing group-level folder (architecture doc §3.1).",
   },
   {
+    id: "d17d", docId: "INT-GV-004", title: "Board Resolution — Litigation Settlement Authority",
+    clientId: "internal-governance", matterId: "matter-intgov-litigation", workstream: null, function: "Governance & Strategy",
+    docType: "Resolution", version: "v0.2", versionChain: ["v0.1", "v0.2"], status: "Management Review",
+    confidentiality: "highly-confidential", jurisdiction: "Malaysia", owner: "Me", reviewer: null,
+    created: "2026-09-12", modified: "2026-09-19", reviewDate: "2026-09-23", starred: true,
+    classified: true, tags: ["litigation", "board"],
+    driveUrl: "https://drive.google.com/file/d/mock-intgv004/view",
+    drivePath: "Projects & Programmes / Internal Governance / 03 – Working Documents / Contract Dispute — Vendor XYZ",
+    notes: "Genuinely pending a board decision — surfaces on Executive Home's Requires Review or Decision section (a Resolution/Management Paper not yet Final/Approved), discussed at the Wed litigation strategy call.",
+  },
+  {
     id: "d18", docId: "HR-124", title: "Lark Digital Acknowledgement Workflow Spec (copy)",
     clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", workstream: "HR Digitalisation / HRMS", function: "Human Resources",
     docType: "Policy", version: "v0.1", versionChain: ["v0.1"], status: "Working Draft",
@@ -658,25 +669,74 @@ const DOCUMENTS = [
   },
 ];
 
+// MEETINGS: calendar events (mock — no live Outlook connection, architecture
+// doc §15.6/§15.7). clientId/matterId/workstreams mirror the exact same
+// optional reference chain a Document carries (§3.1/§15.4) — never a
+// parallel project dataset. TODAY (2026-09-21) is a Monday; the four
+// 09-21 entries below match the brief's own My Day worked example exactly.
+// documentId links a meeting's recorded Minutes; agendaDocId its Agenda —
+// both optional and both just references into DOCUMENTS, never a copy.
 const MEETINGS = [
-  { id: "m1", title: "Steering Committee — September 2026", clientId: "vt-worldwide", date: "2026-09-16", documentId: "d07",
+  { id: "m1", title: "Steering Committee — September 2026", date: "2026-09-16", startTime: "09:00", endTime: "10:00",
+    clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", workstreams: [],
+    participants: [{ name: "Ravi Menon", role: "Group CHRO" }, { name: "Aisha Rahman", role: "HR Transformation Lead" }],
+    location: "Microsoft Teams", status: "Completed", agendaDocId: "d07b", documentId: "d07",
     decisions: ["Approved v0.3 of the Working Time & Overtime Policy for internal legal review."] },
-  { id: "m2", title: "Nusantara Project Kickoff", clientId: "nusantara", date: "2026-09-04", documentId: "d11",
+  { id: "m2", title: "Nusantara Project Kickoff", date: "2026-09-04", startTime: "09:30", endTime: "10:30",
+    clientId: "nusantara", matterId: "matter-nus-strategy", workstreams: ["Strategic Advisory"],
+    participants: [{ name: "Wulan Sari", role: "Programme Director" }],
+    location: "Microsoft Teams", status: "Completed", agendaDocId: null, documentId: "d11",
     decisions: ["Confirmed Strategic Advisory as the sole workstream for Phase 1."] },
+  { id: "m3", title: "Internal Management Review", date: "2026-09-21", startTime: "09:00", endTime: "09:30",
+    clientId: "internal-governance", matterId: "matter-intgov-policy", workstreams: ["Board & Governance"],
+    participants: [{ name: "Board Secretariat", role: "Coordination" }],
+    location: "Microsoft Teams", status: "Confirmed", agendaDocId: null, documentId: null, decisions: [] },
+  { id: "m4", title: "VT Worldwide — HR Transformation Review", date: "2026-09-21", startTime: "11:00", endTime: "13:00",
+    clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", workstreams: ["HR Policy Framework", "HR Digitalisation / HRMS"],
+    participants: [{ name: "Ravi Menon", role: "Group CHRO" }, { name: "Aisha Rahman", role: "HR Transformation Lead" }],
+    location: "Microsoft Teams", status: "Confirmed", agendaDocId: "d07b", documentId: null, decisions: [] },
+  { id: "m5", title: "MRE Asia — HR Operating Model Follow-Up", date: "2026-09-21", startTime: "14:30", endTime: "15:15",
+    clientId: "mre-asia", matterId: "matter-mre-opmodel", workstreams: ["Operating Model Design"],
+    participants: [{ name: "Daniel Foo", role: "COO, MRE Asia" }],
+    location: "Zoom", status: "Confirmed", agendaDocId: null, documentId: null, decisions: [] },
+  { id: "m6", title: "Nusantara — Documentation Review", date: "2026-09-21", startTime: "16:00", endTime: "16:30",
+    clientId: "nusantara", matterId: "matter-nus-strategy", workstreams: ["Strategic Advisory"],
+    participants: [{ name: "Wulan Sari", role: "Programme Director" }],
+    location: "Microsoft Teams", status: "Confirmed", agendaDocId: null, documentId: null, decisions: [] },
+  { id: "m7", title: "SVE Group Enterprise Platform — Steering Group", date: "2026-09-22", startTime: "10:00", endTime: "11:00",
+    clientId: "sve-gep", matterId: "matter-svegip-platform", workstreams: ["Platform Architecture", "Management Reporting"],
+    participants: [{ name: "Eric Tang", role: "Executive Sponsor" }],
+    location: "Boardroom, HQ", status: "Confirmed", agendaDocId: null, documentId: null, decisions: [] },
+  { id: "m8", title: "Internal Governance — Litigation Strategy Call", date: "2026-09-23", startTime: "11:00", endTime: "11:45",
+    clientId: "internal-governance", matterId: "matter-intgov-litigation", workstreams: [],
+    participants: [{ name: "External Counsel", role: "Litigation Advisor" }],
+    location: "Microsoft Teams", status: "Tentative", agendaDocId: null, documentId: null, decisions: [] },
+  { id: "m9", title: "MRE Asia — Proposal Walkthrough", date: "2026-09-24", startTime: "15:00", endTime: "16:00",
+    clientId: "mre-asia", matterId: "matter-mre-opmodel", workstreams: ["Operating Model Design"],
+    participants: [{ name: "Daniel Foo", role: "COO, MRE Asia" }],
+    location: "Zoom", status: "Confirmed", agendaDocId: null, documentId: null, decisions: [] },
+  { id: "m10", title: "Board & Governance — FY2027 Budget Discussion", date: "2026-09-25", startTime: "14:00", endTime: "14:30",
+    clientId: "internal-governance", matterId: "matter-intgov-policy", workstreams: ["Board & Governance"],
+    participants: [{ name: "Board Secretariat", role: "Coordination" }],
+    location: "Boardroom, HQ", status: "Confirmed", agendaDocId: null, documentId: "d14b", decisions: [] },
 ];
 
+// TASKS (Actions & Follow-Up): waitingOn names who the NEXT action actually
+// belongs to (architecture doc §15.4) — null/omitted means it's on me.
 const TASKS = [
-  { id: "t1", title: "Confirm VT overtime policy wording with internal legal", clientId: "vt-worldwide", due: "2026-09-26", done: false, documentId: "d04" },
-  { id: "t2", title: "Send MRE Operating Model proposal v0.2 to Daniel Foo", clientId: "mre-asia", due: "2026-09-30", done: false, documentId: "d08" },
-  { id: "t3", title: "Get Ravi Menon's sign-off on HR-025 v0.4", clientId: "vt-worldwide", due: "2026-09-30", done: false, documentId: "d02" },
-  { id: "t4", title: "Circulate Management Review to Eric Tang", clientId: "sve-gep", due: "2026-09-28", done: false, documentId: "d12" },
-  { id: "t5", title: "Decide: restart or archive Business Continuity Plan Update", clientId: "internal-governance", due: "2026-09-27", done: false, documentId: "d20" },
+  { id: "t1", title: "Confirm VT overtime policy wording with internal legal", clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", due: "2026-09-26", done: false, documentId: "d04", waitingOn: null },
+  { id: "t2", title: "Send MRE Operating Model proposal v0.2 to Daniel Foo", clientId: "mre-asia", matterId: "matter-mre-opmodel", due: "2026-09-30", done: false, documentId: "d08", waitingOn: null },
+  { id: "t3", title: "Get Ravi Menon's sign-off on HR-025 v0.4", clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", due: "2026-09-30", done: false, documentId: "d02", waitingOn: "Ravi Menon" },
+  { id: "t4", title: "Circulate Management Review to Eric Tang", clientId: "sve-gep", matterId: "matter-svegip-platform", due: "2026-09-28", done: false, documentId: "d12", waitingOn: null },
+  { id: "t5", title: "Decide: restart or archive Business Continuity Plan Update", clientId: "internal-governance", matterId: "matter-intgov-policy", due: "2026-09-27", done: false, documentId: "d20", waitingOn: null },
+  { id: "t6", title: "Prepare Internal Management Review pack", clientId: "internal-governance", matterId: "matter-intgov-policy", due: "2026-09-21", done: false, documentId: "d16b", waitingOn: null },
+  { id: "t7", title: "Confirm Litigation Strategy Call agenda with external counsel", clientId: "internal-governance", matterId: "matter-intgov-litigation", due: "2026-09-23", done: false, documentId: "d17c", waitingOn: "External Counsel" },
 ];
 
 window.VAULT_DATA = {
   CLASSIFICATIONS, STATUSES, FUNCTIONS, DOCUMENT_TYPES,
   CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS,
-  TODAY: "2026-09-21",
+  TODAY: "2026-09-21", NOW: "08:30", USER_NAME: "Ching Yee",
 };
 
 })();
