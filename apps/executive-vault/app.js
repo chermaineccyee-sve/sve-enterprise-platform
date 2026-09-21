@@ -505,11 +505,22 @@ function promoteWorkstreamToMatter(sourceMatterId, workstreamName) {
 
 function attention() { return computeAttention(); }
 
+/**
+ * Grouped per the UI-alignment pass's requested structure (COMMAND/WORK/
+ * VAULT/MANAGEMENT/CONNECTED/SYSTEM) — reachability of every existing
+ * screen is preserved even where a group is shorter than before: the
+ * Document Vault buckets trimmed from VAULT (Starred, Working Drafts,
+ * Final/Issued) stay one click away as saved-view chips inside "My
+ * Document Vault" itself (SAVED_VIEWS/goVaultBucket), and the former
+ * "Knowledge" function-browsing shortcuts stay reachable via that same
+ * screen's own Function filter (filterBarHtml) — nothing here removes a
+ * route, only where its shortcut lives in the sidebar.
+ */
 function navSections() {
   const a = attention();
   const todayCount = meetingsOnDate(TODAY).length;
   return [
-    { items: [
+    { label: "Command", items: [
       { id: "home", label: "Executive Home", hash: "#/home" },
       { id: "myday", label: "My Day", hash: "#/myday", count: todayCount },
       { id: "week", label: "This Week", hash: "#/week" },
@@ -521,25 +532,21 @@ function navSections() {
       { id: "meetings", label: "Meetings & Decisions", hash: "#/meetings" },
       { id: "actions", label: "Actions & Follow-Up", hash: "#/actions", count: openTasksCount() },
     ]},
-    { label: "Management", items: [
-      { id: "management", label: "Preview Management View", hash: "#/management" },
-    ]},
-    { label: "Document Vault", items: [
-      { id: "vault", label: "My Document Vault", hash: "#/vault" },
-      { id: "recent", label: "Recent Documents", hash: "#/vault?bucket=recent" },
-      { id: "starred", label: "Starred / Priority", hash: "#/vault?bucket=starred" },
-      { id: "drafts", label: "Working Drafts", hash: "#/vault?bucket=draft" },
-      { id: "review", label: "For Review", hash: "#/vault?bucket=review", count: a.awaitingReview.length },
-      { id: "final", label: "Final / Issued", hash: "#/vault?bucket=final" },
+    { label: "Vault", items: [
+      { id: "vault", label: "Document Vault", hash: "#/vault" },
       { id: "inbox", label: "Executive Inbox", hash: "#/inbox", count: a.unclassified.length },
-      { id: "archived", label: "Archive & Superseded", hash: "#/archive" },
+      { id: "recent", label: "Recent Documents", hash: "#/vault?bucket=recent" },
+      { id: "review", label: "For Review", hash: "#/vault?bucket=review", count: a.awaitingReview.length },
+      { id: "archived", label: "Archive & Legacy", hash: "#/archive" },
     ]},
-    { label: "Knowledge", items: FUNCTIONS.filter((f) => f !== "Executive Office").map((f) => ({
-      id: "fn-" + slug(f), label: f, hash: buildHash("/vault", { function: f }),
-    }))},
-    { label: "System", items: [
+    { label: "Management", items: [
+      { id: "management", label: "Management Progress", hash: "#/management" },
+    ]},
+    { label: "Connected", items: [
       { id: "drive", label: "Google Drive", hash: "#/drive" },
       { id: "outlook", label: "Outlook Calendar", hash: "#/outlook" },
+    ]},
+    { label: "System", items: [
       { id: "tags", label: "Tags & Classification", hash: "#/tags" },
       { id: "templates", label: "Templates", hash: "#/templates" },
       { id: "settings", label: "Settings", hash: "#/settings" },
@@ -965,7 +972,7 @@ function renderHome() {
 
   return `
     <div class="page-head">
-      <div><div class="page-title">${greetingWord()}, ${currentUserDisplayName()}</div><div class="page-sub">${fmtDateLong(TODAY)}</div></div>
+      <div><span class="eyebrow">Personal Executive Command Centre</span><div class="page-title">${greetingWord()}, ${currentUserDisplayName()}</div><div class="page-sub">${fmtDateLong(TODAY)}</div></div>
     </div>
 
     <div class="summary-strip">${summaryChips.map((s) => `<span class="summary-chip" onclick="${call("navigate", s.hash)}">${s.label}</span>`).join('<span class="summary-sep">·</span>')}</div>
@@ -1473,6 +1480,7 @@ function renderManagementProgress() {
     <div class="mgmt-page">
       <div class="mgmt-header">
         <div>
+          <span class="eyebrow">Executive Briefing</span>
           <div class="mgmt-title">Management Progress</div>
           <div class="mgmt-subtitle">Executive Office — Current Work &amp; Priorities</div>
         </div>
@@ -1691,21 +1699,28 @@ function renderScreen(path, query) {
 function renderLoginScreen() {
   return `
     <div class="login-screen">
-      <div class="login-card">
-        <div class="login-brand">
-          <div class="brand-mark">V</div>
-          <div>
-            <div class="brand-text-title" style="color:var(--ink)">Executive Vault</div>
-            <div class="login-owner">Personal Executive Command Centre — Ching Yee</div>
+      <div class="login-brand-panel">
+        <div class="login-brand-mark">V</div>
+        <div>
+          <div class="eyebrow">Personal Executive Command Centre</div>
+          <h1>Executive Vault</h1>
+          <p>Ching Yee's personal work and document intelligence workspace — Clients, Engagements, Matters, meetings and follow-ups in one place.</p>
+        </div>
+        <div class="login-brand-foot">Single-user · authenticated workspace</div>
+      </div>
+      <div class="login-form-panel">
+        <div class="login-card">
+          <div class="eyebrow">Sign In</div>
+          <h2>Welcome back, Ching Yee</h2>
+          <p class="login-card-sub">Sign in with your Executive Command Centre account to continue.</p>
+          <div class="login-fields">
+            <label class="login-label">Email<input class="login-input" type="email" id="loginEmail" autocomplete="username" placeholder="you@example.com"/></label>
+            <label class="login-label">Password<input class="login-input" type="password" id="loginPassword" autocomplete="current-password"/></label>
+            ${AUTH.error ? `<div class="login-error">${attrSafe(AUTH.error)}</div>` : ""}
+            <button class="btn btn-gold" style="width:100%;margin-top:4px;justify-content:center" onclick="${call("handleLoginFormSubmit")}">Sign In</button>
           </div>
+          <div class="login-footnote">Single-user personal workspace. Only the authorised account holder can sign in.</div>
         </div>
-        <div class="login-fields">
-          <label class="login-label">Email<input class="login-input" type="email" id="loginEmail" autocomplete="username" placeholder="you@example.com"/></label>
-          <label class="login-label">Password<input class="login-input" type="password" id="loginPassword" autocomplete="current-password"/></label>
-          ${AUTH.error ? `<div class="login-error">${attrSafe(AUTH.error)}</div>` : ""}
-          <button class="btn btn-gold" style="width:100%;margin-top:4px;justify-content:center" onclick="${call("handleLoginFormSubmit")}">Sign In</button>
-        </div>
-        <div class="login-footnote">Single-user personal workspace. Only the authorised account holder can sign in.</div>
       </div>
     </div>`;
 }
@@ -1796,6 +1811,7 @@ function render() {
   appEl.innerHTML = `
     <div class="shell">
       ${renderSidebar(currentHash)}
+      <div class="overlay nav-overlay${STATE.sidebarOpen ? " show" : ""}" onclick="${call("toggleSidebar")}"></div>
       <div class="main">
         ${renderTopbar(query)}
         <div class="content">${content}</div>

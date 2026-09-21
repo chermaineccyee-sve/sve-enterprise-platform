@@ -10,7 +10,8 @@ test("the test sandbox bootstraps as authenticated (no server to check a session
 test("renderLoginScreen() identifies the Command Centre as belonging to Ching Yee, asks only for this app's own email/password, and never mentions Microsoft/Outlook", () => {
   const sandbox = loadApp();
   const html = sandbox.renderLoginScreen();
-  assert.match(html, /Personal Executive Command Centre — Ching Yee/);
+  assert.match(html, /Personal Executive Command Centre/);
+  assert.match(html, /Ching Yee/);
   assert.match(html, /type="email"/);
   assert.match(html, /type="password"/);
   assert.doesNotMatch(html, /Microsoft/i);
