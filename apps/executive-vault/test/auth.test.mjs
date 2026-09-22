@@ -4,7 +4,7 @@ import { loadApp } from "./loadApp.mjs";
 
 test("the test sandbox bootstraps as authenticated (no server to check a session against), so every existing screen test keeps working unmodified", () => {
   const sandbox = loadApp();
-  assert.doesNotMatch(sandbox.__appEl.innerHTML, /Sign In/);
+  assert.doesNotMatch(sandbox.__appEl.innerHTML, /Welcome Back/);
 });
 
 test("renderLoginScreen() identifies the Command Centre as belonging to Ching Yee, asks only for this app's own email/password, and never mentions Microsoft/Outlook", () => {
@@ -21,11 +21,11 @@ test("renderLoginScreen() identifies the Command Centre as belonging to Ching Ye
 test("render() re-shows the login screen instead of the app shell once signed out, even after a subsequent navigation", async () => {
   const sandbox = loadApp();
   sandbox.navigate("#/home");
-  assert.doesNotMatch(sandbox.__appEl.innerHTML, /Sign In/);
+  assert.doesNotMatch(sandbox.__appEl.innerHTML, /Welcome Back/);
   await sandbox.signOut();
-  assert.match(sandbox.__appEl.innerHTML, /Sign In/);
+  assert.match(sandbox.__appEl.innerHTML, /Welcome Back/);
   sandbox.navigate("#/home"); // a hashchange firing while logged out must not leak the app shell
-  assert.match(sandbox.__appEl.innerHTML, /Sign In/);
+  assert.match(sandbox.__appEl.innerHTML, /Welcome Back/);
 });
 
 test("submitLogin() on success authenticates, closes the login screen, and personalises the greeting with the real signed-in name", async () => {
@@ -40,7 +40,7 @@ test("submitLogin() on success authenticates, closes the login screen, and perso
   };
   await sandbox.submitLogin("chingyeesve@gmail.com", "a-real-password");
   const html = sandbox.__appEl.innerHTML;
-  assert.doesNotMatch(html, /Sign In/);
+  assert.doesNotMatch(html, /Welcome Back/);
   assert.match(html, /Ching Yee/);
 });
 
@@ -51,7 +51,7 @@ test("submitLogin() on invalid credentials shows the server's own error message 
   await sandbox.submitLogin("chingyeesve@gmail.com", "wrong-password");
   const html = sandbox.__appEl.innerHTML;
   assert.match(html, /Invalid email or password\./);
-  assert.match(html, /Sign In/);
+  assert.match(html, /Welcome Back/);
 });
 
 test("submitLogin() never sends a Microsoft credential and the request body carries only email/password", async () => {
@@ -95,5 +95,5 @@ test("signOut() clears the signed-in user so a subsequent render never leaks the
   await sandbox.submitLogin("chingyeesve@gmail.com", "a-real-password");
   assert.match(sandbox.__appEl.innerHTML, /Ching Yee/);
   await sandbox.signOut();
-  assert.match(sandbox.__appEl.innerHTML, /Sign In/);
+  assert.match(sandbox.__appEl.innerHTML, /Welcome Back/);
 });

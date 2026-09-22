@@ -69,7 +69,7 @@ let matterSeq = 0;
  * against and every existing test expects the app shell to render directly
  * (see test/loadApp.mjs — no fetch is stubbed there on purpose).
  */
-const AUTH = { authenticated: false, checked: false, user: null, error: null };
+const AUTH = { authenticated: false, checked: false, user: null, error: null, showPassword: false };
 function currentUserDisplayName() { return (AUTH.user && AUTH.user.name) || USER_NAME; }
 function currentUserInitials() {
   const parts = currentUserDisplayName().trim().split(/\s+/);
@@ -1808,30 +1808,92 @@ function renderScreen(path, query) {
  * Microsoft credential — only this app's own email/password against its
  * own /api/login. */
 
+/** Reads a remembered email from browser storage (client-side convenience only — never sent anywhere, never affects the session). Guarded for the non-browser test sandbox, which has no localStorage. */
+function rememberedLoginEmail() {
+  if (typeof localStorage === "undefined") return "";
+  try { return localStorage.getItem("execvault_remember_email") || ""; } catch (e) { return ""; }
+}
+
+const LOGIN_ICON_EMAIL = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>`;
+const LOGIN_ICON_LOCK = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
+const LOGIN_ICON_EYE = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const LOGIN_ICON_EYE_OFF = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.6 21.6 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 5c7 0 11 7 11 7a21.6 21.6 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+const LOGIN_ICON_SHIELD = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4Z"/></svg>`;
+
+/** A stylised skyline silhouette for the brand panel — inline/self-contained (no external image asset), matching this app's existing no-network-dependency convention. Orange rects are the "micro-accent" lit windows. */
+function loginSkylineSvg() {
+  return `<svg viewBox="0 0 600 150" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="85" width="40" height="65" fill="rgba(255,255,255,.06)"/>
+    <rect x="45" y="55" width="34" height="95" fill="rgba(255,255,255,.09)"/>
+    <rect x="84" y="95" width="28" height="55" fill="rgba(255,255,255,.06)"/>
+    <rect x="118" y="35" width="46" height="115" fill="rgba(255,255,255,.11)"/>
+    <rect x="170" y="70" width="30" height="80" fill="rgba(255,255,255,.07)"/>
+    <rect x="205" y="15" width="52" height="135" fill="rgba(255,255,255,.13)"/>
+    <rect x="262" y="60" width="36" height="90" fill="rgba(255,255,255,.08)"/>
+    <rect x="303" y="40" width="42" height="110" fill="rgba(255,255,255,.1)"/>
+    <rect x="350" y="80" width="30" height="70" fill="rgba(255,255,255,.06)"/>
+    <rect x="385" y="50" width="48" height="100" fill="rgba(255,255,255,.1)"/>
+    <rect x="438" y="90" width="32" height="60" fill="rgba(255,255,255,.07)"/>
+    <rect x="475" y="25" width="50" height="125" fill="rgba(255,255,255,.12)"/>
+    <rect x="530" y="65" width="34" height="85" fill="rgba(255,255,255,.08)"/>
+    <rect x="569" y="95" width="31" height="55" fill="rgba(255,255,255,.06)"/>
+    <rect x="212" y="30" width="4" height="6" fill="#ef7a1b" opacity=".85"/>
+    <rect x="225" y="50" width="4" height="6" fill="#ef7a1b" opacity=".7"/>
+    <rect x="490" y="43" width="4" height="6" fill="#ef7a1b" opacity=".8"/>
+    <rect x="130" y="55" width="4" height="6" fill="#ef7a1b" opacity=".6"/>
+    <rect x="395" y="65" width="4" height="6" fill="#ef7a1b" opacity=".75"/>
+  </svg>`;
+}
+
 function renderLoginScreen() {
+  const rememberedEmail = rememberedLoginEmail();
+  const pwType = AUTH.showPassword ? "text" : "password";
   return `
     <div class="login-screen">
       <div class="login-brand-panel">
-        <div class="login-brand-mark">V</div>
-        <div>
+        <div class="login-wordmark">Executive Vault</div>
+        <div class="login-panel-mid">
           <div class="eyebrow">Personal Executive Command Centre</div>
-          <h1>Executive Vault</h1>
-          <p>Ching Yee's personal work and document intelligence workspace — Clients, Engagements, Matters, meetings and follow-ups in one place.</p>
+          <div class="login-pillars">PLAN<span>|</span>MANAGE<span>|</span>ADVANCE</div>
+          <h1>A more focused tomorrow.</h1>
+          <p>Your central workspace for clients, matters, priorities and progress.</p>
         </div>
-        <div class="login-brand-foot">Single-user · authenticated workspace</div>
+        <div class="login-skyline">${loginSkylineSvg()}</div>
+        <div class="login-panel-foot">
+          <div class="login-panel-foot-name">Ching Yee</div>
+          <div class="login-panel-foot-loc">Kuala Lumpur • Singapore • Beyond</div>
+        </div>
       </div>
       <div class="login-form-panel">
         <div class="login-card">
-          <div class="eyebrow">Sign In</div>
-          <h2>Welcome back, Ching Yee</h2>
-          <p class="login-card-sub">Sign in with your Executive Command Centre account to continue.</p>
+          <div class="eyebrow">Welcome Back</div>
+          <h2>Sign in to your Command Centre</h2>
+          <p class="login-card-sub">Enter your credentials to access your personal executive workspace.</p>
           <div class="login-fields">
-            <label class="login-label">Email<input class="login-input" type="email" id="loginEmail" autocomplete="username" placeholder="you@example.com"/></label>
-            <label class="login-label">Password<input class="login-input" type="password" id="loginPassword" autocomplete="current-password"/></label>
+            <label class="login-label">Email
+              <div class="login-input-wrap">
+                <span class="login-input-icon">${LOGIN_ICON_EMAIL}</span>
+                <input class="login-input" type="email" id="loginEmail" autocomplete="username" placeholder="you@example.com" value="${attrSafe(rememberedEmail)}"/>
+              </div>
+            </label>
+            <label class="login-label">Password
+              <div class="login-input-wrap">
+                <span class="login-input-icon">${LOGIN_ICON_LOCK}</span>
+                <input class="login-input" type="${pwType}" id="loginPassword" autocomplete="current-password" style="padding-right:40px"/>
+                <button type="button" class="login-pw-toggle" id="loginPwToggle" onclick="${call("toggleLoginPasswordVisibility")}" aria-label="${AUTH.showPassword ? "Hide password" : "Show password"}">${AUTH.showPassword ? LOGIN_ICON_EYE_OFF : LOGIN_ICON_EYE}</button>
+              </div>
+            </label>
+            <div class="login-remember-row">
+              <label class="login-remember"><input type="checkbox" id="loginRemember" ${rememberedEmail ? "checked" : ""}/> Remember me on this device</label>
+            </div>
             ${AUTH.error ? `<div class="login-error">${attrSafe(AUTH.error)}</div>` : ""}
-            <button class="btn btn-gold" style="width:100%;margin-top:4px;justify-content:center" onclick="${call("handleLoginFormSubmit")}">Sign In</button>
+            <button class="btn btn-primary login-submit" onclick="${call("handleLoginFormSubmit")}">Sign in →</button>
           </div>
-          <div class="login-footnote">Single-user personal workspace. Only the authorised account holder can sign in.</div>
+          <div class="login-secure-panel">
+            ${LOGIN_ICON_SHIELD}
+            <div><b>Secure Access</b>Your credentials are transmitted over an encrypted connection and verified server-side. Only the authorised account holder can sign in.</div>
+          </div>
+          <div class="login-footnote">Single-user personal workspace.</div>
         </div>
       </div>
     </div>`;
@@ -1843,9 +1905,28 @@ function renderAuthGateShell() {
   appEl.innerHTML = renderLoginScreen();
 }
 
+/** Direct DOM manipulation, not a full renderAuthGateShell() re-render — a full re-render would wipe whatever the user has already typed into either field, which is exactly the kind of thing a password-visibility toggle must never do. */
+function toggleLoginPasswordVisibility() {
+  AUTH.showPassword = !AUTH.showPassword;
+  const input = document.getElementById("loginPassword");
+  const btn = document.getElementById("loginPwToggle");
+  if (input) input.type = AUTH.showPassword ? "text" : "password";
+  if (btn) {
+    btn.innerHTML = AUTH.showPassword ? LOGIN_ICON_EYE_OFF : LOGIN_ICON_EYE;
+    btn.setAttribute("aria-label", AUTH.showPassword ? "Hide password" : "Show password");
+  }
+}
+
 function handleLoginFormSubmit() {
   const emailEl = document.getElementById("loginEmail");
   const passwordEl = document.getElementById("loginPassword");
+  const rememberEl = document.getElementById("loginRemember");
+  if (typeof localStorage !== "undefined") {
+    try {
+      if (rememberEl && rememberEl.checked && emailEl && emailEl.value) localStorage.setItem("execvault_remember_email", emailEl.value);
+      else localStorage.removeItem("execvault_remember_email");
+    } catch (e) { /* private-browsing/storage-blocked — remembering email is a convenience, not required */ }
+  }
   submitLogin(emailEl ? emailEl.value : "", passwordEl ? passwordEl.value : "");
 }
 
