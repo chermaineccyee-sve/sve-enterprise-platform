@@ -791,22 +791,98 @@ const TASKS = [
   { id: "t8", title: "Awaiting workforce & contractor headcount information from MRE Asia", clientId: "mre-asia", matterId: "matter-mre-opmodel", due: "2026-10-01", done: false, documentId: null, waitingOn: "Daniel Foo (MRE Asia)", managementVisible: true },
 ];
 
-// PROGRESS_NOTES: short, hand-selected narrative highlights (architecture
-// doc §16.2) — never a duplicate of Task records. includeInManagementUpdate
-// is the user's own curation control; t8/t9 demonstrate an item deliberately
-// left out.
-const PROGRESS_NOTES = [
-  { id: "pn1", matterId: "matter-vt-hrtransform", text: "VT policy revisions completed", date: "2026-09-19", includeInManagementUpdate: true },
-  { id: "pn2", matterId: "matter-vt-hrtransform", text: "Lark HRMS implementation materials progressed", date: "2026-09-18", includeInManagementUpdate: true },
-  { id: "pn3", matterId: "matter-mre-opmodel", text: "MRE Asia client brief prepared", date: "2026-09-17", includeInManagementUpdate: true },
-  { id: "pn4", matterId: "matter-nus-strategy", text: "Nusantara Executive Summary completed", date: "2026-09-12", includeInManagementUpdate: true },
-  { id: "pn5", matterId: "matter-svegip-platform", text: "SVE Group Enterprise Platform management materials prepared", date: "2026-09-19", includeInManagementUpdate: true },
-  { id: "pn6", matterId: "matter-intgov-policy", text: "Internal admin filing cleanup completed", date: "2026-09-15", includeInManagementUpdate: false },
+// PROGRESS_UPDATES (formerly PROGRESS_NOTES — extended in place, not
+// replaced with a parallel dataset, per the Progress Update & Management
+// Reporting brief): Ching Yee's own private work journal entries. Each
+// entry mirrors the Document/Meeting convention of carrying clientId AND
+// matterId directly (never only derivable through Matter->Engagement), plus
+// an optional free-text workstream tag.
+//
+// includeInManagementUpdate is BOTH the pre-existing "Management Visibility"
+// curation control AND now the single field every Eric-facing view (Ongoing/
+// Weekly/Monthly) gates on — kept as-is (not renamed) so the existing
+// privacy-tested behaviour of managementProgressNotes() needs no changes.
+// Per the brief's explicit privacy rule, this is checked per-ENTRY, never
+// inferred from the Matter's own managementVisible flag: pn9 below is a
+// private entry on a management-visible Matter (matter-vt-hrtransform) —
+// a live demonstration that visibility is never assumed from the Matter.
+//
+// createdAt/updatedAt are separate from `date` (the reporting date the
+// entry is ABOUT) — data integrity fields per the brief §9. Historical
+// entries are never overwritten by a later one on the same Matter; only
+// editing an entry's own fields updates its own updatedAt.
+const PROGRESS_UPDATES = [
+  { id: "pn1", clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", workstream: "HR Policy Framework",
+    date: "2026-09-19", text: "VT policy revisions completed",
+    currentPosition: "Working Time & Overtime Policy v0.4 finalised and circulated for sign-off.",
+    nextStep: "Obtain Ravi Menon's sign-off.", issueRisk: "", decisionRequired: "",
+    waitingOnParty: "Ravi Menon", waitingOnItem: "Sign-off on HR-025 v0.4", targetDate: "2026-09-30",
+    documentIds: ["d02"], includeInManagementUpdate: true,
+    createdAt: "2026-09-19T09:10:00+08:00", updatedAt: "2026-09-19T09:10:00+08:00" },
+  { id: "pn2", clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", workstream: "HR Digitalisation / HRMS",
+    date: "2026-09-18", text: "Lark HRMS implementation materials progressed",
+    currentPosition: "Lark Digital acknowledgement workflow specification drafted.",
+    nextStep: "Review with the HR Transformation Lead.", issueRisk: "", decisionRequired: "",
+    waitingOnParty: "", waitingOnItem: "", targetDate: null,
+    documentIds: ["d01"], includeInManagementUpdate: true,
+    createdAt: "2026-09-18T17:40:00+08:00", updatedAt: "2026-09-18T17:40:00+08:00" },
+  { id: "pn3", clientId: "mre-asia", matterId: "matter-mre-opmodel", workstream: "Operating Model Design",
+    date: "2026-09-17", text: "MRE Asia client brief prepared",
+    currentPosition: "Client brief and proposed operating structure prepared following initial engagement.",
+    nextStep: "Review workforce and contractor information once received.", issueRisk: "", decisionRequired: "",
+    waitingOnParty: "Daniel Foo (MRE Asia)", waitingOnItem: "Workforce & contractor headcount information", targetDate: "2026-10-01",
+    documentIds: [], includeInManagementUpdate: true,
+    createdAt: "2026-09-17T11:20:00+08:00", updatedAt: "2026-09-17T11:20:00+08:00" },
+  { id: "pn4", clientId: "nusantara", matterId: "matter-nus-strategy", workstream: "Strategic Advisory",
+    date: "2026-09-12", text: "Nusantara Executive Summary completed",
+    currentPosition: "Meeting documentation and Executive Summary completed.",
+    nextStep: "Close outstanding documentation / governance confirmations.", issueRisk: "", decisionRequired: "",
+    waitingOnParty: "", waitingOnItem: "", targetDate: null,
+    documentIds: [], includeInManagementUpdate: true,
+    createdAt: "2026-09-12T15:00:00+08:00", updatedAt: "2026-09-12T15:00:00+08:00" },
+  { id: "pn5", clientId: "sve-gep", matterId: "matter-svegip-platform", workstream: "Platform Architecture",
+    date: "2026-09-19", text: "SVE Group Enterprise Platform management materials prepared",
+    currentPosition: "Management concept, architecture and supporting governance framework prepared.",
+    nextStep: "Proceed to priority implementation following management direction.",
+    issueRisk: "Platform direction still pending management decision.",
+    decisionRequired: "Management direction required on next-stage platform priority implementation.",
+    waitingOnParty: "", waitingOnItem: "", targetDate: null,
+    documentIds: [], includeInManagementUpdate: true,
+    createdAt: "2026-09-19T16:30:00+08:00", updatedAt: "2026-09-19T16:30:00+08:00" },
+  { id: "pn6", clientId: "internal-governance", matterId: "matter-intgov-policy", workstream: "Group Policy",
+    date: "2026-09-15", text: "Internal admin filing cleanup completed",
+    currentPosition: "", nextStep: "", issueRisk: "", decisionRequired: "",
+    waitingOnParty: "", waitingOnItem: "", targetDate: null,
+    documentIds: [], includeInManagementUpdate: false,
+    createdAt: "2026-09-15T10:05:00+08:00", updatedAt: "2026-09-15T10:05:00+08:00" },
+  { id: "pn7", clientId: "sve-gep", matterId: "matter-svegip-platform", workstream: "Management Reporting",
+    date: "2026-09-21", text: "Progress Updates & Management Reporting layer specified and build started",
+    currentPosition: "Reporting architecture (Ongoing/Weekly/Monthly) scoped against the approved Executive Home model.",
+    nextStep: "Complete build and verify privacy boundaries before wider rollout.", issueRisk: "", decisionRequired: "",
+    waitingOnParty: "", waitingOnItem: "", targetDate: null,
+    documentIds: [], includeInManagementUpdate: true,
+    createdAt: "2026-09-21T08:45:00+08:00", updatedAt: "2026-09-21T08:45:00+08:00" },
+  { id: "pn8", clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", workstream: "Performance Management",
+    date: "2026-09-21", text: "Performance management implementation materials drafted for review",
+    currentPosition: "Draft implementation materials circulated internally.",
+    nextStep: "Incorporate the HR Transformation Lead's comments.", issueRisk: "", decisionRequired: "",
+    waitingOnParty: "", waitingOnItem: "", targetDate: null,
+    documentIds: [], includeInManagementUpdate: true,
+    createdAt: "2026-09-21T09:15:00+08:00", updatedAt: "2026-09-21T09:15:00+08:00" },
+  // Live demonstration of the privacy rule: a private entry on a Matter that
+  // IS management-visible. Must never appear on Ongoing/Weekly/Monthly.
+  { id: "pn9", clientId: "vt-worldwide", matterId: "matter-vt-hrtransform", workstream: "HR Digitalisation / HRMS",
+    date: "2026-09-20", text: "Personal note: possible timeline slip to watch internally — not yet ready to raise with management",
+    currentPosition: "", nextStep: "",
+    issueRisk: "Possible timeline slip on HR Digitalisation workstream — watching before escalating.",
+    decisionRequired: "", waitingOnParty: "", waitingOnItem: "", targetDate: null,
+    documentIds: [], includeInManagementUpdate: false,
+    createdAt: "2026-09-20T18:05:00+08:00", updatedAt: "2026-09-20T18:05:00+08:00" },
 ];
 
 window.VAULT_DATA = {
   CLASSIFICATIONS, STATUSES, FUNCTIONS, DOCUMENT_TYPES,
-  CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS, PROGRESS_NOTES,
+  CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS, PROGRESS_UPDATES,
   TODAY: "2026-09-21", NOW: "08:30", USER_NAME: "Ching Yee",
 };
 

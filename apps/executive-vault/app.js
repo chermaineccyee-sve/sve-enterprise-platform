@@ -25,7 +25,7 @@
 const D = window.VAULT_DATA;
 const {
   CLASSIFICATIONS, STATUSES, FUNCTIONS, DOCUMENT_TYPES,
-  CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS, PROGRESS_NOTES, TODAY, NOW, USER_NAME,
+  CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS, PROGRESS_UPDATES, TODAY, NOW, USER_NAME,
 } = D;
 const DECISION_TYPES = ["Resolution", "Management Paper"];
 const MANAGEMENT_STATUSES = ["In Progress", "Awaiting Input", "Decision Required", "Complete", "On Hold"];
@@ -43,17 +43,25 @@ const STATE = {
   previewId: null,
   previewMeetingId: null,
   previewMatterId: null,
+  previewProgressEditId: null, // editing an existing PROGRESS_UPDATES entry (drawer)
+  progressDraft: null,         // in-progress NEW entry, not yet saved to PROGRESS_UPDATES — null when no form is open
+  progressDetailed: false,     // Quick vs Detailed expand state for whichever progress form is open
   meetingPrepMode: false,
   attentionOpen: false,
   userMenuOpen: false,
   showGenerateUpdate: false,
   updateFormat: "email",
+  updateScope: "ongoing",      // "ongoing" | "weekly" | "monthly" — which report Generate Management Update reads from
+  mgmtView: "ongoing",         // "ongoing" | "weekly" | "monthly" — active Management Progress tab
+  mgmtWeekStart: null,         // ISO Monday; lazily defaulted to weekStart(TODAY) on first view
+  mgmtMonth: null,             // "YYYY-MM"; lazily defaulted to TODAY.slice(0,7) on first view
   vaultSort: { key: "modified", dir: "desc" },
   expandedFolders: new Set(),
   showLegend: false,
   toast: null,
 };
 let toastSeq = 0;
+let progressUpdateSeq = 0;
 let matterSeq = 0;
 
 /**
@@ -230,7 +238,32 @@ function managementWaitingOn() {
 }
 function managementProgressNotes() {
   const visibleIds = new Set(managementVisibleMatters().map((m) => m.id));
-  return PROGRESS_NOTES.filter((p) => p.includeInManagementUpdate && visibleIds.has(p.matterId)).sort((a, b) => b.date.localeCompare(a.date));
+  return PROGRESS_UPDATES.filter((p) => p.includeInManagementUpdate && visibleIds.has(p.matterId)).sort((a, b) => b.date.localeCompare(a.date));
+}
+/** Same double gate as managementProgressNotes() (per-entry AND Matter-level
+ * visibility — never one alone), narrowed to a reporting date range. The
+ * single source every Weekly/Monthly grouping below reads from, so the
+ * privacy rule only has to be expressed once. */
+function managementProgressUpdatesInRange(startIso, endIso) {
+  return managementProgressNotes().filter((p) => p.date >= startIso && p.date <= endIso);
+}
+/** Every entry for a Matter, newest first — Ching Yee's own private view,
+ * so NOT gated on includeInManagementUpdate (that gate is only ever applied
+ * on the Eric-facing side, via managementProgressNotes()/…InRange() above). */
+function progressUpdatesForMatter(matterId) {
+  return PROGRESS_UPDATES.filter((p) => p.matterId === matterId).sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
+}
+function latestProgressUpdate(matterId) {
+  return progressUpdatesForMatter(matterId)[0] || null;
+}
+/** The Ongoing view's "Latest Progress" line — the newest management-visible
+ * entry for a visible Matter, per the brief §9: "the latest approved update
+ * may determine the Ongoing current position." Distinct from the Matter's
+ * own separately-curated currentPosition/nextStep (still edited via "Edit
+ * Management Snapshot" — unchanged), which stays the fallback single-line
+ * position until Progress Updates carries enough history to fully replace it. */
+function latestManagementProgressUpdate(matterId) {
+  return managementProgressNotes().find((p) => p.matterId === matterId) || null;
 }
 function managementMeetings() {
   const in7 = addDays(TODAY, 7);
@@ -360,6 +393,15 @@ function applyFilter(key, value) {
 }
 function applyFilterAndGo(key, value) { navigate(buildHash("/vault", { [key]: value })); }
 function goVaultBucket(bucket) { navigate(buildHash("/vault", bucket ? { bucket } : {})); }
+/** Same shape as applyFilter(), plus cascading resets — a Matter/Workstream filter left pointing at a Client it no longer belongs to would otherwise silently show nothing. */
+function applyProgressFilter(key, value) {
+  const { path, query } = parseHash();
+  const next = Object.assign({}, query);
+  if (value) next[key] = value; else delete next[key];
+  if (key === "clientId") { delete next.matterId; delete next.workstream; }
+  if (key === "matterId") delete next.workstream;
+  navigate(buildHash(path, next));
+}
 
 /* ============================ Action handlers ============================= */
 
@@ -371,11 +413,16 @@ function showToast(msg) {
 }
 function mockAction(msg) { showToast(msg); }
 function toggleSidebar() { STATE.sidebarOpen = !STATE.sidebarOpen; render(); }
-function openDocument(id) { STATE.previewId = id; STATE.previewMeetingId = null; STATE.previewMatterId = null; STATE.meetingPrepMode = false; STATE.showLegend = false; render(); }
-function closeDrawer() { STATE.previewId = null; STATE.previewMeetingId = null; STATE.previewMatterId = null; STATE.meetingPrepMode = false; render(); }
-function openMeeting(id) { STATE.previewMeetingId = id; STATE.previewId = null; STATE.previewMatterId = null; STATE.meetingPrepMode = false; render(); }
+/** Every open*() drawer function resets every OTHER drawer's state — one drawer open at a time, always (tested behaviour, now extended to the two Progress Update form modes). */
+function closeAllDrawers() {
+  STATE.previewId = null; STATE.previewMeetingId = null; STATE.previewMatterId = null; STATE.meetingPrepMode = false;
+  STATE.previewProgressEditId = null; STATE.progressDraft = null;
+}
+function openDocument(id) { closeAllDrawers(); STATE.previewId = id; STATE.showLegend = false; render(); }
+function closeDrawer() { closeAllDrawers(); render(); }
+function openMeeting(id) { closeAllDrawers(); STATE.previewMeetingId = id; render(); }
 /** Opens the same Meeting Brief drawer directly into its consolidated Prepare Meeting state (architecture: structured-data-driven, no AI summarisation, no new dataset — see meetingPrepContent()). */
-function openMeetingPrep(id) { STATE.previewMeetingId = id; STATE.previewId = null; STATE.previewMatterId = null; STATE.meetingPrepMode = true; render(); }
+function openMeetingPrep(id) { closeAllDrawers(); STATE.previewMeetingId = id; STATE.meetingPrepMode = true; render(); }
 function backToMeetingBrief() { STATE.meetingPrepMode = false; render(); }
 function toggleStar(id, ev) { if (ev) ev.stopPropagation(); const d = getDocument(id); if (d) d.starred = !d.starred; render(); }
 function togglePin(id, ev) { if (ev) ev.stopPropagation(); const c = getClient(id); if (c) c.pinned = !c.pinned; render(); }
@@ -412,12 +459,96 @@ function updateMatterField(id, field, value) {
   m.managementUpdated = TODAY;
   render();
 }
-function openMatterEditor(id) { STATE.previewMatterId = id; STATE.previewId = null; STATE.previewMeetingId = null; STATE.meetingPrepMode = false; render(); }
+function openMatterEditor(id) { closeAllDrawers(); STATE.previewMatterId = id; render(); }
 function saveMatterEditor() { showToast("Management snapshot saved."); STATE.previewMatterId = null; render(); }
+
+/* ---------- Progress Updates: Ching Yee's private work journal ----------
+ * Add always creates a brand-new PROGRESS_UPDATES record (never overwrites
+ * an earlier one on the same Matter — brief §9); Edit mutates that one
+ * record's own fields in place, matching updateMatterField's established
+ * convention, and stamps its own updatedAt. Draft state exists only because
+ * a brand-new entry has nothing yet to mutate before it's first saved. */
+function emptyProgressDraft(matterId) {
+  const m = matterId ? getMatter(matterId) : null;
+  return {
+    clientId: m ? (matterClientId(m) || "") : "", matterId: matterId || "", workstream: "",
+    date: TODAY, text: "", currentPosition: "", nextStep: "", issueRisk: "", decisionRequired: "",
+    waitingOnParty: "", waitingOnItem: "", targetDate: "", documentIds: [], includeInManagementUpdate: false,
+  };
+}
+function openProgressUpdateForm(matterId) {
+  closeAllDrawers();
+  STATE.progressDraft = emptyProgressDraft(matterId);
+  STATE.progressDetailed = false;
+  render();
+}
+function openProgressUpdateEditor(id) {
+  closeAllDrawers();
+  STATE.previewProgressEditId = id;
+  STATE.progressDetailed = true; // an existing entry may already carry detailed fields — show them
+  render();
+}
+function updateProgressDraftField(field, value) {
+  if (!STATE.progressDraft) return;
+  const d = STATE.progressDraft;
+  if (field === "includeInManagementUpdate") d[field] = value === true || value === "true";
+  else d[field] = value;
+  if (field === "clientId") { d.matterId = ""; d.workstream = ""; }
+  if (field === "matterId") { d.workstream = ""; }
+  render();
+}
+function toggleProgressDraftDocument(docId) {
+  if (!STATE.progressDraft) return;
+  const i = STATE.progressDraft.documentIds.indexOf(docId);
+  if (i === -1) STATE.progressDraft.documentIds.push(docId); else STATE.progressDraft.documentIds.splice(i, 1);
+  render();
+}
+function updateProgressUpdateField(id, field, value) {
+  const p = PROGRESS_UPDATES.find((x) => x.id === id);
+  if (!p) return;
+  if (field === "includeInManagementUpdate") p[field] = value === true || value === "true";
+  else p[field] = value;
+  if (field === "clientId") { p.matterId = ""; p.workstream = ""; }
+  if (field === "matterId") { p.workstream = ""; }
+  p.updatedAt = new Date().toISOString();
+  render();
+}
+function toggleProgressUpdateDocument(id, docId) {
+  const p = PROGRESS_UPDATES.find((x) => x.id === id);
+  if (!p) return;
+  const i = p.documentIds.indexOf(docId);
+  if (i === -1) p.documentIds.push(docId); else p.documentIds.splice(i, 1);
+  p.updatedAt = new Date().toISOString();
+  render();
+}
+function toggleProgressDetailed() { STATE.progressDetailed = !STATE.progressDetailed; render(); }
+/** Creates the new record — the one place a fresh id/createdAt/updatedAt is assigned. */
+function submitProgressUpdate() {
+  const d = STATE.progressDraft;
+  if (!d || !d.matterId) { showToast("Select a Client and Matter/Project before saving."); return; }
+  const nowIso = new Date().toISOString();
+  const record = Object.assign({}, d, { id: "pu" + (++progressUpdateSeq) + "-" + Date.now().toString(36), createdAt: nowIso, updatedAt: nowIso });
+  PROGRESS_UPDATES.push(record);
+  STATE.progressDraft = null;
+  showToast("Progress update saved.");
+  render();
+}
 
 function toggleGenerateUpdate() { STATE.showGenerateUpdate = !STATE.showGenerateUpdate; render(); }
 function setUpdateFormat(fmt) { STATE.updateFormat = fmt; render(); }
-function generateUpdateText(format) {
+function setUpdateScope(scope) { STATE.updateScope = scope; render(); }
+
+/** format: "email"|"whatsapp"|"brief". scope: "ongoing"|"weekly"|"monthly",
+ * defaulting to "ongoing" — whose output is intentionally byte-for-byte the
+ * same as before scope existed (same matters/fields, same branching), so
+ * every caller that only ever generated the Ongoing update keeps working
+ * unchanged. Weekly/Monthly build from the same computeWeeklyReview()/
+ * computeMonthlyReview() groupings the two review tabs render — no separate
+ * "report text" data path to fall out of sync with what's on screen. */
+function generateUpdateText(format, scope) {
+  scope = scope || "ongoing";
+  if (scope === "weekly") return generateWeeklyUpdateText(format);
+  if (scope === "monthly") return generateMonthlyUpdateText(format);
   const matters = managementVisibleMatters();
   const lines = [];
   const heading = format === "brief" ? `CURRENT WORK UPDATE — ${fmtDateLong(TODAY)}` : `Current Work Update — ${fmtDate(TODAY)}`;
@@ -440,8 +571,44 @@ function generateUpdateText(format) {
   }
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
+function generateUpdateSection(format, title, items, toLine) {
+  const lines = [];
+  const bullet = format === "whatsapp" ? "•" : "-";
+  lines.push(format === "brief" ? title.toUpperCase() : title);
+  if (!items.length) lines.push(format === "whatsapp" ? `${bullet} None.` : "None.");
+  else items.forEach((it) => lines.push(`${bullet} ${toLine(it)}`));
+  lines.push("");
+  return lines;
+}
+function generateWeeklyUpdateText(format) {
+  const r = computeWeeklyReview(mgmtWeekStartState());
+  const heading = format === "brief" ? `WEEKLY REVIEW — ${fmtDate(r.weekStart)} to ${fmtDate(r.weekEnd)}` : `Weekly Review — ${fmtDate(r.weekStart)} to ${fmtDate(r.weekEnd)}`;
+  let lines = [heading, ""];
+  lines = lines.concat(generateUpdateSection(format, "Progress This Week", r.progress, (u) => `${mgmtLabel(u.clientId, getMatter(u.matterId) ? getMatter(u.matterId).name : "")}: ${u.text}`));
+  lines = lines.concat(generateUpdateSection(format, "Key Deliverables / Movement", r.movement, (d) => mgmtLabel(d.clientId, d.title)));
+  lines = lines.concat(generateUpdateSection(format, "Outstanding / Waiting On", r.waitingOn, (t) => `${clientName(t.clientId)} — ${t.title}${t.waitingOn ? ` (${t.waitingOn})` : ""}`));
+  lines = lines.concat(generateUpdateSection(format, "Issues / Risks", r.issues, (u) => `${mgmtLabel(u.clientId, getMatter(u.matterId) ? getMatter(u.matterId).name : "")}: ${u.issueRisk}`));
+  const decisionLines = r.decisions.map((d) => `${mgmtLabel(d.clientId, d.title)} (${decisionDisplayStatus(d)})`).concat(r.updateDecisions.map((u) => `${mgmtLabel(u.clientId, getMatter(u.matterId) ? getMatter(u.matterId).name : "")}: ${u.decisionRequired}`));
+  lines = lines.concat(generateUpdateSection(format, "Decisions / Direction Required", decisionLines, (s) => s));
+  lines = lines.concat(generateUpdateSection(format, "Priorities / Next Steps", r.priorities, (u) => `${mgmtLabel(u.clientId, getMatter(u.matterId) ? getMatter(u.matterId).name : "")}: ${u.nextStep}`));
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function generateMonthlyUpdateText(format) {
+  const r = computeMonthlyReview(mgmtMonthState());
+  const heading = format === "brief" ? `MONTHLY REVIEW — ${fmtMonthLabel(r.month).toUpperCase()}` : `Monthly Review — ${fmtMonthLabel(r.month)}`;
+  let lines = [heading, ""];
+  lines = lines.concat(generateUpdateSection(format, "Major Progress / Milestones", r.milestones, (u) => `${mgmtLabel(u.clientId, getMatter(u.matterId) ? getMatter(u.matterId).name : "")}: ${u.currentPosition}`));
+  lines = lines.concat(generateUpdateSection(format, "Matter / Project Movement", r.matterMovement, (m) => `${clientName(getEngagementRecord(m.engagementId).clientId)} — ${m.name} (${m.managementStatus || m.status})`));
+  lines = lines.concat(generateUpdateSection(format, "Deliverables Completed", r.deliverablesCompleted, (d) => mgmtLabel(d.clientId, d.title)));
+  lines = lines.concat(generateUpdateSection(format, "Outstanding Matters", r.outstandingMatters, (m) => `${clientName(getEngagementRecord(m.engagementId).clientId)} — ${m.name}`));
+  lines = lines.concat(generateUpdateSection(format, "Issues / Risks / Escalations", r.issues, (u) => `${mgmtLabel(u.clientId, getMatter(u.matterId) ? getMatter(u.matterId).name : "")}: ${u.issueRisk}`));
+  const decisionLines = r.decisions.map((d) => `${mgmtLabel(d.clientId, d.title)} (${decisionDisplayStatus(d)})`).concat(r.updateDecisions.map((u) => `${mgmtLabel(u.clientId, getMatter(u.matterId) ? getMatter(u.matterId).name : "")}: ${u.decisionRequired}`));
+  lines = lines.concat(generateUpdateSection(format, "Management Decisions / Direction", decisionLines, (s) => s));
+  lines = lines.concat(generateUpdateSection(format, "Forward Priorities", r.priorities, (u) => `${mgmtLabel(u.clientId, getMatter(u.matterId) ? getMatter(u.matterId).name : "")}: ${u.nextStep}`));
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
 function copyGeneratedUpdate() {
-  const text = generateUpdateText(STATE.updateFormat || "email");
+  const text = generateUpdateText(STATE.updateFormat || "email", STATE.updateScope || "ongoing");
   try { if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text); } catch (e) { /* clipboard unavailable */ }
   showToast("Update text copied. Nothing is sent automatically — paste it wherever you need it.");
 }
@@ -536,6 +703,7 @@ function navSections() {
       { id: "matters", label: "Projects / Matters", hash: "#/matters" },
       { id: "meetings", label: "Meetings & Decisions", hash: "#/meetings" },
       { id: "actions", label: "Actions & Follow-Up", hash: "#/actions", count: openTasksCount() },
+      { id: "progress", label: "Progress Updates", hash: "#/progress" },
     ]},
     { label: "Vault", items: [
       { id: "vault", label: "Document Vault", hash: "#/vault" },
@@ -912,14 +1080,128 @@ function matterEditorContent(m) {
     </div>`;
 }
 
+/** Shared by both the "new" (draft) and "edit" (live record) Progress Update
+ * form modes — same markup either way, only where each field's onchange
+ * writes to differs (updateProgressDraftField vs updateProgressUpdateField).
+ * Quick fields are always shown; Detailed fields are gated behind
+ * STATE.progressDetailed per the brief's explicit Quick/Detailed split. */
+function progressUpdateFormContent(rec, isEditing, editId) {
+  const setField = (field) => isEditing ? callWithValue("updateProgressUpdateField", editId, field) : callWithValue("updateProgressDraftField", field);
+  const setChecked = (field) => (isEditing ? callWithValue("updateProgressUpdateField", editId, field) : callWithValue("updateProgressDraftField", field)).replace("this.value", "this.checked");
+  const toggleDoc = (docId) => isEditing ? call("toggleProgressUpdateDocument", editId, docId) : call("toggleProgressDraftDocument", docId);
+
+  const clientOptions = [`<option value="">— Select Client —</option>`].concat(
+    CLIENTS.filter((c) => !c.legacy).map((c) => `<option value="${c.id}" ${rec.clientId === c.id ? "selected" : ""}>${c.name}</option>`)
+  ).join("");
+  const clientMatters = rec.clientId ? mattersForClient(rec.clientId).filter((m) => m.status === "active") : [];
+  const matterOptions = [`<option value="">${rec.clientId ? "— Select Matter/Project —" : "Select a Client first"}</option>`].concat(
+    clientMatters.map((m) => `<option value="${m.id}" ${rec.matterId === m.id ? "selected" : ""}>${m.name}</option>`)
+  ).join("");
+  const selectedMatter = rec.matterId ? getMatter(rec.matterId) : null;
+  const workstreamOptions = [`<option value="">— None —</option>`].concat(
+    (selectedMatter ? selectedMatter.workstreams : []).map((w) => `<option value="${w}" ${rec.workstream === w ? "selected" : ""}>${w}</option>`)
+  ).join("");
+  const matterDocs = selectedMatter ? classifiedDocs().filter((d) => d.matterId === selectedMatter.id) : [];
+
+  const cn = rec.clientId ? clientName(rec.clientId) : null;
+
+  return `
+    <div class="drawer-head">
+      <div>
+        <div class="breadcrumbs">${isEditing ? "Edit Progress Update" : "New Progress Update"}${cn ? " · " + cn : ""}</div>
+        <h3 style="font-size:17px;max-width:340px">${selectedMatter ? selectedMatter.name : "Progress Update"}</h3>
+      </div>
+      <button class="drawer-close" onclick="${call("closeDrawer")}">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="callout" style="margin-bottom:16px"><span>ℹ</span><div>Private to your Command Centre by default. Only ticking "Include in Management Progress" below makes this specific entry visible to Eric — belonging to a management-visible Matter is never enough on its own.</div></div>
+
+      <div class="pu-grid-2">
+        <div class="dfield"><div class="dfield-label">Client</div>
+          <select class="filter-select" style="width:100%" onchange="${setField("clientId")}">${clientOptions}</select>
+        </div>
+        <div class="dfield"><div class="dfield-label">Matter / Project</div>
+          <select class="filter-select" style="width:100%" onchange="${setField("matterId")}" ${rec.clientId ? "" : "disabled"}>${matterOptions}</select>
+        </div>
+      </div>
+      <div class="pu-grid-2">
+        <div class="dfield"><div class="dfield-label">Workstream (optional)</div>
+          <select class="filter-select" style="width:100%" onchange="${setField("workstream")}" ${selectedMatter ? "" : "disabled"}>${workstreamOptions}</select>
+        </div>
+        <div class="dfield"><div class="dfield-label">Date</div>
+          <input class="filter-search" style="width:100%" type="date" value="${attrSafe(rec.date || TODAY)}" onchange="${setField("date")}"/>
+        </div>
+      </div>
+
+      <div class="dfield"><div class="dfield-label">Progress / Update</div>
+        <textarea class="filter-search" style="width:100%;min-height:60px" placeholder="What moved since the last entry?" onchange="${setField("text")}">${attrSafe(rec.text || "")}</textarea>
+      </div>
+      <div class="dfield"><div class="dfield-label">Next Step</div>
+        <textarea class="filter-search" style="width:100%;min-height:44px" onchange="${setField("nextStep")}">${attrSafe(rec.nextStep || "")}</textarea>
+      </div>
+
+      <label class="dfield" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" ${rec.includeInManagementUpdate ? "checked" : ""} onchange="${setChecked("includeInManagementUpdate")}"/>
+        <span class="dfield-label" style="margin:0">Include in Management Progress <span class="muted" style="text-transform:none;font-weight:400">(unticked = Private — Ching Yee only)</span></span>
+      </label>
+
+      <button type="button" class="btn btn-sm btn-ghost" style="margin:4px 0 14px" onclick="${call("toggleProgressDetailed")}">${STATE.progressDetailed ? "− Hide detail" : "+ Add more detail"}</button>
+
+      ${STATE.progressDetailed ? `
+      <div class="pu-detail">
+        <div class="dfield"><div class="dfield-label">Current Position</div>
+          <textarea class="filter-search" style="width:100%;min-height:50px" onchange="${setField("currentPosition")}">${attrSafe(rec.currentPosition || "")}</textarea>
+        </div>
+        <div class="dfield"><div class="dfield-label">Issue / Risk / Management Attention</div>
+          <textarea class="filter-search" style="width:100%;min-height:44px" onchange="${setField("issueRisk")}">${attrSafe(rec.issueRisk || "")}</textarea>
+        </div>
+        <div class="dfield"><div class="dfield-label">Decision / Direction Required</div>
+          <textarea class="filter-search" style="width:100%;min-height:44px" onchange="${setField("decisionRequired")}">${attrSafe(rec.decisionRequired || "")}</textarea>
+        </div>
+        <div class="pu-grid-2">
+          <div class="dfield"><div class="dfield-label">Waiting On — Person/Party</div>
+            <input class="filter-search" style="width:100%" value="${attrSafe(rec.waitingOnParty || "")}" onchange="${setField("waitingOnParty")}"/>
+          </div>
+          <div class="dfield"><div class="dfield-label">Waiting On — Item</div>
+            <input class="filter-search" style="width:100%" value="${attrSafe(rec.waitingOnItem || "")}" onchange="${setField("waitingOnItem")}"/>
+          </div>
+        </div>
+        <div class="dfield"><div class="dfield-label">Target / Follow-up Date</div>
+          <input class="filter-search" style="width:100%" type="date" value="${attrSafe(rec.targetDate || "")}" onchange="${setField("targetDate")}"/>
+        </div>
+        <div class="dfield"><div class="dfield-label">Supporting Document(s)</div>
+          ${selectedMatter
+            ? (matterDocs.length ? `<div class="pu-doc-list">${matterDocs.map((d) => `
+                <label class="pu-doc-row"><input type="checkbox" ${rec.documentIds.includes(d.id) ? "checked" : ""} onchange="${toggleDoc(d.id)}"/> <span>${d.title}</span></label>
+              `).join("")}</div>` : `<div class="muted">No documents on this Matter yet.</div>`)
+            : `<div class="muted">Select a Matter to attach its documents.</div>`}
+        </div>
+      </div>` : ""}
+
+      <div class="drawer-actions">
+        ${isEditing
+          ? `<button class="btn btn-gold" onclick="${call("closeDrawer")}">Done</button>`
+          : `<button class="btn btn-gold" onclick="${call("submitProgressUpdate")}">Save Progress Update</button>`}
+        <button class="btn" onclick="${call("navigate", "#/progress")}">Progress Updates →</button>
+      </div>
+    </div>`;
+}
+
 function renderDrawer() {
   const d = STATE.previewId ? getDocument(STATE.previewId) : null;
   const m = STATE.previewMeetingId ? getMeeting(STATE.previewMeetingId) : null;
   const mt = STATE.previewMatterId ? getMatter(STATE.previewMatterId) : null;
-  const open = !!(d || m || mt);
+  const editingProgress = STATE.previewProgressEditId ? PROGRESS_UPDATES.find((p) => p.id === STATE.previewProgressEditId) : null;
+  const open = !!(d || m || mt || editingProgress || STATE.progressDraft);
+  let body = "";
+  if (d) body = drawerContent(d);
+  else if (m) body = STATE.meetingPrepMode ? meetingPrepContent(m) : meetingBriefContent(m);
+  else if (mt) body = matterEditorContent(mt);
+  else if (editingProgress) body = progressUpdateFormContent(editingProgress, true, editingProgress.id);
+  else if (STATE.progressDraft) body = progressUpdateFormContent(STATE.progressDraft, false, null);
   return `
     <div class="overlay${open ? " show" : ""}" onclick="${call("closeDrawer")}"></div>
-    <aside class="drawer${open ? " open" : ""}">${d ? drawerContent(d) : (m ? (STATE.meetingPrepMode ? meetingPrepContent(m) : meetingBriefContent(m)) : (mt ? matterEditorContent(mt) : ""))}</aside>`;
+    <aside class="drawer${open ? " open" : ""}">${body}</aside>`;
 }
 
 /* ============================ Shared table/tree ============================ */
@@ -1099,6 +1381,7 @@ function execMatterCard(m) {
       <div class="exec-matter-field"><span class="exec-matter-field-label">Current Position</span>${m.currentPosition}</div>
       <div class="exec-matter-field"><span class="exec-matter-field-label">Next Step</span>${m.nextStep || "—"}</div>
       ${m.managementAttentionLevel ? `<div class="exec-matter-attention sev-${m.managementAttentionLevel === "Decision Required" ? "high" : "info"}">${m.managementAttentionLevel}${m.managementAttentionNote ? " — " + m.managementAttentionNote : ""}</div>` : ""}
+      <button type="button" class="btn btn-sm btn-ghost exec-matter-update" onclick="event.stopPropagation();${call("openProgressUpdateForm", m.id)}">+ Update</button>
     </div>`;
 }
 
@@ -1140,6 +1423,7 @@ function renderHome() {
   return `
     <div class="page-head">
       <div><span class="eyebrow">Personal Executive Command Centre</span><div class="page-title">${greetingWord()}, ${currentUserDisplayName()}</div><div class="page-sub">${fmtDateLong(TODAY)}</div><div class="exec-tagline">Here is where your work stands today.</div></div>
+      <div class="page-head-actions"><button class="btn btn-primary btn-sm" onclick="${call("openProgressUpdateForm", "")}">+ Add Progress Update</button></div>
     </div>
 
     <div class="summary-strip pulse-strip">${pulseChips.map((s) => `<span class="summary-chip" onclick="${call("navigate", s.hash)}"><span class="summary-chip-num${s.warn ? " warn" : ""}">${s.num}</span><span class="summary-chip-label">${s.label}</span></span>`).join('<span class="summary-sep"></span>')}</div>
@@ -1197,7 +1481,7 @@ function renderHome() {
           ${recentMovement.length ? `<div class="quick-list">${recentMovement.map((e) => `
             <div class="exec-movement-row" onclick="${e.onclick}">
               <span class="exec-movement-icon">${e.icon}</span>
-              <div class="exec-movement-main"><div class="exec-movement-title">${e.title}</div><div class="exec-movement-sub">${e.sub}</div></div>
+              <div class="exec-movement-main"><div class="exec-movement-title">${attrSafe(e.title)}</div><div class="exec-movement-sub">${e.sub}</div></div>
               <span class="muted exec-movement-date">${fmtDate(e.date)}</span>
             </div>`).join("")}</div>` : `<div class="muted" style="padding:6px 4px">No recent movement.</div>`}
         </div>
@@ -1313,12 +1597,12 @@ function computeRecentMovement(limit) {
       onclick: call("openDocument", d.id),
     });
   });
-  PROGRESS_NOTES.forEach((p) => {
+  PROGRESS_UPDATES.forEach((p) => {
     const m = getMatter(p.matterId);
     events.push({
       date: p.date, icon: "✎", title: p.text,
-      sub: `${m ? m.name : "—"} · Progress note added`,
-      onclick: m ? call("navigate", matterDeepLinkHash(m)) : call("navigate", "#/matters"),
+      sub: `${m ? m.name : "—"} · Progress update added`,
+      onclick: call("openProgressUpdateEditor", p.id),
     });
   });
   priorityActiveMatters().forEach((m) => {
@@ -1642,6 +1926,72 @@ function renderActionsScreen() {
   `;
 }
 
+/* ============================ Progress Updates ============================ */
+
+function computeProgressUpdatesList(query) {
+  query = query || {};
+  let list = PROGRESS_UPDATES.slice();
+  if (query.clientId) list = list.filter((p) => p.clientId === query.clientId);
+  if (query.matterId) list = list.filter((p) => p.matterId === query.matterId);
+  if (query.workstream) list = list.filter((p) => p.workstream === query.workstream);
+  if (query.from) list = list.filter((p) => p.date >= query.from);
+  if (query.to) list = list.filter((p) => p.date <= query.to);
+  if (query.visibility === "private") list = list.filter((p) => !p.includeInManagementUpdate);
+  else if (query.visibility === "included") list = list.filter((p) => p.includeInManagementUpdate);
+  return list.sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
+}
+
+/** Easy to scan and edit (brief §8) — the full record opens in the same editor drawer Add uses, one click away. */
+function progressUpdateRow(p) {
+  const m = getMatter(p.matterId);
+  return `
+    <div class="pu-row" onclick="${call("openProgressUpdateEditor", p.id)}">
+      <div class="pu-row-date">${fmtDate(p.date)}</div>
+      <div class="pu-row-main">
+        <div class="pu-row-title">${p.text ? attrSafe(p.text) : '<span class="muted">(no summary entered)</span>'}</div>
+        <div class="pu-row-sub">${clientName(p.clientId)}${m ? " · " + m.name : ""}${p.workstream ? " · " + p.workstream : ""}</div>
+        ${p.nextStep ? `<div class="pu-row-next"><b>Next:</b> ${attrSafe(p.nextStep)}</div>` : ""}
+      </div>
+      <div class="pu-row-vis${p.includeInManagementUpdate ? " included" : ""}">${p.includeInManagementUpdate ? "Included" : "Private"}</div>
+    </div>`;
+}
+
+function renderProgressUpdatesScreen(query) {
+  query = query || {};
+  const list = computeProgressUpdatesList(query);
+  const clientOptions = [`<option value="">All Clients</option>`].concat(
+    CLIENTS.filter((c) => !c.legacy).map((c) => `<option value="${c.id}" ${query.clientId === c.id ? "selected" : ""}>${c.name}</option>`)
+  ).join("");
+  const matterPool = query.clientId ? mattersForClient(query.clientId) : mattersForActiveClients();
+  const matterOptions = [`<option value="">All Matters</option>`].concat(
+    matterPool.map((m) => `<option value="${m.id}" ${query.matterId === m.id ? "selected" : ""}>${m.name}</option>`)
+  ).join("");
+  const workstreamPool = query.matterId ? (getMatter(query.matterId) || { workstreams: [] }).workstreams : Array.from(new Set(PROGRESS_UPDATES.map((p) => p.workstream).filter(Boolean))).sort();
+  const workstreamOptions = [`<option value="">All Workstreams</option>`].concat(
+    workstreamPool.map((w) => `<option value="${w}" ${query.workstream === w ? "selected" : ""}>${w}</option>`)
+  ).join("");
+  const visOptions = [{ id: "", label: "All Visibility" }, { id: "private", label: "Private only" }, { id: "included", label: "Included in Management Progress" }];
+
+  return `
+    <div class="page-head">
+      <div><div class="page-title">Progress Updates</div><div class="page-sub">Your own private work journal. Select, entry by entry, what feeds Management Progress — nothing is shared just because it belongs to a visible Matter.</div></div>
+      <div class="page-head-actions"><button class="btn btn-primary btn-sm" onclick="${call("openProgressUpdateForm", "")}">+ Add Progress Update</button></div>
+    </div>
+    <div class="filter-bar">
+      <select class="filter-select" onchange="${callWithValue("applyProgressFilter", "clientId")}">${clientOptions}</select>
+      <select class="filter-select" onchange="${callWithValue("applyProgressFilter", "matterId")}">${matterOptions}</select>
+      <select class="filter-select" onchange="${callWithValue("applyProgressFilter", "workstream")}">${workstreamOptions}</select>
+      <input class="filter-search" type="date" value="${attrSafe(query.from || "")}" onchange="${callWithValue("applyProgressFilter", "from")}" title="From date"/>
+      <input class="filter-search" type="date" value="${attrSafe(query.to || "")}" onchange="${callWithValue("applyProgressFilter", "to")}" title="To date"/>
+      <select class="filter-select" onchange="${callWithValue("applyProgressFilter", "visibility")}">${visOptions.map((v) => `<option value="${v.id}" ${(query.visibility || "") === v.id ? "selected" : ""}>${v.label}</option>`).join("")}</select>
+      <button class="btn btn-sm btn-ghost" onclick="${call("navigate", "#/progress")}">Clear filters</button>
+    </div>
+    <div class="pu-list">
+      ${list.length ? list.map(progressUpdateRow).join("") : `<div class="empty-state"><h3>No progress updates yet</h3><div>Use “+ Add Progress Update” to start your work journal.</div></div>`}
+    </div>
+  `;
+}
+
 /** Identity/Context/State/Action only — Stage, workstream/doc counts stay one tap away in the Client Workspace, not duplicated here. */
 function matterRecordCardHtml(r) {
   return `
@@ -1704,6 +2054,10 @@ function mgmtLabel(clientId, title) {
 function mgmtMatterCard(m) {
   const eng = getEngagementRecord(m.engagementId);
   const cn = clientName(eng.clientId);
+  // "the latest approved update may determine the Ongoing current position"
+  // (brief §9) — an additive line, never replacing the Matter's own
+  // separately-curated Current Position field above it.
+  const latest = latestManagementProgressUpdate(m.id);
   return `
     <div class="mgmt-card">
       <div class="mgmt-card-top">
@@ -1714,47 +2068,90 @@ function mgmtMatterCard(m) {
         <span class="mgmt-status mgmt-status-${slug(m.managementStatus || "")}">${m.managementStatus || "—"}</span>
       </div>
       <div class="mgmt-field"><span class="mgmt-field-label">Current Position</span>${m.currentPosition || "—"}</div>
+      ${latest ? `<div class="mgmt-field"><span class="mgmt-field-label">Latest Progress</span>${attrSafe(latest.text)}<span class="muted"> · ${fmtDate(latest.date)}</span></div>` : ""}
       ${m.workstreams.length ? `<div class="mgmt-field"><span class="mgmt-field-label">Active Workstreams</span>${m.workstreams.join(", ")}</div>` : ""}
       <div class="mgmt-field"><span class="mgmt-field-label">Next Step</span>${m.nextStep || "—"}</div>
       <div class="mgmt-field"><span class="mgmt-field-label">Management Attention</span>${m.managementAttentionNote || "None."}</div>
+      <div class="mgmt-field"><span class="mgmt-field-label">Last Updated</span>${fmtDate(m.managementUpdated)}</div>
     </div>`;
 }
 
-function renderManagementProgress() {
+/* ---------- Management Progress: three views over the same approved
+ * records (brief §4) — Ongoing, Weekly Review, Monthly Review. Every one
+ * reads through managementProgressNotes()/…InRange(), the single function
+ * the per-entry + Matter-level privacy double-gate is expressed in, so no
+ * view can accidentally bypass it. v1 groupings are deterministic — real
+ * records sorted/filtered by date, never a fabricated summary (brief §4). */
+function mgmtWeekStartState() {
+  if (!STATE.mgmtWeekStart) STATE.mgmtWeekStart = weekStart(TODAY);
+  return STATE.mgmtWeekStart;
+}
+function mgmtMonthState() {
+  if (!STATE.mgmtMonth) STATE.mgmtMonth = TODAY.slice(0, 7);
+  return STATE.mgmtMonth;
+}
+function setMgmtView(view) { STATE.mgmtView = view; render(); }
+function shiftMgmtWeek(delta) { STATE.mgmtWeekStart = addDays(mgmtWeekStartState(), delta * 7); render(); }
+function shiftMgmtMonth(delta) {
+  const [y, m] = mgmtMonthState().split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1 + delta, 1));
+  STATE.mgmtMonth = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`;
+  render();
+}
+function monthRange(monthStr) {
+  const [y, m] = monthStr.split("-").map(Number);
+  return { start: `${monthStr}-01`, end: `${monthStr}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}` };
+}
+function fmtMonthLabel(monthStr) {
+  const [y, m] = monthStr.split("-").map(Number);
+  return `${FULL_MONTHS[m - 1]} ${y}`;
+}
+
+function computeWeeklyReview(weekStartIso) {
+  const weekEnd = addDays(weekStartIso, 6);
+  const updates = managementProgressUpdatesInRange(weekStartIso, weekEnd);
+  return {
+    weekStart: weekStartIso, weekEnd,
+    progress: updates.filter((u) => u.text),
+    movement: managementVisibleDocs().filter((d) => d.modified >= weekStartIso && d.modified <= weekEnd),
+    waitingOn: managementWaitingOn(),
+    issues: updates.filter((u) => u.issueRisk),
+    decisions: computeManagementDecisions(),
+    updateDecisions: updates.filter((u) => u.decisionRequired),
+    priorities: updates.filter((u) => u.nextStep),
+  };
+}
+function computeMonthlyReview(monthStr) {
+  const { start, end } = monthRange(monthStr);
+  const updates = managementProgressUpdatesInRange(start, end);
+  const matterIds = Array.from(new Set(updates.map((u) => u.matterId)));
+  return {
+    month: monthStr, start, end,
+    milestones: updates.filter((u) => u.currentPosition),
+    matterMovement: matterIds.map(getMatter).filter(Boolean),
+    deliverablesCompleted: managementVisibleDocs().filter((d) => FINAL_STATUSES.includes(d.status) && d.modified >= start && d.modified <= end),
+    outstandingMatters: managementVisibleMatters().filter((m) => m.managementStatus !== "Complete"),
+    issues: updates.filter((u) => u.issueRisk),
+    decisions: computeManagementDecisions(),
+    updateDecisions: updates.filter((u) => u.decisionRequired),
+    priorities: updates.filter((u) => u.nextStep),
+  };
+}
+
+function progressUpdateMgmtLine(u, field) {
+  const m = getMatter(u.matterId);
+  return `<div class="mgmt-line"><b>${mgmtLabel(u.clientId, m ? m.name : "")}</b> — ${attrSafe(field ? u[field] : u.text)} <span class="muted">· ${fmtDate(u.date)}</span></div>`;
+}
+
+function renderMgmtOngoing() {
   const matters = managementVisibleMatters();
-  const summary = computeManagementSummary();
   const attentionMatters = matters.filter((m) => m.managementAttentionLevel);
   const waiting = managementWaitingOn();
   const notes = managementProgressNotes();
   const decisions = computeManagementDecisions();
   const docs = managementVisibleDocs();
   const meetings = managementMeetings();
-  const lastUpdated = lastManagementUpdate();
-
-  const summaryLine = [
-    `${summary.activeMatters} Active Matter${summary.activeMatters === 1 ? "" : "s"}`,
-    `${summary.forReview} For Review`,
-    `${summary.awaitingInput} Awaiting Input`,
-    `${summary.decisionRequired} Decision Required`,
-  ].join(" · ");
-
   return `
-    <div class="mgmt-preview-banner">
-      <span>You are previewing the Management View — this is exactly what would be shared.</span>
-      <button class="btn btn-sm" onclick="${call("navigate", "#/home")}">Exit Preview</button>
-    </div>
-    <div class="mgmt-page">
-      <div class="mgmt-header">
-        <div>
-          <span class="eyebrow">Executive Briefing</span>
-          <div class="mgmt-title">Management Progress</div>
-          <div class="mgmt-subtitle">Executive Office — Current Work &amp; Priorities</div>
-        </div>
-        <div class="mgmt-updated">Last Updated: ${lastUpdated ? fmtDate(lastUpdated) : "—"}</div>
-      </div>
-
-      <div class="mgmt-summary">${summaryLine}</div>
-
       <div class="mgmt-section">
         <div class="mgmt-section-title">Current Priorities</div>
         ${matters.length ? matters.map(mgmtMatterCard).join("") : '<div class="mgmt-empty">No Matters currently selected for management visibility.</div>'}
@@ -1825,15 +2222,143 @@ function renderManagementProgress() {
           <div class="mgmt-line mgmt-line-click" onclick="${call("openMeeting", m.id)}">${mgmtLabel(m.clientId, m.title)} <span class="muted">· ${fmtDate(m.date)} · ${m.startTime}</span></div>
         `).join("")}
       </div>` : ""}
+  `;
+}
+
+function renderMgmtWeekly() {
+  const weekStartIso = mgmtWeekStartState();
+  const r = computeWeeklyReview(weekStartIso);
+  return `
+      <div class="mgmt-period-nav">
+        <button class="btn btn-sm btn-ghost" onclick="${call("shiftMgmtWeek", "-1")}">← Previous Week</button>
+        <span class="mgmt-period-label">${fmtDate(r.weekStart)} – ${fmtDate(r.weekEnd)}</span>
+        <button class="btn btn-sm btn-ghost" onclick="${call("shiftMgmtWeek", "1")}">Next Week →</button>
+      </div>
+
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Progress This Week</div>
+        ${r.progress.length ? r.progress.map((u) => progressUpdateMgmtLine(u)).join("") : '<div class="mgmt-empty">No management-visible progress entered this week.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Key Deliverables / Movement</div>
+        ${r.movement.length ? r.movement.map((d) => `<div class="mgmt-line mgmt-line-click" onclick="${call("openDocument", d.id)}">${mgmtLabel(d.clientId, d.title)} <span class="muted">· ${fmtDate(d.modified)}</span></div>`).join("") : '<div class="mgmt-empty">No document movement this week.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Outstanding / Waiting On</div>
+        ${r.waitingOn.length ? r.waitingOn.map((t) => `<div class="mgmt-line"><b>${clientName(t.clientId)}</b> — ${t.title}${t.waitingOn ? ` <span class="muted">(${t.waitingOn})</span>` : ""}</div>`).join("") : '<div class="mgmt-empty">Nothing currently awaiting external input.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Issues / Risks</div>
+        ${r.issues.length ? r.issues.map((u) => progressUpdateMgmtLine(u, "issueRisk")).join("") : '<div class="mgmt-empty">No issues or risks flagged this week.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Decisions / Direction Required</div>
+        ${(r.decisions.length || r.updateDecisions.length) ? [
+          ...r.decisions.map((d) => `<div class="mgmt-line mgmt-line-click" onclick="${call("openDocument", d.id)}"><b>${mgmtLabel(d.clientId, d.title)}</b> <span class="muted">· ${decisionDisplayStatus(d)}</span></div>`),
+          ...r.updateDecisions.map((u) => progressUpdateMgmtLine(u, "decisionRequired")),
+        ].join("") : '<div class="mgmt-empty">Nothing currently pending a decision.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Priorities / Next Steps</div>
+        ${r.priorities.length ? r.priorities.map((u) => progressUpdateMgmtLine(u, "nextStep")).join("") : '<div class="mgmt-empty">Nothing notable entered for next steps this week.</div>'}
+      </div>
+  `;
+}
+
+function renderMgmtMonthly() {
+  const monthStr = mgmtMonthState();
+  const r = computeMonthlyReview(monthStr);
+  return `
+      <div class="mgmt-period-nav">
+        <button class="btn btn-sm btn-ghost" onclick="${call("shiftMgmtMonth", "-1")}">← Previous Month</button>
+        <span class="mgmt-period-label">${fmtMonthLabel(r.month)}</span>
+        <button class="btn btn-sm btn-ghost" onclick="${call("shiftMgmtMonth", "1")}">Next Month →</button>
+      </div>
+
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Major Progress / Milestones</div>
+        ${r.milestones.length ? r.milestones.map((u) => progressUpdateMgmtLine(u, "currentPosition")).join("") : '<div class="mgmt-empty">No management-visible progress entered this month.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Matter / Project Movement</div>
+        ${r.matterMovement.length ? r.matterMovement.map((m) => `<div class="mgmt-line"><b>${clientName(getEngagementRecord(m.engagementId).clientId)}</b> — ${m.name} <span class="muted">· ${m.managementStatus || m.status}</span></div>`).join("") : '<div class="mgmt-empty">No Matter movement recorded this month.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Deliverables Completed</div>
+        ${r.deliverablesCompleted.length ? r.deliverablesCompleted.map((d) => `<div class="mgmt-line mgmt-line-click" onclick="${call("openDocument", d.id)}">${mgmtLabel(d.clientId, d.title)} <span class="muted">· ${fmtDate(d.modified)}</span></div>`).join("") : '<div class="mgmt-empty">No deliverables reached Final/Issued/Approved this month.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Outstanding Matters</div>
+        ${r.outstandingMatters.length ? r.outstandingMatters.map((m) => `<div class="mgmt-line"><b>${clientName(getEngagementRecord(m.engagementId).clientId)}</b> — ${m.name} <span class="muted">· ${m.managementStatus || "—"}</span></div>`).join("") : '<div class="mgmt-empty">Nothing outstanding.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Issues / Risks / Escalations</div>
+        ${r.issues.length ? r.issues.map((u) => progressUpdateMgmtLine(u, "issueRisk")).join("") : '<div class="mgmt-empty">No issues, risks or escalations this month.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Management Decisions / Direction</div>
+        ${(r.decisions.length || r.updateDecisions.length) ? [
+          ...r.decisions.map((d) => `<div class="mgmt-line mgmt-line-click" onclick="${call("openDocument", d.id)}"><b>${mgmtLabel(d.clientId, d.title)}</b> <span class="muted">· ${decisionDisplayStatus(d)}</span></div>`),
+          ...r.updateDecisions.map((u) => progressUpdateMgmtLine(u, "decisionRequired")),
+        ].join("") : '<div class="mgmt-empty">Nothing currently pending a decision.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Forward Priorities</div>
+        ${r.priorities.length ? r.priorities.map((u) => progressUpdateMgmtLine(u, "nextStep")).join("") : '<div class="mgmt-empty">Nothing notable entered for next steps this month.</div>'}
+      </div>
+  `;
+}
+
+function renderManagementProgress() {
+  const summary = computeManagementSummary();
+  const lastUpdated = lastManagementUpdate();
+  const view = STATE.mgmtView || "ongoing";
+
+  const summaryLine = [
+    `${summary.activeMatters} Active Matter${summary.activeMatters === 1 ? "" : "s"}`,
+    `${summary.forReview} For Review`,
+    `${summary.awaitingInput} Awaiting Input`,
+    `${summary.decisionRequired} Decision Required`,
+  ].join(" · ");
+
+  return `
+    <div class="mgmt-preview-banner">
+      <span>You are previewing the Management View — this is exactly what would be shared.</span>
+      <button class="btn btn-sm" onclick="${call("navigate", "#/home")}">Exit Preview</button>
+    </div>
+    <div class="mgmt-page">
+      <div class="mgmt-header">
+        <div>
+          <span class="eyebrow">Executive Briefing</span>
+          <div class="mgmt-title">Management Progress</div>
+          <div class="mgmt-subtitle">Executive Office — Current Work &amp; Priorities</div>
+        </div>
+        <div class="mgmt-updated">Last Updated: ${lastUpdated ? fmtDate(lastUpdated) : "—"}</div>
+      </div>
+
+      <div class="mgmt-summary">${summaryLine}</div>
+
+      <div class="view-toggle mgmt-view-toggle">
+        <button class="${view === "ongoing" ? "active" : ""}" onclick="${call("setMgmtView", "ongoing")}">Ongoing</button>
+        <button class="${view === "weekly" ? "active" : ""}" onclick="${call("setMgmtView", "weekly")}">Weekly Review</button>
+        <button class="${view === "monthly" ? "active" : ""}" onclick="${call("setMgmtView", "monthly")}">Monthly Review</button>
+      </div>
+
+      ${view === "weekly" ? renderMgmtWeekly() : view === "monthly" ? renderMgmtMonthly() : renderMgmtOngoing()}
 
       <div class="mgmt-generate">
         <button class="btn btn-primary" onclick="${call("toggleGenerateUpdate")}">${STATE.showGenerateUpdate ? "Hide" : "Generate Management Update"}</button>
         ${STATE.showGenerateUpdate ? `
           <div class="mgmt-generate-panel">
+            <div class="dfield-label" style="margin-bottom:6px">Report</div>
+            <div class="view-toggle" style="margin-bottom:10px">
+              ${["ongoing", "weekly", "monthly"].map((s) => `<button class="${(STATE.updateScope || "ongoing") === s ? "active" : ""}" onclick="${call("setUpdateScope", s)}">${s === "ongoing" ? "Ongoing" : s === "weekly" ? "Weekly Review" : "Monthly Review"}</button>`).join("")}
+            </div>
+            <div class="dfield-label" style="margin-bottom:6px">Format</div>
             <div class="view-toggle" style="margin-bottom:10px">
               ${["email", "whatsapp", "brief"].map((f) => `<button class="${(STATE.updateFormat || "email") === f ? "active" : ""}" onclick="${call("setUpdateFormat", f)}">${f === "email" ? "Email" : f === "whatsapp" ? "WhatsApp" : "Executive Brief"}</button>`).join("")}
             </div>
-            <textarea class="filter-search" style="width:100%;min-height:220px;font-family:inherit">${attrSafe(generateUpdateText(STATE.updateFormat || "email"))}</textarea>
+            <textarea class="filter-search" style="width:100%;min-height:220px;font-family:inherit">${attrSafe(generateUpdateText(STATE.updateFormat || "email", STATE.updateScope || "ongoing"))}</textarea>
             <div class="drawer-actions" style="margin-top:10px">
               <button class="btn btn-gold" onclick="${call("copyGeneratedUpdate")}">Copy Text</button>
             </div>
@@ -1936,6 +2461,7 @@ function renderScreen(path, query) {
   if (path === "/inbox") return renderInboxScreen();
   if (path === "/archive") return renderArchiveScreen(query);
   if (path === "/actions") return renderActionsScreen();
+  if (path === "/progress") return renderProgressUpdatesScreen(query);
   if (path === "/meetings") return renderMeetingsScreen();
   if (path === "/tags") return renderTagsScreen();
   if (path === "/templates") return renderTemplatesScreen();
