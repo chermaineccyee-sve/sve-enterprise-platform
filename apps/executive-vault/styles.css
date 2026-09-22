@@ -350,6 +350,103 @@ table.reg tbody tr:last-child td{border-bottom:0}
 .meeting-row.temporal-now .meeting-time{color:var(--signal-deep)}
 .meeting-row.temporal-now{background:var(--signal-soft);border-radius:var(--radius-sm);box-shadow:inset 3px 0 0 var(--signal)}
 
+/* Executive Home tagline — sits under the existing page-title/page-sub
+   greeting, never animated (identity text stays stable). */
+.exec-tagline{font-size:12.5px;color:var(--ink-faint);margin-top:6px}
+
+/* Executive Pulse — the same summary-strip/chip base, with a purple-tinted
+   surface and a one-time (not continuous) entrance on first render. */
+.pulse-strip{background:linear-gradient(135deg,#ffffff 0%,var(--paper) 100%);box-shadow:var(--shadow-card),inset 0 0 0 1px rgba(57,32,111,.05)}
+.pulse-strip .summary-chip{animation:pulse-chip-in .35s var(--ease) both}
+.pulse-strip .summary-chip:nth-child(1){animation-delay:.02s}
+.pulse-strip .summary-chip:nth-child(3){animation-delay:.06s}
+.pulse-strip .summary-chip:nth-child(5){animation-delay:.10s}
+.pulse-strip .summary-chip:nth-child(7){animation-delay:.14s}
+.pulse-strip .summary-chip:nth-child(9){animation-delay:.18s}
+.pulse-strip .summary-chip:nth-child(11){animation-delay:.22s}
+@keyframes pulse-chip-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.pulse-strip .summary-chip{animation:none}}
+
+/* Executive timeline (My Day, on Executive Home) — a grid-per-row rail so
+   each row draws its own line segment; no cross-element pixel matching. */
+.exec-timeline{display:flex;flex-direction:column}
+.exec-tl-row{position:relative;display:grid;grid-template-columns:46px 16px 1fr auto;align-items:center;column-gap:12px;padding:10px 8px;margin:0 -8px;border-radius:var(--radius-sm);cursor:pointer;transition:background .14s ease}
+.exec-tl-trailing{display:flex;align-items:center;gap:8px;flex:none}
+@media (max-width:900px){
+  .exec-tl-row{grid-template-columns:46px 16px 1fr}
+  .exec-tl-trailing{grid-column:3;grid-row:2;margin-top:6px}
+}
+.exec-tl-row:hover{background:var(--paper)}
+.exec-tl-row:hover .exec-tl-title{color:var(--gold-deep)}
+.exec-tl-time{font-size:11.5px;font-weight:700;color:var(--ink-soft);text-align:right;font-variant-numeric:tabular-nums}
+.exec-tl-rail{position:relative;height:100%;display:flex;align-items:center;justify-content:center}
+.exec-tl-rail:before{content:"";position:absolute;top:-11px;bottom:-11px;width:2px;background:var(--line-soft)}
+.exec-tl-row:first-child .exec-tl-rail:before{top:50%}
+.exec-tl-row:last-child .exec-tl-rail:before{bottom:50%}
+.exec-tl-dot{position:relative;z-index:1;width:9px;height:9px;border-radius:50%;background:var(--line);border:2px solid var(--paper-raised);box-shadow:0 0 0 1px var(--line)}
+.exec-tl-row.temporal-now .exec-tl-dot{background:var(--signal);box-shadow:0 0 0 1px var(--signal)}
+.exec-tl-row.temporal-upcoming .exec-tl-dot{background:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.exec-tl-row.temporal-past{opacity:.55}
+.exec-tl-main{min-width:0}
+.exec-tl-title{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px;transition:color .14s ease}
+.exec-tl-sub{font-size:11.5px;color:var(--ink-faint);margin-top:2px}
+.exec-tl-row.exec-tl-next{background:var(--gold-soft);box-shadow:inset 3px 0 0 var(--gold)}
+.exec-tl-next-badge{font-size:9px;text-transform:uppercase;letter-spacing:.05em;font-weight:800;color:var(--gold-deep);background:#fff;padding:2px 7px;border-radius:999px}
+.exec-tl-prepare{flex:none;padding:5px 12px;font-size:11.5px}
+.exec-now-marker{position:relative;display:grid;grid-template-columns:46px 16px 1fr;column-gap:12px;align-items:center;padding:2px 8px;margin:2px -8px}
+.exec-now-marker .exec-now-dot{grid-column:2;justify-self:center;width:8px;height:8px;border-radius:50%;background:var(--tier-hc);box-shadow:0 0 0 3px rgba(180,35,24,.16)}
+.exec-now-label{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--tier-hc)}
+
+/* Active Matters — deliberately its own component (never shares CSS classes
+   with .mgmt-card), so Executive Home stays visually stronger than the
+   calmer, curated Management Progress page without any coupling. */
+.exec-matters-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+@media (max-width:1100px){.exec-matters-grid{grid-template-columns:1fr}}
+.exec-matter-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow-card);cursor:pointer;transition:box-shadow .18s var(--ease),transform .18s var(--ease),border-color .18s ease}
+.exec-matter-card:hover{border-color:var(--gold);box-shadow:var(--shadow-elevated);transform:translateY(-2px)}
+.exec-matter-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.exec-matter-client{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);font-weight:700}
+.exec-matter-name{font-family:var(--font-serif);font-size:16.5px;color:var(--navy-950);margin-top:1px}
+.exec-matter-workstreams{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+.exec-matter-field{font-size:12.5px;line-height:1.55;margin-bottom:7px}
+.exec-matter-field:last-of-type{margin-bottom:0}
+.exec-matter-field-label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);font-weight:700;margin-bottom:1px}
+.exec-matter-attention{margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft);font-size:11.5px;font-weight:700}
+.exec-matter-attention.sev-high{color:var(--tier-hc)}
+.exec-matter-attention.sev-info{color:var(--signal-deep)}
+
+/* Waiting On — two-line operational rows (party/what, then client/matter and
+   due date), restrained overdue emphasis reusing the existing tier colour. */
+.exec-waiting-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:11px 8px;margin:0 -8px;border-bottom:1px solid var(--line-soft);cursor:pointer;border-radius:var(--radius-sm);transition:background .14s ease}
+.exec-waiting-row:last-child{border-bottom:0}
+.exec-waiting-row:hover{background:var(--paper)}
+.exec-waiting-main{flex:1 1 55%;min-width:0}
+.exec-waiting-party{font-size:12.5px;font-weight:700;color:var(--ink)}
+.exec-waiting-what{font-size:12px;color:var(--ink-soft);margin-top:2px}
+.exec-waiting-meta{text-align:right;flex:1 1 40%;min-width:0}
+.exec-waiting-due{font-size:11px;color:var(--ink-faint);margin-top:2px}
+.exec-waiting-due.overdue{color:var(--tier-hc);font-weight:700}
+@media (max-width:480px){
+  .exec-waiting-row{flex-direction:column;gap:4px}
+  .exec-waiting-meta{text-align:left}
+}
+
+/* Recent Movement feed — a single merged, truthful timeline of things that
+   already happened elsewhere (never a fabricated activity log). */
+.exec-movement-row{display:flex;align-items:flex-start;gap:12px;padding:10px 8px;margin:0 -8px;border-bottom:1px solid var(--line-soft);cursor:pointer;border-radius:var(--radius-sm);transition:background .14s ease}
+.exec-movement-row:last-child{border-bottom:0}
+.exec-movement-row:hover{background:var(--paper)}
+.exec-movement-icon{flex:none;width:26px;height:26px;border-radius:7px;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px}
+.exec-movement-main{flex:1;min-width:0}
+.exec-movement-title{font-size:12.5px;font-weight:600}
+.exec-movement-sub{font-size:11px;color:var(--ink-faint);margin-top:2px}
+.exec-movement-date{flex:none;font-size:11px;white-space:nowrap}
+
+/* This Week (secondary preview on Executive Home — the full week-by-day view
+   stays a separate, deliberately unchanged screen at #/week). */
+.exec-week-stats{display:flex;flex-wrap:wrap;gap:18px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line-soft);font-size:12.5px;color:var(--ink-soft)}
+.exec-week-stats b{font-family:var(--font-serif);color:var(--navy-950);font-size:15px}
+
 .notif-popover{position:absolute;top:calc(100% + 8px);right:0;width:300px;background:var(--paper-raised);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-drawer);padding:14px 16px;z-index:70;animation:pop-in .16s var(--ease)}
 @keyframes pop-in{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
 .n-badge{position:absolute;top:-4px;right:-4px;background:var(--gold);color:#fff;font-size:9.5px;font-weight:800;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;box-shadow:0 2px 6px rgba(239,122,27,.4)}

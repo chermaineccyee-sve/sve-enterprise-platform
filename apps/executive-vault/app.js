@@ -180,6 +180,7 @@ function computeAttention() {
     confidentialFlagged: c.filter((d) => d.confidentiality === "highly-confidential"),
     followUps: TASKS.filter((t) => !t.done && !t.waitingOn),
     waitingOn: TASKS.filter((t) => !t.done && t.waitingOn),
+    overdue: TASKS.filter((t) => !t.done && t.due && t.due < TODAY),
   };
 }
 /** Documents whose shape is decision-facing (Resolution/Management Paper) and not yet Final/Approved/Issued/closed — architecture doc §15.1. */
@@ -1039,22 +1040,76 @@ function meetingRow(m, opts) {
     </div>`;
 }
 
+/** Executive Home's timeline treatment of a day's meetings (architecture:
+ * presentation-only reuse of meetingTemporalState()/openMeeting()/
+ * openMeetingPrep() — no new meeting model). A standalone "Now" marker is
+ * inserted at the right chronological point only when no meeting itself is
+ * currently "now" (so the live indicator never doubles up). */
+function renderExecutiveTimeline(meetings) {
+  if (!meetings.length) return `<div class="muted" style="padding:6px 4px">Nothing on the calendar today.</div>`;
+  const nextMeeting = meetings.find((m) => meetingTemporalState(m) !== "past");
+  let nowMarkerShown = meetings.some((m) => meetingTemporalState(m) === "now");
+  const rows = [];
+  meetings.forEach((m) => {
+    if (!nowMarkerShown && (m.startTime || "") > NOW) {
+      rows.push(`<div class="exec-now-marker"><span class="exec-now-dot"></span><span class="exec-now-label">Now · ${NOW}</span></div>`);
+      nowMarkerShown = true;
+    }
+    const state = meetingTemporalState(m);
+    const isNext = !!nextMeeting && m.id === nextMeeting.id;
+    const parts = [clientName(m.clientId)];
+    if (matterName(m.matterId)) parts.push(matterName(m.matterId));
+    const canPrepare = isNext && m.clientId && state !== "past";
+    rows.push(`
+      <div class="exec-tl-row temporal-${state}${isNext ? " exec-tl-next" : ""}" onclick="${call("openMeeting", m.id)}">
+        <div class="exec-tl-time">${m.startTime || "—"}</div>
+        <div class="exec-tl-rail"><span class="exec-tl-dot"></span></div>
+        <div class="exec-tl-main">
+          <div class="exec-tl-title">${state === "now" ? '<span class="live-dot" title="Happening now"></span>' : ""}${m.title}${isNext ? '<span class="exec-tl-next-badge">Next</span>' : ""}</div>
+          <div class="exec-tl-sub">${m.clientId ? parts.join(" · ") : "No Client linked"}</div>
+        </div>
+        <div class="exec-tl-trailing">
+          ${statusChip(m.status)}
+          ${canPrepare ? `<button class="btn btn-sm btn-ghost exec-tl-prepare" onclick="event.stopPropagation();${call("openMeetingPrep", m.id)}">Prepare</button>` : ""}
+        </div>
+      </div>`);
+  });
+  if (!nowMarkerShown) rows.push(`<div class="exec-now-marker"><span class="exec-now-dot"></span><span class="exec-now-label">Now · ${NOW}</span></div>`);
+  return `<div class="exec-timeline">${rows.join("")}</div>`;
+}
+
+/** Reuses the same Current Position/Next Step/Management Attention fields
+ * mgmtMatterCard() shows on Management Progress, in Executive Home's own
+ * (visually stronger) card — a deliberately distinct component so restyling
+ * one never touches the other's deliberately calmer treatment. */
+function execMatterCard(m) {
+  const cl = getClient(matterClientId(m));
+  const shown = m.workstreams.slice(0, 3);
+  const extra = m.workstreams.length - shown.length;
+  return `
+    <div class="exec-matter-card" onclick="${call("navigate", matterDeepLinkHash(m))}">
+      <div class="exec-matter-top">
+        <div>
+          <div class="exec-matter-client">${cl ? cl.name : "—"}</div>
+          <div class="exec-matter-name">${m.name}</div>
+        </div>
+        <span class="mgmt-status mgmt-status-${slug(m.managementStatus || "")}">${m.managementStatus || "—"}</span>
+      </div>
+      ${m.workstreams.length ? `<div class="exec-matter-workstreams">${shown.map((w) => `<span class="chip fn-chip">${w}</span>`).join("")}${extra > 0 ? `<span class="chip fn-chip">+${extra}</span>` : ""}</div>` : ""}
+      <div class="exec-matter-field"><span class="exec-matter-field-label">Current Position</span>${m.currentPosition}</div>
+      <div class="exec-matter-field"><span class="exec-matter-field-label">Next Step</span>${m.nextStep || "—"}</div>
+      ${m.managementAttentionLevel ? `<div class="exec-matter-attention sev-${m.managementAttentionLevel === "Decision Required" ? "high" : "info"}">${m.managementAttentionLevel}${m.managementAttentionNote ? " — " + m.managementAttentionNote : ""}</div>` : ""}
+    </div>`;
+}
+
 function renderHome() {
   const c = activeClassifiedDocs();
   const a = attention();
   const decisions = computeDecisionsRequired();
-  const activeMatterIds = new Set(mattersForActiveClients().map((m) => m.id));
-  const activeMattersCount = activeMatterIds.size;
+  const activeMattersCount = mattersForActiveClients().length;
   const todayMeetings = meetingsOnDate(TODAY);
-  const recent = c.slice().sort((x, y) => y.modified.localeCompare(x.modified)).slice(0, 6);
-
-  const summaryChips = [
-    { num: activeMattersCount, label: "Active Matters", hash: "#/matters" },
-    { num: todayMeetings.length, label: "Meetings Today", hash: "#/myday" },
-    { num: openTasksCount(), label: "Follow-Ups", hash: "#/actions" },
-    { num: a.awaitingReview.length, label: "For Review", hash: "#/vault?bucket=review" },
-    { num: decisions.length, label: decisions.length === 1 ? "Decision Required" : "Decisions Required", hash: "#/home", warn: decisions.length > 0 },
-  ];
+  const priorityMatters = priorityActiveMatters();
+  const recentMovement = computeRecentMovement(6);
 
   const attentionRows = [
     { label: "Awaiting review", count: a.awaitingReview.length, icon: "⏳", hash: "#/vault?bucket=review", sub: "Internal, management or client review in progress" },
@@ -1064,61 +1119,102 @@ function renderHome() {
     { label: "Missing version information", count: a.missingVersion.length, icon: "①", hash: "#/vault?bucket=active", sub: "No version label recorded", sev: "info" },
     { label: "Marked confidential (Highly Confidential)", count: a.confidentialFlagged.length, icon: "🔒", hash: "#/vault", sub: "Board, legal-privilege or investment-sensitive material", sev: "high" },
     { label: "Follow-ups on me", count: a.followUps.length, icon: "☑", hash: "#/actions", sub: "Open actions where the next move is mine" },
+    { label: "Overdue actions", count: a.overdue.length, icon: "⚠", hash: "#/actions", sub: "Past their due date and still open", sev: "high" },
   ].filter((r) => r.count > 0);
+  const attentionTotal = attentionRows.reduce((sum, r) => sum + r.count, 0);
+
+  const pulseChips = [
+    { num: activeMattersCount, label: "Active Matters", hash: "#/matters" },
+    { num: todayMeetings.length, label: "Meetings Today", hash: "#/myday" },
+    { num: attentionTotal, label: "Attention Required", hash: "#/actions" },
+    { num: decisions.length, label: decisions.length === 1 ? "Decision Required" : "Decisions Required", hash: "#/home", warn: decisions.length > 0 },
+    { num: a.waitingOn.length, label: "Waiting On", hash: "#/actions" },
+    { num: a.awaitingReview.length, label: "For Review", hash: "#/vault?bucket=review" },
+  ];
 
   const meetingNowCount = todayMeetings.filter((m) => meetingTemporalState(m) === "now").length;
+  const weekEnd = addDays(weekStart(TODAY), 6);
+  const weekUpcoming = meetingsInRange(addDays(TODAY, 1), weekEnd);
+  const weekDeadlines = TASKS.filter((t) => !t.done && t.due > TODAY && t.due <= weekEnd);
 
   return `
     <div class="page-head">
-      <div><span class="eyebrow">Personal Executive Command Centre</span><div class="page-title">${greetingWord()}, ${currentUserDisplayName()}</div><div class="page-sub">${fmtDateLong(TODAY)}</div></div>
+      <div><span class="eyebrow">Personal Executive Command Centre</span><div class="page-title">${greetingWord()}, ${currentUserDisplayName()}</div><div class="page-sub">${fmtDateLong(TODAY)}</div><div class="exec-tagline">Here is where your work stands today.</div></div>
     </div>
 
-    <div class="summary-strip">${summaryChips.map((s) => `<span class="summary-chip" onclick="${call("navigate", s.hash)}"><span class="summary-chip-num${s.warn ? " warn" : ""}">${s.num}</span><span class="summary-chip-label">${s.label}</span></span>`).join('<span class="summary-sep"></span>')}</div>
+    <div class="summary-strip pulse-strip">${pulseChips.map((s) => `<span class="summary-chip" onclick="${call("navigate", s.hash)}"><span class="summary-chip-num${s.warn ? " warn" : ""}">${s.num}</span><span class="summary-chip-label">${s.label}</span></span>`).join('<span class="summary-sep"></span>')}</div>
 
     <div class="grid grid-2" style="align-items:start;margin-top:20px">
       <div class="section">
-        <div class="section-head"><div class="section-title">${meetingNowCount ? '<span class="live-dot" title="A meeting is happening now"></span>' : ""}Today</div><span class="section-link" onclick="${call("navigate", "#/myday")}">My Day →</span></div>
-        <div class="card card-pad card-accent">
-          ${todayMeetings.length ? todayMeetings.map((m) => meetingRow(m, { compact: true })).join("") : '<div class="muted" style="padding:6px 4px">Nothing on the calendar today.</div>'}
+        <div class="section-head"><div class="section-title">${meetingNowCount ? '<span class="live-dot" title="A meeting is happening now"></span>' : ""}My Day</div><span class="section-link" onclick="${call("navigate", "#/myday")}">Full day →</span></div>
+        <div class="card card-pad card-accent exec-timeline-card">
+          ${renderExecutiveTimeline(todayMeetings)}
         </div>
       </div>
 
       <div class="section">
-        <div class="section-head"><div class="section-title">Attention Required</div></div>
-        <div class="card card-pad${attentionRows.length ? " card-accent card-accent-warn" : ""}">
+        <div class="section-head"><div class="section-title">Executive Attention</div></div>
+        <div class="card card-pad${(attentionRows.length || decisions.length) ? " card-accent card-accent-warn" : ""}">
           ${attentionRows.length ? `<div class="attention-list">${attentionRows.map((r) => `
             <div class="attention-row" onclick="${call("navigate", r.hash)}">
               <div class="attention-icon${r.sev ? " sev-" + r.sev : ""}">${r.icon}</div>
               <div><div class="attention-label">${r.label}</div><div class="attention-sub">${r.sub}</div></div>
               <div class="attention-count">${r.count}</div>
-            </div>`).join("")}</div>` : `<div class="muted" style="padding:10px 4px">Nothing needs attention right now.</div>`}
-          ${a.waitingOn.length ? `
-            <div class="section-title" style="margin:16px 0 6px;padding-top:14px;border-top:1px solid var(--line-soft)">Waiting On</div>
-            <div class="quick-list">${a.waitingOn.map((t) => `
-              <div class="quick-row" onclick="${call("navigate", "#/actions")}"><span>${t.title}</span><span class="muted" style="margin-left:auto">${t.waitingOn} · due ${fmtDate(t.due)}</span></div>
+            </div>`).join("")}</div>` : ""}
+          ${decisions.length ? `
+            <div class="section-title" style="margin:${attentionRows.length ? "16px" : "0"} 0 6px;${attentionRows.length ? "padding-top:14px;border-top:1px solid var(--line-soft)" : ""}">Decisions Pending</div>
+            <div class="quick-list">${decisions.map((d) => `
+              <div class="quick-row" onclick="${call("openDocument", d.id)}"><span>${d.title}</span>${statusChip(d.status)}<span class="muted" style="margin-left:auto">${clientName(d.clientId)}</span></div>
             `).join("")}</div>` : ""}
+          ${(!attentionRows.length && !decisions.length) ? `<div class="muted" style="padding:10px 4px">Nothing needs attention right now.</div>` : ""}
         </div>
       </div>
     </div>
 
+    <div class="section">
+      <div class="section-head"><div class="section-title">Active Matters</div><span class="section-link" onclick="${call("navigate", "#/matters")}">All matters →</span></div>
+      ${priorityMatters.length ? `<div class="exec-matters-grid">${priorityMatters.map(execMatterCard).join("")}</div>` : `<div class="card card-pad"><div class="muted">No active matters with a recorded position yet.</div></div>`}
+    </div>
+
     <div class="grid grid-2" style="align-items:start">
       <div class="section">
-        <div class="section-head"><div class="section-title">Recently Modified</div><span class="section-link" onclick="${call("navigate", "#/vault?bucket=recent")}">View all</span></div>
+        <div class="section-head"><div class="section-title">Waiting On</div><span class="section-link" onclick="${call("navigate", "#/actions")}">Actions & Follow-Up →</span></div>
         <div class="card card-pad card-accent card-accent-blue">
-          <div class="quick-list">${recent.map((d) => `
-            <div class="quick-row" onclick="${call("openDocument", d.id)}">
-              <span>${d.title}</span><span class="muted" style="margin-left:auto">${fmtDate(d.modified)}</span>
-            </div>`).join("")}</div>
+          ${a.waitingOn.length ? `<div class="quick-list">${a.waitingOn.map((t) => {
+            const overdue = t.due && t.due < TODAY;
+            return `
+            <div class="exec-waiting-row" onclick="${call("navigate", "#/actions")}">
+              <div class="exec-waiting-main"><div class="exec-waiting-party">${t.waitingOn}</div><div class="exec-waiting-what">${t.title}</div></div>
+              <div class="exec-waiting-meta"><div class="muted">${clientName(t.clientId)}${matterName(t.matterId) ? " · " + matterName(t.matterId) : ""}</div><div class="exec-waiting-due${overdue ? " overdue" : ""}">${t.due ? "Due " + fmtDate(t.due) : "No due date"}</div></div>
+            </div>`;
+          }).join("")}</div>` : `<div class="muted" style="padding:6px 4px">Not waiting on anyone right now.</div>`}
         </div>
       </div>
 
       <div class="section">
-        <div class="section-head"><div class="section-title">Requires Review or Decision</div></div>
-        <div class="card card-pad${decisions.length ? " card-accent card-accent-warn" : ""}">
-          ${decisions.length ? `<div class="quick-list">${decisions.map((d) => `
-            <div class="quick-row" onclick="${call("openDocument", d.id)}"><span>${d.title}</span>${statusChip(d.status)}<span class="muted" style="margin-left:auto">${clientName(d.clientId)}</span></div>
-          `).join("")}</div>` : '<div class="muted" style="padding:4px">No board papers or resolutions pending decision.</div>'}
+        <div class="section-head"><div class="section-title">Recent Movement</div></div>
+        <div class="card card-pad">
+          ${recentMovement.length ? `<div class="quick-list">${recentMovement.map((e) => `
+            <div class="exec-movement-row" onclick="${e.onclick}">
+              <span class="exec-movement-icon">${e.icon}</span>
+              <div class="exec-movement-main"><div class="exec-movement-title">${e.title}</div><div class="exec-movement-sub">${e.sub}</div></div>
+              <span class="muted exec-movement-date">${fmtDate(e.date)}</span>
+            </div>`).join("")}</div>` : `<div class="muted" style="padding:6px 4px">No recent movement.</div>`}
         </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">This Week</div><span class="section-link" onclick="${call("navigate", "#/week")}">Full week →</span></div>
+      <div class="card card-pad exec-week-preview">
+        <div class="exec-week-stats">
+          <span><b>${weekUpcoming.length}</b> meeting${weekUpcoming.length === 1 ? "" : "s"} ahead</span>
+          <span><b>${weekDeadlines.length}</b> deadline${weekDeadlines.length === 1 ? "" : "s"}</span>
+          <span><b>${decisions.length}</b> decision${decisions.length === 1 ? "" : "s"} pending</span>
+        </div>
+        ${weekUpcoming.length ? `<div class="quick-list">${weekUpcoming.slice(0, 4).map((m) => `
+          <div class="quick-row" onclick="${call("openMeeting", m.id)}"><span>${fmtDate(m.date)}</span><span>${m.title}</span><span class="muted" style="margin-left:auto">${clientName(m.clientId)}</span></div>
+        `).join("")}</div>` : `<div class="muted" style="padding:6px 4px">Nothing further scheduled this week.</div>`}
       </div>
     </div>
   `;
@@ -1185,6 +1281,64 @@ function mattersForActiveClients() {
   const activeClientIds = new Set(CLIENTS.filter((c) => !c.legacy).map((c) => c.id));
   const activeEngIds = new Set(ENGAGEMENTS.filter((e) => activeClientIds.has(e.clientId)).map((e) => e.id));
   return MATTERS.filter((m) => activeEngIds.has(m.engagementId));
+}
+function matterClientId(m) { const eng = getEngagementRecord(m.engagementId); return eng ? eng.clientId : null; }
+function matterDeepLinkHash(m) { return "#/client/" + (matterClientId(m) || "") + "?tab=documents&matter=" + m.id; }
+
+/** Executive Home's "current priority matters" — active matters with a genuinely
+ * filled-in Current Position/Next Step (architecture doc §16.2's own narrative
+ * fields, reused as-is — never a parallel progress dataset). This is deliberately
+ * NOT gated on managementVisible: Executive Home is Ching Yee's own private view,
+ * already more privileged than Management Progress, so it must not be coupled to
+ * that separate visibility flag — it just happens that, in the current fixture,
+ * every matter with narrative filled in is also management-visible. */
+function priorityActiveMatters() {
+  return mattersForActiveClients()
+    .filter((m) => m.status === "active" && m.currentPosition)
+    .sort((a, b) => (b.managementUpdated || "").localeCompare(a.managementUpdated || ""));
+}
+
+/** Recent Movement (Executive Home §G): a single feed built ONLY from dates/
+ * text already recorded elsewhere — document.modified, a Progress Note's own
+ * date/text, a Matter's managementUpdated/currentPosition, and a completed
+ * meeting's linked Minutes. No new dataset, no invented "activity log", and
+ * nothing here is fabricated — a quiet week produces a quiet (or empty) feed. */
+function computeRecentMovement(limit) {
+  limit = limit || 6;
+  const events = [];
+  activeClassifiedDocs().forEach((d) => {
+    events.push({
+      date: d.modified, icon: "📝", title: d.title,
+      sub: `${clientName(d.clientId)}${matterName(d.matterId) ? " · " + matterName(d.matterId) : ""} · Document updated`,
+      onclick: call("openDocument", d.id),
+    });
+  });
+  PROGRESS_NOTES.forEach((p) => {
+    const m = getMatter(p.matterId);
+    events.push({
+      date: p.date, icon: "✎", title: p.text,
+      sub: `${m ? m.name : "—"} · Progress note added`,
+      onclick: m ? call("navigate", matterDeepLinkHash(m)) : call("navigate", "#/matters"),
+    });
+  });
+  priorityActiveMatters().forEach((m) => {
+    if (!m.managementUpdated) return;
+    events.push({
+      date: m.managementUpdated, icon: "◆", title: `${m.name} — position updated`,
+      sub: m.currentPosition,
+      onclick: call("navigate", matterDeepLinkHash(m)),
+    });
+  });
+  meetingsInRange(addDays(TODAY, -30), TODAY).forEach((mt) => {
+    if (mt.status === "Completed" && mt.documentId) {
+      events.push({
+        date: mt.date, icon: "🗓", title: mt.title, sub: "Meeting minutes linked",
+        onclick: call("openMeeting", mt.id),
+      });
+    }
+  });
+  events.sort((a, b) => b.date.localeCompare(a.date));
+  return events.slice(0, limit);
 }
 
 function filterBarHtml(query, extra) {
