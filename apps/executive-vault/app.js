@@ -1032,7 +1032,7 @@ function meetingRow(m, opts) {
     <div class="meeting-row temporal-${state}" onclick="${call("openMeeting", m.id)}">
       <div class="meeting-time">${m.startTime || "—"}</div>
       <div class="meeting-main">
-        <div class="meeting-title">${m.title}</div>
+        <div class="meeting-title">${state === "now" ? '<span class="live-dot" title="Happening now"></span>' : ""}${m.title}</div>
         <div class="meeting-sub">${m.clientId ? parts.join(" · ") : "No Client linked"}</div>
       </div>
       ${statusChip(m.status)}
@@ -1049,49 +1049,51 @@ function renderHome() {
   const recent = c.slice().sort((x, y) => y.modified.localeCompare(x.modified)).slice(0, 6);
 
   const summaryChips = [
-    { label: `${activeMattersCount} Active Matters`, hash: "#/matters" },
-    { label: `${todayMeetings.length} Meetings Today`, hash: "#/myday" },
-    { label: `${openTasksCount()} Follow-Ups`, hash: "#/actions" },
-    { label: `${a.awaitingReview.length} For Review`, hash: "#/vault?bucket=review" },
-    { label: `${decisions.length} Decision${decisions.length === 1 ? "" : "s"} Required`, hash: "#/home" },
+    { num: activeMattersCount, label: "Active Matters", hash: "#/matters" },
+    { num: todayMeetings.length, label: "Meetings Today", hash: "#/myday" },
+    { num: openTasksCount(), label: "Follow-Ups", hash: "#/actions" },
+    { num: a.awaitingReview.length, label: "For Review", hash: "#/vault?bucket=review" },
+    { num: decisions.length, label: decisions.length === 1 ? "Decision Required" : "Decisions Required", hash: "#/home", warn: decisions.length > 0 },
   ];
 
   const attentionRows = [
     { label: "Awaiting review", count: a.awaitingReview.length, icon: "⏳", hash: "#/vault?bucket=review", sub: "Internal, management or client review in progress" },
-    { label: "Unclassified — sitting in Inbox", count: a.unclassified.length, icon: "📥", hash: "#/inbox", sub: "No Client, Function or Type set yet" },
-    { label: "Potential duplicate documents", count: a.duplicates.length, icon: "⧉", hash: "#/vault?bucket=active", sub: "Same title/spec filed more than once" },
+    { label: "Unclassified — sitting in Inbox", count: a.unclassified.length, icon: "📥", hash: "#/inbox", sub: "No Client, Function or Type set yet", sev: "info" },
+    { label: "Potential duplicate documents", count: a.duplicates.length, icon: "⧉", hash: "#/vault?bucket=active", sub: "Same title/spec filed more than once", sev: "high" },
     { label: "Old working drafts (60+ days)", count: a.staleDrafts.length, icon: "🕓", hash: "#/vault?bucket=draft", sub: "Stalled — worth a restart-or-archive decision" },
-    { label: "Missing version information", count: a.missingVersion.length, icon: "①", hash: "#/vault?bucket=active", sub: "No version label recorded" },
-    { label: "Marked confidential (Highly Confidential)", count: a.confidentialFlagged.length, icon: "🔒", hash: "#/vault", sub: "Board, legal-privilege or investment-sensitive material" },
+    { label: "Missing version information", count: a.missingVersion.length, icon: "①", hash: "#/vault?bucket=active", sub: "No version label recorded", sev: "info" },
+    { label: "Marked confidential (Highly Confidential)", count: a.confidentialFlagged.length, icon: "🔒", hash: "#/vault", sub: "Board, legal-privilege or investment-sensitive material", sev: "high" },
     { label: "Follow-ups on me", count: a.followUps.length, icon: "☑", hash: "#/actions", sub: "Open actions where the next move is mine" },
   ].filter((r) => r.count > 0);
+
+  const meetingNowCount = todayMeetings.filter((m) => meetingTemporalState(m) === "now").length;
 
   return `
     <div class="page-head">
       <div><span class="eyebrow">Personal Executive Command Centre</span><div class="page-title">${greetingWord()}, ${currentUserDisplayName()}</div><div class="page-sub">${fmtDateLong(TODAY)}</div></div>
     </div>
 
-    <div class="summary-strip">${summaryChips.map((s) => `<span class="summary-chip" onclick="${call("navigate", s.hash)}">${s.label}</span>`).join('<span class="summary-sep">·</span>')}</div>
+    <div class="summary-strip">${summaryChips.map((s) => `<span class="summary-chip" onclick="${call("navigate", s.hash)}"><span class="summary-chip-num${s.warn ? " warn" : ""}">${s.num}</span><span class="summary-chip-label">${s.label}</span></span>`).join('<span class="summary-sep"></span>')}</div>
 
     <div class="grid grid-2" style="align-items:start;margin-top:20px">
       <div class="section">
-        <div class="section-head"><div class="section-title">Today</div><span class="section-link" onclick="${call("navigate", "#/myday")}">My Day →</span></div>
-        <div class="card card-pad">
+        <div class="section-head"><div class="section-title">${meetingNowCount ? '<span class="live-dot" title="A meeting is happening now"></span>' : ""}Today</div><span class="section-link" onclick="${call("navigate", "#/myday")}">My Day →</span></div>
+        <div class="card card-pad card-accent">
           ${todayMeetings.length ? todayMeetings.map((m) => meetingRow(m, { compact: true })).join("") : '<div class="muted" style="padding:6px 4px">Nothing on the calendar today.</div>'}
         </div>
       </div>
 
       <div class="section">
         <div class="section-head"><div class="section-title">Attention Required</div></div>
-        <div class="card card-pad">
+        <div class="card card-pad${attentionRows.length ? " card-accent card-accent-warn" : ""}">
           ${attentionRows.length ? `<div class="attention-list">${attentionRows.map((r) => `
             <div class="attention-row" onclick="${call("navigate", r.hash)}">
-              <div class="attention-icon">${r.icon}</div>
+              <div class="attention-icon${r.sev ? " sev-" + r.sev : ""}">${r.icon}</div>
               <div><div class="attention-label">${r.label}</div><div class="attention-sub">${r.sub}</div></div>
               <div class="attention-count">${r.count}</div>
             </div>`).join("")}</div>` : `<div class="muted" style="padding:10px 4px">Nothing needs attention right now.</div>`}
           ${a.waitingOn.length ? `
-            <div class="dfield-label" style="margin:14px 0 6px">Waiting On</div>
+            <div class="section-title" style="margin:16px 0 6px;padding-top:14px;border-top:1px solid var(--line-soft)">Waiting On</div>
             <div class="quick-list">${a.waitingOn.map((t) => `
               <div class="quick-row" onclick="${call("navigate", "#/actions")}"><span>${t.title}</span><span class="muted" style="margin-left:auto">${t.waitingOn} · due ${fmtDate(t.due)}</span></div>
             `).join("")}</div>` : ""}
@@ -1102,7 +1104,7 @@ function renderHome() {
     <div class="grid grid-2" style="align-items:start">
       <div class="section">
         <div class="section-head"><div class="section-title">Recently Modified</div><span class="section-link" onclick="${call("navigate", "#/vault?bucket=recent")}">View all</span></div>
-        <div class="card card-pad">
+        <div class="card card-pad card-accent card-accent-blue">
           <div class="quick-list">${recent.map((d) => `
             <div class="quick-row" onclick="${call("openDocument", d.id)}">
               <span>${d.title}</span><span class="muted" style="margin-left:auto">${fmtDate(d.modified)}</span>
@@ -1112,7 +1114,7 @@ function renderHome() {
 
       <div class="section">
         <div class="section-head"><div class="section-title">Requires Review or Decision</div></div>
-        <div class="card card-pad">
+        <div class="card card-pad${decisions.length ? " card-accent card-accent-warn" : ""}">
           ${decisions.length ? `<div class="quick-list">${decisions.map((d) => `
             <div class="quick-row" onclick="${call("openDocument", d.id)}"><span>${d.title}</span>${statusChip(d.status)}<span class="muted" style="margin-left:auto">${clientName(d.clientId)}</span></div>
           `).join("")}</div>` : '<div class="muted" style="padding:4px">No board papers or resolutions pending decision.</div>'}
