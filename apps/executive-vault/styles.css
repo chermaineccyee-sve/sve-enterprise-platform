@@ -1,46 +1,60 @@
 /* Executive Vault — design tokens & layout.
-   Executive/command-centre visual language: deep navy + brass accent,
-   restrained serif headings, dense information surfaces. System fonts only
-   (no external font/network dependency — matches "no build step" intent). */
+   Colour-direction correction: this palette now uses apps/svegip's actual
+   colour tokens as the PRIMARY visual reference (extracted verbatim below,
+   not guessed), rather than a navy/gold scheme with SVE colours added only
+   as a secondary accent. Personal identity is preserved through the
+   restrained Georgia-serif typography, the Command Centre's own name/
+   content, and its own information architecture — deliberately not through
+   a different colour palette, per the explicit correction. Same structural/
+   interaction system as before (unchanged, already approved): sidebar
+   proportions, card elevation, drawer mechanics, mobile record cards. */
 
 :root{
-  --navy-950:#0b1120; --navy-900:#0f1729; --navy-800:#151f38; --navy-700:#1c2a4a;
-  --navy-600:#28395f; --line-dark:#243252;
-  --paper:#f6f5f1; --paper-raised:#ffffff; --line:#e4e1d8; --line-soft:#edeae1;
-  --ink:#171a21; --ink-soft:#4b5163; --ink-faint:#8b8f9c;
-  --gold:#b8893a; --gold-soft:#e9d8b3; --gold-deep:#8a6425;
-  --tier-hc:#7a1f2b; --tier-hc-bg:#f8e6e8;
-  --tier-c:#8a5a12; --tier-c-bg:#faefd9;
-  --tier-r:#1f4e79; --tier-r-bg:#e4edf6;
+  /* ---- Verbatim from apps/svegip/styles.css :root ---- */
+  --sve-purple:#39206f; --sve-purple2:#5b3b98; --sve-orange:#ef7a1b; --sve-ink:#241844;
+  --sve-muted:#756d86; --sve-line:#e9e5ef; --sve-bg:#f7f7fb;
+  --sve-danger:#b42318; --sve-success:#067647; --sve-warning:#b54708;
+
+  /* Executive Vault's own token names, mapped onto SVEGIP's values — kept
+     so every rule below needed no renaming, only new values. --navy-950/
+     900/800/700 reproduce SVEGIP's own sidebar gradient stops
+     (linear-gradient(180deg,#2b195f,#46287d 62%,#57358d)) exactly. */
+  --navy-950:#2b195f; --navy-900:var(--sve-purple); --navy-800:#46287d; --navy-700:#57358d;
+  --navy-600:var(--sve-purple2); --line-dark:#4a2e7a;
+  --paper:var(--sve-bg); --paper-raised:#ffffff; --line:var(--sve-line); --line-soft:#eee9f5;
+  --ink:var(--sve-ink); --ink-soft:var(--sve-muted); --ink-faint:#9a93a8;
+  --gold:var(--sve-orange); --gold-soft:#fde3c8; --gold-deep:#c9650f;
+  --tier-hc:var(--sve-danger); --tier-hc-bg:#fef3f2;
+  --tier-c:var(--sve-warning); --tier-c-bg:#fff6ed;
+  --tier-r:#1d4ed8; --tier-r-bg:#eef4ff;
   --tier-ct:#4a4f5c; --tier-ct-bg:#eceef1;
   --tier-g:#5b5b57; --tier-g-bg:#f1f0ea;
-  --status-final:#1c6e4a; --status-final-bg:#e3f2ea;
-  --status-review:#8a5a12; --status-review-bg:#faefd9;
-  --status-draft:#3a4a6b; --status-draft-bg:#e7ebf3;
-  --status-archived:#6b6b66; --status-archived-bg:#eeede7;
-  --status-superseded:#7a1f2b; --status-superseded-bg:#f8e6e8;
+  --status-final:var(--sve-success); --status-final-bg:#ecfdf3;
+  --status-review:var(--sve-warning); --status-review-bg:#fff6ed;
+  --status-draft:#1d4ed8; --status-draft-bg:#eef4ff;
+  --status-archived:#6b6b66; --status-archived-bg:#f2f4f7;
+  --status-superseded:var(--sve-danger); --status-superseded-bg:#fef3f2;
   --radius:10px; --radius-sm:6px; --radius-lg:16px;
-  --shadow-card:0 1px 2px rgba(15,23,41,.06), 0 8px 24px rgba(15,23,41,.06);
-  --shadow-elevated:0 4px 10px rgba(15,23,41,.10), 0 18px 40px rgba(15,23,41,.14);
-  --shadow-drawer:-12px 0 48px rgba(15,23,41,.22);
+  /* SVEGIP's own shadow tint (purple-tinted, rgba(40,25,80,…)) throughout,
+     not a navy-tinted one. */
+  --shadow-card:0 10px 30px rgba(40,25,80,.08);
+  --shadow-elevated:0 4px 12px rgba(40,25,80,.12), 0 20px 44px rgba(40,25,80,.16);
+  --shadow-drawer:-12px 0 48px rgba(40,25,80,.24);
   --font-serif:Georgia,"Iowan Old Style","Times New Roman",serif;
   --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
   --sidebar-w:264px; --topbar-h:64px;
   /* Type scale — same disciplined "named scale, not ad hoc sizes" approach
-     apps/svegip/styles.css uses, kept in Executive Vault's own serif/navy
-     voice rather than svegip's Arial/purple one (design-family alignment
-     pass, see docs/architecture/executive-command-centre-authentication.md
-     sibling report on the UI alignment). */
+     apps/svegip/styles.css uses, kept in Executive Vault's own serif voice
+     (typography is the identity-preserving differentiator now, per the
+     colour-direction correction — not a different palette). */
   --fs-page-title:26px; --fw-page-title:700;
   --fs-eyebrow:10px; --fw-eyebrow:800;
-  /* Signal blue/cyan — a secondary "live/operational" accent layered onto
-     the navy+gold identity (SVEGIP visual-direction refinement pass): gold
-     stays the primary brand/CTA colour, signal-blue marks interactivity,
-     "happening now," and informational depth — never replacing gold, so
-     the Command Centre keeps its own identity rather than becoming a
-     second SVEGIP palette. Deepened from the existing --tier-r blue family
-     rather than inventing an unrelated hue. */
-  --signal:#2f7dc4; --signal-deep:#1f5c96; --signal-soft:#dbeafc; --signal-glow:rgba(47,125,196,.35);
+  /* "Signal" info/live accent — SVEGIP's own draft-badge blue
+     (.badge.draft{background:#eef4ff;color:#1d4ed8}), reused here for the
+     same role (interactivity, "happening now") rather than an invented
+     cyan, so every accent in this file traces back to an actual SVEGIP
+     token. */
+  --signal:#1d4ed8; --signal-deep:#1638a8; --signal-soft:#eef4ff; --signal-glow:rgba(29,78,216,.32);
   --ease:cubic-bezier(.2,.7,.3,1);
 }
 *{box-sizing:border-box}
@@ -56,7 +70,7 @@ a{color:inherit}
 .shell{display:flex;min-height:100vh}
 .sidebar{width:var(--sidebar-w);flex:none;background:linear-gradient(175deg,var(--navy-950) 0%,var(--navy-900) 55%,var(--navy-800) 100%);color:#d8dced;display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;z-index:50;transition:transform .25s var(--ease);box-shadow:1px 0 0 rgba(255,255,255,.04) inset}
 .sidebar-brand{display:flex;align-items:center;gap:10px;padding:20px 20px 16px;border-bottom:1px solid var(--line-dark)}
-.brand-mark{width:34px;height:34px;border-radius:8px;background:linear-gradient(160deg,var(--gold),var(--gold-deep));color:var(--navy-950);display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-weight:700;font-size:17px;flex:none;box-shadow:0 3px 10px rgba(184,137,58,.35)}
+.brand-mark{width:34px;height:34px;border-radius:8px;background:linear-gradient(160deg,var(--gold),var(--gold-deep));color:var(--navy-950);display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-weight:700;font-size:17px;flex:none;box-shadow:0 3px 10px rgba(239,122,27,.35)}
 .brand-text-title{font-family:var(--font-serif);font-size:15px;font-weight:700;color:#fff;letter-spacing:.01em}
 .brand-text-sub{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#8b93ad;margin-top:1px}
 .sidebar-scroll{flex:1;overflow-y:auto;padding:14px 12px 24px}
@@ -64,13 +78,13 @@ a{color:inherit}
 .nav-group-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#6d7594;padding:0 10px;margin-bottom:6px;font-weight:700}
 .nav-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;color:#c3c9dc;padding:10px 12px;border-radius:var(--radius-sm);font-size:13.5px;cursor:pointer;margin-bottom:1px;transition:background .16s var(--ease),color .16s var(--ease),transform .16s var(--ease)}
 .nav-item:hover{background:rgba(255,255,255,.06);color:#fff;transform:translateX(2px)}
-.nav-item.active{background:linear-gradient(90deg,var(--navy-700),rgba(28,42,74,.55));color:#fff;box-shadow:inset 3px 0 0 var(--gold),inset 0 0 0 1px rgba(255,255,255,.03);font-weight:600}
+.nav-item.active{background:rgba(239,122,27,.16);color:#fff;box-shadow:inset 3px 0 0 var(--gold),inset 0 0 0 1px rgba(255,255,255,.03);font-weight:600}
 .nav-item .n-count{margin-left:auto;font-size:11px;color:#8b93ad;background:var(--navy-800);padding:1px 7px;border-radius:999px;transition:background .16s ease,color .16s ease}
 .nav-item.active .n-count{color:var(--gold-soft);background:var(--navy-600)}
 .sidebar-foot{padding:14px 20px;border-top:1px solid var(--line-dark);font-size:11px;color:#6d7594}
 
 .main{margin-left:var(--sidebar-w);flex:1;min-width:0;display:flex;flex-direction:column}
-.topbar{height:var(--topbar-h);flex:none;display:flex;align-items:center;gap:16px;padding:0 24px;background:rgba(246,245,241,.85);backdrop-filter:blur(10px) saturate(1.4);border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(255,255,255,.6),0 6px 18px rgba(15,23,41,.04);position:sticky;top:0;z-index:30}
+.topbar{height:var(--topbar-h);flex:none;display:flex;align-items:center;gap:16px;padding:0 24px;background:rgba(246,245,241,.85);backdrop-filter:blur(10px) saturate(1.4);border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(255,255,255,.6),0 6px 18px rgba(40,25,80,.05);position:sticky;top:0;z-index:30}
 .hamburger{display:none;border:1px solid var(--line);background:#fff;border-radius:var(--radius-sm);width:34px;height:34px;align-items:center;justify-content:center;cursor:pointer;flex:none;transition:box-shadow .14s ease,transform .14s ease}
 .hamburger:hover{box-shadow:var(--shadow-card);transform:translateY(-1px)}
 .search-wrap{flex:1;min-width:0;max-width:640px;position:relative}
@@ -79,11 +93,11 @@ a{color:inherit}
 .search-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--ink-faint);font-size:14px}
 .search-kbd{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--ink-faint);border:1px solid var(--line);border-radius:4px;padding:2px 6px;background:var(--paper)}
 .topbar-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
-.topbar-user{width:32px;height:32px;border-radius:50%;background:linear-gradient(160deg,var(--navy-800),var(--navy-950));color:var(--gold-soft);display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-size:13px;font-weight:700;border:0;padding:0;cursor:pointer;box-shadow:0 2px 6px rgba(15,23,41,.25);transition:box-shadow .16s ease,transform .16s ease}
-.topbar-user:hover{box-shadow:0 4px 12px rgba(15,23,41,.35);transform:translateY(-1px)}
+.topbar-user{width:32px;height:32px;border-radius:50%;background:linear-gradient(160deg,var(--navy-800),var(--navy-950));color:var(--gold-soft);display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-size:13px;font-weight:700;border:0;padding:0;cursor:pointer;box-shadow:0 2px 6px rgba(40,25,80,.28);transition:box-shadow .16s ease,transform .16s ease}
+.topbar-user:hover{box-shadow:0 4px 12px rgba(40,25,80,.38);transform:translateY(-1px)}
 
 .content{flex:1;padding:28px 32px 60px;max-width:1280px;width:100%;margin:0 auto}
-.overlay{position:fixed;inset:0;background:rgba(11,17,32,.4);z-index:45;display:none}
+.overlay{position:fixed;inset:0;background:rgba(24,15,45,.42);z-index:45;display:none}
 .overlay.show{display:block}
 /* Sits just under .sidebar (z-index 50), matching apps/svegip's own
    .portal-nav-overlay — but the sidebar itself is only off-canvas below the
@@ -117,10 +131,10 @@ a{color:inherit}
 .btn{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);white-space:nowrap;transition:box-shadow .14s var(--ease),transform .14s var(--ease),background .14s ease}
 .btn:hover{box-shadow:var(--shadow-card);transform:translateY(-1px)}
 .btn:active{transform:translateY(0);box-shadow:none}
-.btn-primary{background:linear-gradient(160deg,var(--navy-800),var(--navy-950));border-color:var(--navy-950);color:#fff}
-.btn-primary:hover{background:var(--navy-800);box-shadow:0 6px 16px rgba(15,23,41,.28)}
-.btn-gold{background:linear-gradient(160deg,#c79a4e,var(--gold));border-color:var(--gold);color:#241a06}
-.btn-gold:hover{background:linear-gradient(160deg,#d3a95f,#c79a4e);box-shadow:0 6px 16px rgba(184,137,58,.35)}
+.btn-primary{background:var(--navy-900);border-color:var(--navy-900);color:#fff}
+.btn-primary:hover{background:var(--navy-800);box-shadow:0 6px 16px rgba(40,25,80,.28)}
+.btn-gold{background:var(--gold);border-color:var(--gold);color:#fff}
+.btn-gold:hover{background:#e06c0f;box-shadow:0 6px 16px rgba(239,122,27,.35)}
 .btn-ghost{background:transparent;border-color:transparent}
 .btn-sm{padding:6px 12px;font-size:11.5px}
 .btn-icon{width:32px;height:32px;padding:0;justify-content:center;position:relative}
@@ -313,7 +327,7 @@ table.reg tbody tr:last-child td{border-bottom:0}
 .match-badge.content{background:var(--tier-c-bg);color:var(--tier-c)}
 
 /* ===== Toast ===== */
-.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--navy-950);color:#fff;padding:12px 20px;border-radius:999px;font-size:12.5px;box-shadow:0 14px 30px rgba(15,23,41,.3);z-index:80;max-width:min(520px,86vw);text-align:center}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--navy-950);color:#fff;padding:12px 20px;border-radius:999px;font-size:12.5px;box-shadow:0 14px 30px rgba(40,25,80,.32);z-index:80;max-width:min(520px,86vw);text-align:center}
 
 /* ===== Command Centre: summary strip, meetings, notifications ===== */
 .summary-strip{display:flex;flex-wrap:wrap;align-items:stretch;gap:2px;background:var(--paper-raised);border:1px solid var(--line);border-radius:16px;padding:6px;box-shadow:var(--shadow-card);font-size:12.5px}
@@ -338,12 +352,12 @@ table.reg tbody tr:last-child td{border-bottom:0}
 
 .notif-popover{position:absolute;top:calc(100% + 8px);right:0;width:300px;background:var(--paper-raised);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-drawer);padding:14px 16px;z-index:70;animation:pop-in .16s var(--ease)}
 @keyframes pop-in{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
-.n-badge{position:absolute;top:-4px;right:-4px;background:var(--gold);color:#241a06;font-size:9.5px;font-weight:800;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;box-shadow:0 2px 6px rgba(184,137,58,.4)}
+.n-badge{position:absolute;top:-4px;right:-4px;background:var(--gold);color:#fff;font-size:9.5px;font-weight:800;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;box-shadow:0 2px 6px rgba(239,122,27,.4)}
 
 /* ===== Management Progress — simpler, calmer than the personal dashboard:
    no kanban, no charts, no bright colour, no document-volume stats. ===== */
 .mgmt-preview-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--navy-950);color:#dfe3ee;padding:9px 20px;font-size:12px;flex-wrap:wrap}
-.mgmt-preview-banner .btn{background:var(--gold);border-color:var(--gold);color:#241a06}
+.mgmt-preview-banner .btn{background:var(--gold);border-color:var(--gold);color:#fff}
 .mgmt-page{max-width:820px;margin:0 auto;padding:32px 4px 60px}
 .mgmt-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:20px}
 .mgmt-title{font-family:var(--font-serif);font-size:26px;color:var(--navy-950)}
@@ -394,15 +408,15 @@ table.reg tbody tr:last-child td{border-bottom:0}
 
 /* ===== Executive Command Centre Login (Layer 1) =====
    Split-panel structure adapted from apps/svegip's .login-shell/.login-brand/
-   .login-panel (brand story on one side, the form on the other) — same
-   proportions and "decorative motif behind a gradient panel" idea, redrawn
-   in Executive Vault's own navy/gold/serif voice (never svegip's purple/
-   orange) so the two are recognisably the same design family without being
-   mistaken for one another. */
+   .login-panel (brand story on one side, the form on the other), now using
+   SVEGIP's own purple/orange tokens directly (colour-direction correction)
+   rather than a separate navy/gold voice — personal identity comes from the
+   Georgia-serif headings and the Command Centre's own name/copy, not from a
+   different palette. */
 .auth-loading{min-height:100vh;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font-size:13px;background:var(--paper)}
 .login-screen{min-height:100vh;display:grid;grid-template-columns:1.05fr .95fr;background:var(--paper-raised)}
 .login-brand-panel{background:linear-gradient(150deg,var(--navy-950),var(--navy-800) 60%,var(--navy-700));padding:56px 52px;color:#fff;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between}
-.login-brand-panel:after{content:"";position:absolute;width:460px;height:460px;border:46px solid rgba(184,137,58,.55);border-radius:50%;right:-270px;bottom:-280px}
+.login-brand-panel:after{content:"";position:absolute;width:460px;height:460px;border:46px solid rgba(239,122,27,.7);border-radius:50%;right:-270px;bottom:-280px}
 .login-brand-mark{width:64px;height:64px;border-radius:14px;background:linear-gradient(160deg,var(--gold),var(--gold-deep));color:var(--navy-950);display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-weight:700;font-size:28px;position:relative;z-index:1}
 .login-brand-panel h1{position:relative;z-index:1;font-size:38px;line-height:1.12;margin:26px 0 14px;color:#fff}
 .login-brand-panel .eyebrow{color:var(--gold-soft);position:relative;z-index:1}
