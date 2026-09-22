@@ -1822,24 +1822,32 @@ const LOGIN_ICON_SHIELD = `<svg width="18" height="18" viewBox="0 0 24 24" fill=
 
 /** A stylised skyline silhouette for the brand panel — inline/self-contained (no external image asset), matching this app's existing no-network-dependency convention. Orange rects are the "micro-accent" lit windows. */
 function loginSkylineSvg() {
+  // Two depth groups (far/near) so desktop can apply a very subtle,
+  // independent parallax drift to each; window rects sit outside both
+  // groups so a couple can flicker without jittering along with the
+  // parallax transform.
   return `<svg viewBox="0 0 600 150" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
-    <rect x="0" y="85" width="40" height="65" fill="rgba(255,255,255,.06)"/>
-    <rect x="45" y="55" width="34" height="95" fill="rgba(255,255,255,.09)"/>
-    <rect x="84" y="95" width="28" height="55" fill="rgba(255,255,255,.06)"/>
-    <rect x="118" y="35" width="46" height="115" fill="rgba(255,255,255,.11)"/>
-    <rect x="170" y="70" width="30" height="80" fill="rgba(255,255,255,.07)"/>
-    <rect x="205" y="15" width="52" height="135" fill="rgba(255,255,255,.13)"/>
-    <rect x="262" y="60" width="36" height="90" fill="rgba(255,255,255,.08)"/>
-    <rect x="303" y="40" width="42" height="110" fill="rgba(255,255,255,.1)"/>
-    <rect x="350" y="80" width="30" height="70" fill="rgba(255,255,255,.06)"/>
-    <rect x="385" y="50" width="48" height="100" fill="rgba(255,255,255,.1)"/>
-    <rect x="438" y="90" width="32" height="60" fill="rgba(255,255,255,.07)"/>
-    <rect x="475" y="25" width="50" height="125" fill="rgba(255,255,255,.12)"/>
-    <rect x="530" y="65" width="34" height="85" fill="rgba(255,255,255,.08)"/>
-    <rect x="569" y="95" width="31" height="55" fill="rgba(255,255,255,.06)"/>
+    <g class="login-skyline-far">
+      <rect x="0" y="85" width="40" height="65" fill="rgba(255,255,255,.06)"/>
+      <rect x="84" y="95" width="28" height="55" fill="rgba(255,255,255,.06)"/>
+      <rect x="170" y="70" width="30" height="80" fill="rgba(255,255,255,.07)"/>
+      <rect x="262" y="60" width="36" height="90" fill="rgba(255,255,255,.08)"/>
+      <rect x="350" y="80" width="30" height="70" fill="rgba(255,255,255,.06)"/>
+      <rect x="438" y="90" width="32" height="60" fill="rgba(255,255,255,.07)"/>
+      <rect x="530" y="65" width="34" height="85" fill="rgba(255,255,255,.08)"/>
+      <rect x="569" y="95" width="31" height="55" fill="rgba(255,255,255,.06)"/>
+    </g>
+    <g class="login-skyline-near">
+      <rect x="45" y="55" width="34" height="95" fill="rgba(255,255,255,.09)"/>
+      <rect x="118" y="35" width="46" height="115" fill="rgba(255,255,255,.11)"/>
+      <rect x="205" y="15" width="52" height="135" fill="rgba(255,255,255,.13)"/>
+      <rect x="303" y="40" width="42" height="110" fill="rgba(255,255,255,.1)"/>
+      <rect x="385" y="50" width="48" height="100" fill="rgba(255,255,255,.1)"/>
+      <rect x="475" y="25" width="50" height="125" fill="rgba(255,255,255,.12)"/>
+    </g>
     <rect x="212" y="30" width="4" height="6" fill="#ef7a1b" opacity=".85"/>
-    <rect x="225" y="50" width="4" height="6" fill="#ef7a1b" opacity=".7"/>
-    <rect x="490" y="43" width="4" height="6" fill="#ef7a1b" opacity=".8"/>
+    <rect x="225" y="50" width="4" height="6" fill="#ef7a1b" opacity=".7" class="login-window-a"/>
+    <rect x="490" y="43" width="4" height="6" fill="#ef7a1b" opacity=".8" class="login-window-b"/>
     <rect x="130" y="55" width="4" height="6" fill="#ef7a1b" opacity=".6"/>
     <rect x="395" y="65" width="4" height="6" fill="#ef7a1b" opacity=".75"/>
   </svg>`;
@@ -1851,6 +1859,7 @@ function renderLoginScreen() {
   return `
     <div class="login-screen">
       <div class="login-brand-panel">
+        <div class="login-sweep" aria-hidden="true"></div>
         <div class="login-wordmark">Executive Vault</div>
         <div class="login-panel-mid">
           <div class="eyebrow">Personal Executive Command Centre</div>
