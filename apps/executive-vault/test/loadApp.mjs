@@ -34,7 +34,16 @@ function makeStubElement() {
   };
 }
 
-export function loadApp(initialHash = "#/home") {
+/**
+ * __FIXED_CLOCK__ pins app.js's Application Clock (TODAY/NOW) to the exact
+ * instant this whole fixture was authored against — a Monday, matching
+ * every existing date-dependent assertion (My Day's worked example, "today"
+ * greeting text, etc.) — so the suite's notion of "today" never drifts with
+ * the real calendar. Override per-test via the sandbox's own setAppClock().
+ */
+const DEFAULT_FIXED_CLOCK = "2026-09-21T08:30:00";
+
+export function loadApp(initialHash = "#/home", fixedClock = DEFAULT_FIXED_CLOCK) {
   const dataSource = fs.readFileSync(DATA_JS_PATH, "utf8");
   const appSource = fs.readFileSync(APP_JS_PATH, "utf8");
   const appEl = makeStubElement();
@@ -46,6 +55,7 @@ export function loadApp(initialHash = "#/home") {
     clearTimeout,
     location: { hash: initialHash },
     navigator: { clipboard: { writeText: async () => {} } },
+    __FIXED_CLOCK__: fixedClock,
     document: {
       getElementById(id) {
         if (id === "app") return appEl;

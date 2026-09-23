@@ -80,7 +80,7 @@ test("Weekly Review's default (current) week shows the visible progress entered 
 
 test("computeWeeklyReview() groups deterministically from real records only — no fabricated text", () => {
   const sandbox = loadApp();
-  const r = sandbox.computeWeeklyReview(sandbox.VAULT_DATA.TODAY); // TODAY is itself the Monday week-start in this fixture
+  const r = sandbox.computeWeeklyReview(sandbox.TODAY); // TODAY is itself the Monday week-start in this fixture
   for (const u of r.progress) assert.ok(sandbox.VAULT_DATA.PROGRESS_UPDATES.some((p) => p.id === u.id));
   for (const u of r.issues) assert.ok(u.issueRisk, "every issue-line entry must carry real issueRisk text");
 });

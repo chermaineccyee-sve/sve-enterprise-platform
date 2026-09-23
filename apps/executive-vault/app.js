@@ -25,8 +25,57 @@
 const D = window.VAULT_DATA;
 const {
   CLASSIFICATIONS, STATUSES, FUNCTIONS, DOCUMENT_TYPES,
-  CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS, PROGRESS_UPDATES, TODAY, NOW, USER_NAME,
+  CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS, PROGRESS_UPDATES, USER_NAME,
 } = D;
+
+/* ============================ Application Clock ============================
+ * The single authoritative "today"/"now" source for the whole app — TODAY/
+ * NOW below are the only place any screen or calculation should read the
+ * current date/time from; nothing else in this file constructs its own
+ * `new Date()` for "what day is it". Real deployment: both are derived from
+ * the browser's own local date/time (via Date's LOCAL getters, never
+ * toISOString(), which is UTC and would show the wrong calendar date near
+ * midnight in most timezones) — never a hard-coded Malaysia/Singapore
+ * offset. data.js no longer exports TODAY/NOW at all: "today" is live
+ * application state, not part of the mock dataset (keeping demo/mock data
+ * and live data clearly distinguishable, as MEETINGS/TASKS/etc. dated
+ * 2026-09-21 remain exactly what they are — historical fixture records —
+ * without being reinterpreted as "today" once today has moved on).
+ *
+ * Tests: test/loadApp.mjs pre-seeds the vm sandbox's __FIXED_CLOCK__ global
+ * with the exact instant this dataset was originally authored against
+ * (2026-09-21T08:30, a Monday), so the whole existing test suite keeps its
+ * deterministic "today" without depending on whatever day it actually
+ * runs — and any test can call setAppClock() directly for a different one.
+ *
+ * Outlook readiness: appTimeZone() returns the same IANA zone identifier
+ * (Intl's resolvedOptions().timeZone) a future Graph/Outlook integration
+ * would normalise each event's UTC start/end into before ever handing them
+ * to meetingsOnDate()/meetingTemporalState() — this is deliberately the one
+ * place that normalisation belongs, so Outlook events need no separate
+ * date/timezone logic of their own once that integration exists.
+ */
+let TEST_CLOCK_OVERRIDE = (typeof __FIXED_CLOCK__ !== "undefined" && __FIXED_CLOCK__) ? __FIXED_CLOCK__ : null;
+function clockNow() { return TEST_CLOCK_OVERRIDE ? new Date(TEST_CLOCK_OVERRIDE) : new Date(); }
+function appTimeZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; }
+}
+function pad2(n) { return String(n).padStart(2, "0"); }
+function isoDateLocal(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function hhmmLocal(d) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+/** Recomputes TODAY/NOW from the clock right now. Called at the top of every render() (the app's one DOM-write choke point — see bottom of file), so a session left open across midnight, or a test's setAppClock() override, takes effect on the very next interaction with no page reload. */
+function refreshClock() { const d = clockNow(); TODAY = isoDateLocal(d); NOW = hhmmLocal(d); }
+/** Test-only: fixes (a string Date() can parse) or releases (no argument) the clock TODAY/NOW are read from, then recomputes them immediately — for a test that needs a "today" other than the default fixed one. */
+function setAppClock(iso) { TEST_CLOCK_OVERRIDE = iso || null; refreshClock(); }
+// var (not let/const) deliberately: this file runs as a classic script both
+// in the browser and inside test/loadApp.mjs's vm sandbox, and only a var
+// (or function) declaration at top-level script scope becomes a property of
+// the surrounding global/context object — tests read the live value back
+// via that same sandbox.TODAY/sandbox.NOW property.
+var TODAY = "";
+var NOW = "";
+refreshClock();
+
 const DECISION_TYPES = ["Resolution", "Management Paper"];
 const MANAGEMENT_STATUSES = ["In Progress", "Awaiting Input", "Decision Required", "Complete", "On Hold"];
 const ATTENTION_LEVELS = ["Decision Required", "For Review", "Direction Required", "Approval Required"];
@@ -110,7 +159,7 @@ function addDays(iso, n) {
   dt.setUTCDate(dt.getUTCDate() + n);
   return dt.toISOString().slice(0, 10);
 }
-/** Monday-start week (TODAY is a Monday in this prototype's fixed calendar, but this works regardless). */
+/** Monday-start week for any ISO date, TODAY included — TODAY is no longer guaranteed to be a Monday now that it's live, not a fixed fixture value. */
 function weekStart(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
@@ -510,7 +559,7 @@ function updateProgressUpdateField(id, field, value) {
   else p[field] = value;
   if (field === "clientId") { p.matterId = ""; p.workstream = ""; }
   if (field === "matterId") { p.workstream = ""; }
-  p.updatedAt = new Date().toISOString();
+  p.updatedAt = clockNow().toISOString();
   render();
 }
 function toggleProgressUpdateDocument(id, docId) {
@@ -518,7 +567,7 @@ function toggleProgressUpdateDocument(id, docId) {
   if (!p) return;
   const i = p.documentIds.indexOf(docId);
   if (i === -1) p.documentIds.push(docId); else p.documentIds.splice(i, 1);
-  p.updatedAt = new Date().toISOString();
+  p.updatedAt = clockNow().toISOString();
   render();
 }
 function toggleProgressDetailed() { STATE.progressDetailed = !STATE.progressDetailed; render(); }
@@ -526,8 +575,8 @@ function toggleProgressDetailed() { STATE.progressDetailed = !STATE.progressDeta
 function submitProgressUpdate() {
   const d = STATE.progressDraft;
   if (!d || !d.matterId) { showToast("Select a Client and Matter/Project before saving."); return; }
-  const nowIso = new Date().toISOString();
-  const record = Object.assign({}, d, { id: "pu" + (++progressUpdateSeq) + "-" + Date.now().toString(36), createdAt: nowIso, updatedAt: nowIso });
+  const nowIso = clockNow().toISOString();
+  const record = Object.assign({}, d, { id: "pu" + (++progressUpdateSeq) + "-" + clockNow().getTime().toString(36), createdAt: nowIso, updatedAt: nowIso });
   PROGRESS_UPDATES.push(record);
   STATE.progressDraft = null;
   showToast("Progress update saved.");
@@ -2684,6 +2733,7 @@ async function initApp() {
 }
 
 function render() {
+  refreshClock();
   if (!AUTH.authenticated) { renderAuthGateShell(); return; }
   const { path, query } = parseHash();
   const content = renderScreen(path, query);

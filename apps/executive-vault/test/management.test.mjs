@@ -142,7 +142,7 @@ test("updateMatterField() mutates the existing Matter record in place — no new
   sandbox.updateMatterField("matter-mre-opmodel", "currentPosition", "Updated position text.");
   assert.equal(sandbox.VAULT_DATA.MATTERS.length, before);
   assert.equal(sandbox.getMatter("matter-mre-opmodel").currentPosition, "Updated position text.");
-  assert.equal(sandbox.getMatter("matter-mre-opmodel").managementUpdated, sandbox.VAULT_DATA.TODAY);
+  assert.equal(sandbox.getMatter("matter-mre-opmodel").managementUpdated, sandbox.TODAY);
 });
 
 test("updateMatterField() can toggle managementVisible, immediately changing what Management Progress shows", () => {

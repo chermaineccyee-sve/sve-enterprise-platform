@@ -725,8 +725,13 @@ const DOCUMENTS = [
 // MEETINGS: calendar events (mock — no live Outlook connection, architecture
 // doc §15.6/§15.7). clientId/matterId/workstreams mirror the exact same
 // optional reference chain a Document carries (§3.1/§15.4) — never a
-// parallel project dataset. TODAY (2026-09-21) is a Monday; the four
-// 09-21 entries below match the brief's own My Day worked example exactly.
+// parallel project dataset. These dates are fixed historical/demo fixture
+// data, authored around 2026-09-21 (a Monday) to match the brief's own My
+// Day worked example — they stay exactly what they are regardless of the
+// real current date. "Today" itself is never read from this file: it's
+// computed live from the browser's own clock (see app.js's Application
+// Clock, near its own top) so these demo meetings are never reinterpreted
+// as "today's" meetings just because the app was first built around then.
 // documentId links a meeting's recorded Minutes; agendaDocId its Agenda —
 // both optional and both just references into DOCUMENTS, never a copy.
 const MEETINGS = [
@@ -880,10 +885,13 @@ const PROGRESS_UPDATES = [
     createdAt: "2026-09-20T18:05:00+08:00", updatedAt: "2026-09-20T18:05:00+08:00" },
 ];
 
+// TODAY/NOW are deliberately NOT part of this mock dataset — "today" is
+// live application state computed from the real clock (see app.js's
+// Application Clock), never a fixture value. See that file for why.
 window.VAULT_DATA = {
   CLASSIFICATIONS, STATUSES, FUNCTIONS, DOCUMENT_TYPES,
   CLIENTS, ENGAGEMENTS, MATTERS, DOCUMENTS, MEETINGS, TASKS, PROGRESS_UPDATES,
-  TODAY: "2026-09-21", NOW: "08:30", USER_NAME: "Ching Yee",
+  USER_NAME: "Ching Yee",
 };
 
 })();

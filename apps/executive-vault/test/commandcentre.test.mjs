@@ -176,8 +176,8 @@ test("Outlook Calendar screen states plainly that this is mock data with no live
   assert.match(html, /no live Microsoft account connection|Production integration is architecture-only/);
 });
 
-test("greetingWord() reflects the prototype's fixed NOW value", () => {
+test("greetingWord() reflects the test suite's fixed clock (see loadApp.mjs's __FIXED_CLOCK__), not a data.js constant", () => {
   const sandbox = loadApp();
-  assert.equal(sandbox.VAULT_DATA.NOW, "08:30");
+  assert.equal(sandbox.NOW, "08:30");
   assert.equal(sandbox.greetingWord(), "Good morning");
 });
