@@ -4,7 +4,7 @@
   "private": true,
   "description": "Executive Vault — Ching Yee's Personal Executive Command Centre over Google Drive and (future) Outlook Calendar. Frontend is static HTML/CSS/JS, no build step. v5 adds the production authentication foundation: a real, single-user Executive Command Centre Login (Netlify Functions + Postgres via Netlify DB) — see docs/architecture/executive-command-centre-authentication.md. Document/meeting data remains mock, and Microsoft/Outlook integration remains architecture-only.",
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --experimental-test-module-mocks --test",
     "dev": "netlify dev"
   },
   "devDependencies": {

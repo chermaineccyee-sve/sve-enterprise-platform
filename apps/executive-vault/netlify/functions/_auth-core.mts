@@ -30,12 +30,14 @@ function fromB64(s: string): Uint8Array {
   return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 }
 
-// URL-safe base64 (no padding) — used only for the session cookie's
-// payload/signature, exactly like svegip's login.mts b64url()/from64().
-function b64url(bytes: Uint8Array): string {
+// URL-safe base64 (no padding) — used for the session cookie's
+// payload/signature, exactly like svegip's login.mts b64url()/from64(), and
+// reused (exported) by _calendar-state.mts for the OAuth state nonce — same
+// primitive, same server-only secret domain, no reason for a second copy.
+export function b64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-function fromB64url(s: string): Uint8Array {
+export function fromB64url(s: string): Uint8Array {
   const padded = s.replace(/-/g, "+").replace(/_/g, "/");
   const withPad = padded + "=".repeat((4 - (padded.length % 4)) % 4);
   return Uint8Array.from(atob(withPad), (c) => c.charCodeAt(0));
@@ -74,11 +76,12 @@ export interface SessionPayload {
   exp: number;
 }
 
-async function hmacSign(payload: string, secret: string): Promise<string> {
+/** Exported for _calendar-state.mts's OAuth state nonce — same HMAC-SHA256 primitive, no second implementation. */
+export async function hmacSign(payload: string, secret: string): Promise<string> {
   const key = await crypto.subtle.importKey("raw", te.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, te.encode(payload))));
 }
-async function hmacVerify(payload: string, signature: string, secret: string): Promise<boolean> {
+export async function hmacVerify(payload: string, signature: string, secret: string): Promise<boolean> {
   const key = await crypto.subtle.importKey("raw", te.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
   try {
     return await crypto.subtle.verify("HMAC", key, fromB64url(signature), te.encode(payload));

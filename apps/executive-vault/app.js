@@ -108,6 +108,21 @@ const STATE = {
   expandedFolders: new Set(),
   showLegend: false,
   toast: null,
+  // Google Calendar v1 (provider-neutral: "calendar", not "google") — never
+  // persisted client-side beyond this in-memory session state; no token of
+  // any kind is ever held here, only the already-normalized event list and
+  // connection status the backend already stripped of anything sensitive.
+  calendar: {
+    status: null,          // null until first fetched; else { providers: [{ provider, connected, status, accountEmail, lastSyncedAt, lastError }] }
+    events: [],             // normalized events for [eventsWindowStart, eventsWindowEnd]
+    eventsWindowStart: null,
+    eventsWindowEnd: null,
+    loading: false,
+    error: null,             // short user-facing string, or null
+    lastFetchedAt: null,      // client-side Date.now() of the last completed fetch attempt, for the fetch-on-open cache window
+  },
+  calendarLinkDraft: null,   // { providerEventId, calendarId, clientId, matterId, workstream } while the inline "Link to Matter" picker is open
+  previewGoogleEventKey: null, // "<calendarId>:<providerEventId>" — the Google event detail drawer, mutually exclusive with the other drawers
 };
 let toastSeq = 0;
 let progressUpdateSeq = 0;
@@ -433,6 +448,9 @@ function navigate(hash) {
   STATE.sidebarOpen = false;
   STATE.attentionOpen = false;
   render();
+  // Fetch-on-open (brief: no background sync) — only for the screens that actually show calendar content; loadCalendarData()'s own cache window keeps repeat navigation cheap.
+  const { path } = parseHash();
+  if (path === "/home" || path === "/myday" || path === "/week" || path === "/calendars") loadCalendarData();
 }
 function applyFilter(key, value) {
   const { path, query } = parseHash();
@@ -462,10 +480,11 @@ function showToast(msg) {
 }
 function mockAction(msg) { showToast(msg); }
 function toggleSidebar() { STATE.sidebarOpen = !STATE.sidebarOpen; render(); }
-/** Every open*() drawer function resets every OTHER drawer's state — one drawer open at a time, always (tested behaviour, now extended to the two Progress Update form modes). */
+/** Every open*() drawer function resets every OTHER drawer's state — one drawer open at a time, always (tested behaviour, now extended to the Progress Update form modes and the Google event detail drawer). */
 function closeAllDrawers() {
   STATE.previewId = null; STATE.previewMeetingId = null; STATE.previewMatterId = null; STATE.meetingPrepMode = false;
   STATE.previewProgressEditId = null; STATE.progressDraft = null;
+  STATE.previewGoogleEventKey = null; STATE.calendarLinkDraft = null;
 }
 function openDocument(id) { closeAllDrawers(); STATE.previewId = id; STATE.showLegend = false; render(); }
 function closeDrawer() { closeAllDrawers(); render(); }
@@ -473,6 +492,143 @@ function openMeeting(id) { closeAllDrawers(); STATE.previewMeetingId = id; rende
 /** Opens the same Meeting Brief drawer directly into its consolidated Prepare Meeting state (architecture: structured-data-driven, no AI summarisation, no new dataset — see meetingPrepContent()). */
 function openMeetingPrep(id) { closeAllDrawers(); STATE.previewMeetingId = id; STATE.meetingPrepMode = true; render(); }
 function backToMeetingBrief() { STATE.meetingPrepMode = false; render(); }
+function openGoogleEvent(key) { closeAllDrawers(); STATE.previewGoogleEventKey = key; render(); }
+function findGoogleEventByKey(key) { return STATE.calendar.events.find((e) => e.calendarId + ":" + e.providerEventId === key) || null; }
+
+/* ---------- Google Calendar v1 (provider-neutral: "calendar", not "google")
+ * — fetch-on-open + manual refresh only (brief: no background sync
+ * infrastructure for v1). Every call here is guarded by `typeof fetch ===
+ * "function"`, exactly like initApp()'s own existing test-sandbox check —
+ * so in the vm test sandbox (no fetch defined) this entire section is a
+ * guaranteed no-op and every existing/demo-data test is unaffected. Nothing
+ * here ever touches localStorage/sessionStorage; the only client-side
+ * state is the already-normalized, already-status-checked STATE.calendar
+ * object the backend handed back — never a token, never a client secret. */
+const CALENDAR_REFRESH_WINDOW_MS = 2 * 60 * 1000;
+
+function isGoogleCalendarConnected() {
+  const providers = (STATE.calendar.status && STATE.calendar.status.providers) || [];
+  return providers.some((p) => p.provider === "google" && p.connected);
+}
+function googleCalendarStatusRow() {
+  const providers = (STATE.calendar.status && STATE.calendar.status.providers) || [];
+  return providers.find((p) => p.provider === "google") || null;
+}
+/** All-day events carry no real local-time meaning, so their own date string is used as-is (never re-derived through a timezone conversion, which could shift it by a day near midnight in some zones); timed events use the same local getters TODAY/NOW themselves come from. */
+function calendarEventLocalDate(e) { return e.allDay ? e.start.slice(0, 10) : isoDateLocal(new Date(e.start)); }
+function calendarEventsOnDate(iso) { return STATE.calendar.events.filter((e) => calendarEventLocalDate(e) === iso); }
+function calendarEventsInRange(startIso, endIso) { return STATE.calendar.events.filter((e) => { const d = calendarEventLocalDate(e); return d >= startIso && d <= endIso; }); }
+function calendarUnlinkedCount() { return isGoogleCalendarConnected() ? STATE.calendar.events.filter((e) => !e.link || e.link.linkStatus === "unlinked").length : 0; }
+
+async function loadCalendarData(force) {
+  if (typeof fetch !== "function") return; // no backend reachable (test sandbox, or a static-only preview) — never attempted
+  const now = Date.now();
+  if (!force && STATE.calendar.lastFetchedAt && now - STATE.calendar.lastFetchedAt < CALENDAR_REFRESH_WINDOW_MS) return;
+  STATE.calendar.loading = true;
+  STATE.calendar.error = null;
+  render();
+  try {
+    const statusRes = await fetch("/api/calendar/status", { credentials: "same-origin" });
+    const statusBody = statusRes.ok ? await statusRes.json().catch(() => null) : null;
+    STATE.calendar.status = statusBody;
+    const google = statusBody && (statusBody.providers || []).find((p) => p.provider === "google");
+    if (google && google.connected) {
+      const start = weekStart(TODAY);
+      const end = addDays(start, 6);
+      const eventsRes = await fetch(`/api/calendar/events?start=${encodeURIComponent(start + "T00:00:00.000Z")}&end=${encodeURIComponent(end + "T23:59:59.999Z")}`, { credentials: "same-origin" });
+      const eventsBody = await eventsRes.json().catch(() => ({}));
+      STATE.calendar.events = eventsBody && eventsBody.connected ? (eventsBody.events || []) : [];
+      STATE.calendar.eventsWindowStart = start;
+      STATE.calendar.eventsWindowEnd = end;
+      STATE.calendar.error = eventsBody && eventsBody.status && eventsBody.status !== "connected" ? eventsBody.error : null;
+    } else {
+      STATE.calendar.events = [];
+    }
+    STATE.calendar.lastFetchedAt = now;
+  } catch (e) {
+    STATE.calendar.error = "Unable to reach the calendar service. Check your connection and try again.";
+  } finally {
+    STATE.calendar.loading = false;
+    render();
+  }
+}
+/** The Connected Calendars screen's manual "Refresh" — same fetch as fetch-on-open, just forced past the cache window. */
+function refreshCalendarData() { loadCalendarData(true); }
+
+/** The OAuth callback returns via a real, full-page browser redirect (never a SPA-internal navigate() call) to #/calendars?calendar=connected|error — this announces the outcome once, then cleans the query string so a page refresh doesn't repeat the toast. */
+function maybeAnnounceCalendarReturn() {
+  const { path, query } = parseHash();
+  if (path !== "/calendars" || !query.calendar) return;
+  if (query.calendar === "connected") {
+    showToast("Google Calendar connected.");
+  } else if (query.calendar === "error") {
+    const reasonMessages = {
+      access_denied: "Google sign-in was cancelled.",
+      invalid_state: "That connection link expired or was invalid — please try again.",
+      session_mismatch: "Please try connecting again from this session.",
+      no_refresh_token: "Google didn't grant offline access — please try again and accept the consent prompt fully.",
+      exchange_failed: "Something went wrong connecting to Google. Please try again.",
+      not_configured: "Google Calendar isn't configured yet.",
+    };
+    showToast(reasonMessages[query.reason] || "Unable to connect Google Calendar. Please try again.");
+  }
+  if (typeof location !== "undefined") location.hash = "#/calendars";
+}
+function connectGoogleCalendar() { if (typeof location !== "undefined") location.href = "/api/calendar/connect?provider=google"; }
+async function disconnectCalendar(provider) {
+  if (typeof fetch !== "function") return;
+  try {
+    await fetch("/api/calendar/disconnect", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider }) });
+    STATE.calendar.status = null; STATE.calendar.events = []; STATE.calendar.lastFetchedAt = null;
+    showToast("Google Calendar disconnected. This stops the app's own access — it does not revoke the grant on your Google account.");
+    await loadCalendarData(true);
+  } catch (e) {
+    showToast("Unable to disconnect right now. Please try again.");
+  }
+}
+
+/** Explicit-only linking (brief: "never automatically classify an event") — this inline picker is the ONLY UI path that calls /api/calendar/link. */
+function openCalendarLinkPicker(providerEventId, calendarId) {
+  STATE.calendarLinkDraft = { providerEventId, calendarId, clientId: "", matterId: "", workstream: "" };
+  render();
+}
+function closeCalendarLinkPicker() { STATE.calendarLinkDraft = null; render(); }
+function updateCalendarLinkDraftField(field, value) {
+  if (!STATE.calendarLinkDraft) return;
+  STATE.calendarLinkDraft[field] = value;
+  if (field === "clientId") { STATE.calendarLinkDraft.matterId = ""; STATE.calendarLinkDraft.workstream = ""; }
+  if (field === "matterId") STATE.calendarLinkDraft.workstream = "";
+  render();
+}
+async function submitCalendarLink() {
+  const d = STATE.calendarLinkDraft;
+  if (!d || !d.clientId) { showToast("Select a Client/Matter to link this event."); return; }
+  if (typeof fetch !== "function") return;
+  try {
+    await fetch("/api/calendar/link", {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "google", providerEventId: d.providerEventId, calendarId: d.calendarId, clientId: d.clientId, matterId: d.matterId || null, workstream: d.workstream || null }),
+    });
+    STATE.calendarLinkDraft = null;
+    showToast("Linked to Matter.");
+    await loadCalendarData(true);
+  } catch (e) {
+    showToast("Unable to link this event right now.");
+  }
+}
+async function unlinkCalendarEvent(providerEventId, calendarId) {
+  if (typeof fetch !== "function") return;
+  try {
+    await fetch("/api/calendar/link", {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "google", providerEventId, calendarId, action: "unlink" }),
+    });
+    showToast("Unlinked from Matter.");
+    await loadCalendarData(true);
+  } catch (e) {
+    showToast("Unable to unlink this event right now.");
+  }
+}
 function toggleStar(id, ev) { if (ev) ev.stopPropagation(); const d = getDocument(id); if (d) d.starred = !d.starred; render(); }
 function togglePin(id, ev) { if (ev) ev.stopPropagation(); const c = getClient(id); if (c) c.pinned = !c.pinned; render(); }
 function sortTable(key) {
@@ -765,6 +921,7 @@ function navSections() {
       { id: "management", label: "Management Progress", hash: "#/management" },
     ]},
     { label: "Connected", items: [
+      { id: "calendars", label: "Connected Calendars", hash: "#/calendars", count: calendarUnlinkedCount() },
       { id: "drive", label: "Google Drive", hash: "#/drive" },
       { id: "outlook", label: "Outlook Calendar", hash: "#/outlook" },
     ]},
@@ -1241,13 +1398,15 @@ function renderDrawer() {
   const m = STATE.previewMeetingId ? getMeeting(STATE.previewMeetingId) : null;
   const mt = STATE.previewMatterId ? getMatter(STATE.previewMatterId) : null;
   const editingProgress = STATE.previewProgressEditId ? PROGRESS_UPDATES.find((p) => p.id === STATE.previewProgressEditId) : null;
-  const open = !!(d || m || mt || editingProgress || STATE.progressDraft);
+  const googleEvent = STATE.previewGoogleEventKey ? findGoogleEventByKey(STATE.previewGoogleEventKey) : null;
+  const open = !!(d || m || mt || editingProgress || STATE.progressDraft || googleEvent);
   let body = "";
   if (d) body = drawerContent(d);
   else if (m) body = STATE.meetingPrepMode ? meetingPrepContent(m) : meetingBriefContent(m);
   else if (mt) body = matterEditorContent(mt);
   else if (editingProgress) body = progressUpdateFormContent(editingProgress, true, editingProgress.id);
   else if (STATE.progressDraft) body = progressUpdateFormContent(STATE.progressDraft, false, null);
+  else if (googleEvent) body = googleEventDrawerContent(googleEvent);
   return `
     <div class="overlay${open ? " show" : ""}" onclick="${call("closeDrawer")}"></div>
     <aside class="drawer${open ? " open" : ""}">${body}</aside>`;
@@ -1409,6 +1568,46 @@ function renderExecutiveTimeline(meetings) {
   return `<div class="exec-timeline">${rows.join("")}</div>`;
 }
 
+/** Same past/now/upcoming classification renderExecutiveTimeline() needs, but computed directly from a normalized event's own absolute start/end instants against the live clock — a Google event has no date/startTime/endTime strings for meetingTemporalState() to read. */
+function googleEventTemporalState(e) {
+  const nowIso = clockNow().toISOString();
+  if (e.end <= nowIso) return "past";
+  if (e.start <= nowIso) return "now";
+  return "upcoming";
+}
+/** The Google-connected counterpart to renderExecutiveTimeline() — same exec-timeline visual language and Now marker/Next badge behaviour, deliberately a separate function rather than teaching the demo-Meeting version about Google, so neither path has to know the other exists. Clicking opens the Google event detail drawer (openGoogleEvent), never openMeeting(). */
+function renderExecutiveTimelineGoogle(events) {
+  if (!events.length) return `<div class="muted" style="padding:6px 4px">Nothing on the calendar today.</div>`;
+  const sorted = events.slice().sort((a, b) => a.start.localeCompare(b.start));
+  const nextEvent = sorted.find((e) => googleEventTemporalState(e) !== "past");
+  let nowMarkerShown = sorted.some((e) => googleEventTemporalState(e) === "now");
+  const rows = [];
+  sorted.forEach((e) => {
+    const timeLabel = e.allDay ? "All day" : hhmmLocal(new Date(e.start));
+    if (!nowMarkerShown && !e.allDay && timeLabel > NOW) {
+      rows.push(`<div class="exec-now-marker"><span class="exec-now-dot"></span><span class="exec-now-label">Now · ${NOW}</span></div>`);
+      nowMarkerShown = true;
+    }
+    const state = googleEventTemporalState(e);
+    const isNext = !!nextEvent && e === nextEvent;
+    const linked = e.link && e.link.linkStatus === "linked";
+    rows.push(`
+      <div class="exec-tl-row temporal-${state}${isNext ? " exec-tl-next" : ""}" onclick="${call("openGoogleEvent", e.calendarId + ":" + e.providerEventId)}">
+        <div class="exec-tl-time">${timeLabel}</div>
+        <div class="exec-tl-rail"><span class="exec-tl-dot"></span></div>
+        <div class="exec-tl-main">
+          <div class="exec-tl-title">${state === "now" ? '<span class="live-dot" title="Happening now"></span>' : ""}<span class="gcal-source-chip" title="Live from Google Calendar">Google</span>${attrSafe(e.title)}${isNext ? '<span class="exec-tl-next-badge">Next</span>' : ""}</div>
+          <div class="exec-tl-sub">${linked ? `${clientName(e.link.clientId)}${matterName(e.link.matterId) ? " · " + matterName(e.link.matterId) : ""}` : "Not linked to a Matter"}</div>
+        </div>
+        <div class="exec-tl-trailing">
+          ${linked ? "" : `<button class="btn btn-sm btn-ghost exec-tl-prepare" onclick="event.stopPropagation();${call("openCalendarLinkPicker", e.providerEventId, e.calendarId)}">Link</button>`}
+        </div>
+      </div>`);
+  });
+  if (!nowMarkerShown) rows.push(`<div class="exec-now-marker"><span class="exec-now-dot"></span><span class="exec-now-label">Now · ${NOW}</span></div>`);
+  return `<div class="exec-timeline">${rows.join("")}</div>`;
+}
+
 /** Reuses the same Current Position/Next Step/Management Attention fields
  * mgmtMatterCard() shows on Management Progress, in Executive Home's own
  * (visually stronger) card — a deliberately distinct component so restyling
@@ -1439,7 +1638,8 @@ function renderHome() {
   const a = attention();
   const decisions = computeDecisionsRequired();
   const activeMattersCount = mattersForActiveClients().length;
-  const todayMeetings = meetingsOnDate(TODAY);
+  const googleConnected = isGoogleCalendarConnected();
+  const todayMeetings = googleConnected ? calendarEventsOnDate(TODAY) : meetingsOnDate(TODAY);
   const priorityMatters = priorityActiveMatters();
   const recentMovement = computeRecentMovement(6);
 
@@ -1464,9 +1664,11 @@ function renderHome() {
     { num: a.awaitingReview.length, label: "For Review", hash: "#/vault?bucket=review" },
   ];
 
-  const meetingNowCount = todayMeetings.filter((m) => meetingTemporalState(m) === "now").length;
+  const meetingNowCount = googleConnected
+    ? todayMeetings.filter((e) => googleEventTemporalState(e) === "now").length
+    : todayMeetings.filter((m) => meetingTemporalState(m) === "now").length;
   const weekEnd = addDays(weekStart(TODAY), 6);
-  const weekUpcoming = meetingsInRange(addDays(TODAY, 1), weekEnd);
+  const weekUpcoming = googleConnected ? calendarEventsInRange(addDays(TODAY, 1), weekEnd) : meetingsInRange(addDays(TODAY, 1), weekEnd);
   const weekDeadlines = TASKS.filter((t) => !t.done && t.due > TODAY && t.due <= weekEnd);
 
   return `
@@ -1479,9 +1681,9 @@ function renderHome() {
 
     <div class="grid grid-2" style="align-items:start;margin-top:20px">
       <div class="section">
-        <div class="section-head"><div class="section-title">${meetingNowCount ? '<span class="live-dot" title="A meeting is happening now"></span>' : ""}My Day</div><span class="section-link" onclick="${call("navigate", "#/myday")}">Full day →</span></div>
+        <div class="section-head"><div class="section-title">${meetingNowCount ? '<span class="live-dot" title="A meeting is happening now"></span>' : ""}My Day</div>${googleConnected ? `<span class="cal-live-badge">Live — Google Calendar</span>` : `<span class="cal-demo-badge">Demo Data</span>`}<span class="section-link" onclick="${call("navigate", "#/myday")}">Full day →</span></div>
         <div class="card card-pad card-accent exec-timeline-card">
-          ${renderExecutiveTimeline(todayMeetings)}
+          ${googleConnected ? renderExecutiveTimelineGoogle(todayMeetings) : renderExecutiveTimeline(todayMeetings)}
         </div>
       </div>
 
@@ -1545,25 +1747,29 @@ function renderHome() {
           <span><b>${weekDeadlines.length}</b> deadline${weekDeadlines.length === 1 ? "" : "s"}</span>
           <span><b>${decisions.length}</b> decision${decisions.length === 1 ? "" : "s"} pending</span>
         </div>
-        ${weekUpcoming.length ? `<div class="quick-list">${weekUpcoming.slice(0, 4).map((m) => `
-          <div class="quick-row" onclick="${call("openMeeting", m.id)}"><span>${fmtDate(m.date)}</span><span>${m.title}</span><span class="muted" style="margin-left:auto">${clientName(m.clientId)}</span></div>
-        `).join("")}</div>` : `<div class="muted" style="padding:6px 4px">Nothing further scheduled this week.</div>`}
+        ${weekUpcoming.length ? `<div class="quick-list">${weekUpcoming.slice(0, 4).map((m) => googleConnected
+            ? `<div class="quick-row" onclick="${call("openGoogleEvent", m.calendarId + ":" + m.providerEventId)}"><span>${fmtDate(calendarEventLocalDate(m))}</span><span class="gcal-source-chip">Google</span><span>${attrSafe(m.title)}</span></div>`
+            : `<div class="quick-row" onclick="${call("openMeeting", m.id)}"><span>${fmtDate(m.date)}</span><span>${m.title}</span><span class="muted" style="margin-left:auto">${clientName(m.clientId)}</span></div>`
+          ).join("")}</div>` : `<div class="muted" style="padding:6px 4px">Nothing further scheduled this week.</div>`}
       </div>
     </div>
   `;
 }
 
 function renderMyDay() {
-  const meetings = meetingsOnDate(TODAY);
+  const googleConnected = isGoogleCalendarConnected();
+  const meetings = googleConnected ? calendarEventsOnDate(TODAY) : meetingsOnDate(TODAY);
   const dueToday = TASKS.filter((t) => !t.done && t.due === TODAY);
   return `
     <div class="page-head">
       <div><div class="page-title">My Day</div><div class="page-sub">${fmtDateLong(TODAY)}</div></div>
     </div>
     <div class="section">
-      <div class="section-head"><div class="section-title">Today's Schedule</div></div>
+      <div class="section-head"><div class="section-title">Today's Schedule</div>${googleConnected ? `<span class="cal-live-badge">Live — Google Calendar</span>` : `<span class="cal-demo-badge">Demo Data</span>`}</div>
       <div class="card card-pad">
-        ${meetings.length ? meetings.map((m) => meetingRow(m)).join("") : '<div class="muted" style="padding:6px 4px">Nothing on the calendar today.</div>'}
+        ${meetings.length
+          ? (googleConnected ? meetings.slice().sort((a, b) => a.start.localeCompare(b.start)).map((e) => googleEventRow(e)).join("") : meetings.map((m) => meetingRow(m)).join(""))
+          : '<div class="muted" style="padding:6px 4px">Nothing on the calendar today.</div>'}
       </div>
     </div>
     <div class="section">
@@ -1582,14 +1788,16 @@ function renderMyDay() {
 }
 
 function renderThisWeek() {
+  const googleConnected = isGoogleCalendarConnected();
   const start = weekStart(TODAY);
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
   return `
     <div class="page-head">
       <div><div class="page-title">This Week</div><div class="page-sub">${fmtDate(start)} – ${fmtDate(addDays(start, 6))}</div></div>
+      ${googleConnected ? `<span class="cal-live-badge">Live — Google Calendar</span>` : `<span class="cal-demo-badge">Demo Data</span>`}
     </div>
     ${days.map((iso) => {
-      const meetings = meetingsOnDate(iso);
+      const meetings = googleConnected ? calendarEventsOnDate(iso) : meetingsOnDate(iso);
       const due = TASKS.filter((t) => !t.done && t.due === iso);
       const isToday = iso === TODAY;
       if (!meetings.length && !due.length) {
@@ -1599,7 +1807,7 @@ function renderThisWeek() {
         <div class="section">
           <div class="section-head"><div class="section-title">${fmtDateLong(iso)}${isToday ? " · Today" : ""}</div></div>
           <div class="card card-pad">
-            ${meetings.map((m) => meetingRow(m, { compact: true })).join("")}
+            ${googleConnected ? meetings.slice().sort((a, b) => a.start.localeCompare(b.start)).map((e) => googleEventRow(e, { compact: true })).join("") : meetings.map((m) => meetingRow(m, { compact: true })).join("")}
             ${due.map((t) => `
               <div class="quick-row" style="padding:9px 4px">
                 <input type="checkbox" onchange="${call("toggleTask", t.id)}"/>
@@ -2495,6 +2703,171 @@ function renderDriveScreen() {
   `;
 }
 
+/* ============================ Connected Calendars (Google v1) ============================ */
+
+function fmtRelativeSync(iso) {
+  if (!iso) return "Never";
+  const diffMin = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (diffMin < 1) return "Just now";
+  if (diffMin === 1) return "1 minute ago";
+  if (diffMin < 60) return `${diffMin} minutes ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr === 1) return "1 hour ago";
+  if (diffHr < 24) return `${diffHr} hours ago`;
+  return fmtDate(iso.slice(0, 10));
+}
+
+/** The ONLY UI for the explicit "Link to Matter" action (brief: never automatic) — a small inline picker, reused identically inside a calendar row and inside the Google event detail drawer. */
+function calendarLinkPickerHtml() {
+  const d = STATE.calendarLinkDraft;
+  if (!d) return "";
+  const clientOptions = [`<option value="">— Select Client —</option>`].concat(
+    CLIENTS.filter((c) => !c.legacy).map((c) => `<option value="${c.id}" ${d.clientId === c.id ? "selected" : ""}>${c.name}</option>`)
+  ).join("");
+  const matters = d.clientId ? mattersForClient(d.clientId).filter((m) => m.status === "active") : [];
+  const matterOptions = [`<option value="">${d.clientId ? "— Select Matter (optional) —" : "Select a Client first"}</option>`].concat(
+    matters.map((m) => `<option value="${m.id}" ${d.matterId === m.id ? "selected" : ""}>${m.name}</option>`)
+  ).join("");
+  const selectedMatter = d.matterId ? getMatter(d.matterId) : null;
+  const workstreamOptions = [`<option value="">— None —</option>`].concat(
+    (selectedMatter ? selectedMatter.workstreams : []).map((w) => `<option value="${w}" ${d.workstream === w ? "selected" : ""}>${w}</option>`)
+  ).join("");
+  return `
+    <div class="gcal-link-picker" onclick="event.stopPropagation()">
+      <div class="pu-grid-2">
+        <div class="dfield"><div class="dfield-label">Client</div><select class="filter-select" style="width:100%" onchange="${callWithValue("updateCalendarLinkDraftField", "clientId")}">${clientOptions}</select></div>
+        <div class="dfield"><div class="dfield-label">Matter / Project</div><select class="filter-select" style="width:100%" onchange="${callWithValue("updateCalendarLinkDraftField", "matterId")}" ${d.clientId ? "" : "disabled"}>${matterOptions}</select></div>
+      </div>
+      <div class="dfield"><div class="dfield-label">Workstream (optional)</div><select class="filter-select" style="width:100%" onchange="${callWithValue("updateCalendarLinkDraftField", "workstream")}" ${selectedMatter ? "" : "disabled"}>${workstreamOptions}</select></div>
+      <div class="gcal-link-actions">
+        <button class="btn btn-sm btn-gold" onclick="${call("submitCalendarLink")}">Link</button>
+        <button class="btn btn-sm btn-ghost" onclick="${call("closeCalendarLinkPicker")}">Cancel</button>
+      </div>
+    </div>`;
+}
+
+/** One live Google Calendar event — the source indicator (the "Google" chip) is never omitted, so a live event is never mistakable for a demo one. opts.compact drops the per-row Link/Unlink action (used inside Executive Home's dense timeline), leaving the full action available from the event's own detail drawer. */
+function googleEventRow(e, opts) {
+  opts = opts || {};
+  const key = e.calendarId + ":" + e.providerEventId;
+  const timeLabel = e.allDay ? "All day" : `${hhmmLocal(new Date(e.start))}–${hhmmLocal(new Date(e.end))}`;
+  const linked = e.link && e.link.linkStatus === "linked";
+  const linkLabel = linked ? `${clientName(e.link.clientId)}${matterName(e.link.matterId) ? " · " + matterName(e.link.matterId) : ""}` : "Not linked to a Matter";
+  const isPicking = STATE.calendarLinkDraft && STATE.calendarLinkDraft.providerEventId === e.providerEventId && STATE.calendarLinkDraft.calendarId === e.calendarId;
+  return `
+    <div class="gcal-row">
+      <div class="gcal-row-main" onclick="${call("openGoogleEvent", key)}">
+        <div class="gcal-row-time">${timeLabel}</div>
+        <div class="gcal-row-body">
+          <div class="gcal-row-title"><span class="gcal-source-chip" title="Live from Google Calendar">Google</span>${attrSafe(e.title)}</div>
+          <div class="gcal-row-sub">${e.location ? attrSafe(e.location) + " · " : ""}${linkLabel}</div>
+        </div>
+      </div>
+      ${!opts.compact ? `
+      <div class="gcal-row-actions">
+        ${linked
+          ? `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();${call("unlinkCalendarEvent", e.providerEventId, e.calendarId)}">Unlink</button>`
+          : `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();${call("openCalendarLinkPicker", e.providerEventId, e.calendarId)}">Link to Matter</button>`}
+      </div>` : ""}
+      ${isPicking ? calendarLinkPickerHtml() : ""}
+    </div>`;
+}
+
+function googleEventDrawerContent(e) {
+  const linked = e.link && e.link.linkStatus === "linked";
+  return `
+    <div class="drawer-head">
+      <div>
+        <div class="breadcrumbs">Google Calendar</div>
+        <h3 style="font-size:17px;max-width:340px">${attrSafe(e.title)}</h3>
+      </div>
+      <button class="drawer-close" onclick="${call("closeDrawer")}">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="dfield"><div class="dfield-label">When</div><div class="dfield-value">${e.allDay ? "All day, " + fmtDate(e.start.slice(0, 10)) : `${fmtDate(calendarEventLocalDate(e))} · ${hhmmLocal(new Date(e.start))}–${hhmmLocal(new Date(e.end))}`}</div></div>
+      ${e.location ? `<div class="dfield"><div class="dfield-label">Location</div><div class="dfield-value">${attrSafe(e.location)}</div></div>` : ""}
+      ${e.meetingUrl ? `<div class="dfield"><div class="dfield-label">Meeting Link</div><div class="dfield-value"><a href="${attrSafe(e.meetingUrl)}" target="_blank" rel="noopener noreferrer">${attrSafe(e.meetingUrl)}</a></div></div>` : ""}
+      ${e.organizer && (e.organizer.name || e.organizer.email) ? `<div class="dfield"><div class="dfield-label">Organiser</div><div class="dfield-value">${attrSafe(e.organizer.name || e.organizer.email)}</div></div>` : ""}
+      ${e.attendees && e.attendees.length ? `<div class="dfield"><div class="dfield-label">Attendees</div><div class="dfield-value">${e.attendees.map((a) => attrSafe(a.name || a.email || "")).join(", ")}</div></div>` : ""}
+      ${e.description ? `<div class="dfield"><div class="dfield-label">Description</div><div class="notes-box">${attrSafe(e.description)}</div></div>` : ""}
+      ${e.recurrence && e.recurrence.length ? `<div class="dfield"><div class="dfield-label">Recurrence</div><div class="dfield-value muted">${attrSafe(e.recurrence.join("; "))}</div></div>` : ""}
+      <div class="dfield"><div class="dfield-label">Matter</div><div class="dfield-value">${linked ? `${clientName(e.link.clientId)}${matterName(e.link.matterId) ? " · " + matterName(e.link.matterId) : ""}` : '<span class="muted">Not linked</span>'}</div></div>
+      <div class="dfield"><div class="dfield-label">Last Synced</div><div class="dfield-value muted">${fmtDate(e.lastSynchronizedAt.slice(0, 10))}</div></div>
+      <div class="drawer-actions">
+        ${linked
+          ? `<button class="btn" onclick="${call("unlinkCalendarEvent", e.providerEventId, e.calendarId)}">Unlink from Matter</button>`
+          : `<button class="btn btn-gold" onclick="${call("openCalendarLinkPicker", e.providerEventId, e.calendarId)}">Link to Matter</button>`}
+      </div>
+      ${STATE.calendarLinkDraft && STATE.calendarLinkDraft.providerEventId === e.providerEventId ? calendarLinkPickerHtml() : ""}
+    </div>`;
+}
+
+function renderConnectedCalendarsScreen() {
+  const google = googleCalendarStatusRow();
+  const connected = !!(google && google.connected);
+  const loading = STATE.calendar.loading;
+
+  let googleCard;
+  if (!STATE.calendar.status && loading) {
+    googleCard = `<div class="card card-pad cal-provider-card"><div class="muted">Checking connection…</div></div>`;
+  } else if (!connected) {
+    googleCard = `
+      <div class="card card-pad cal-provider-card">
+        <div class="cal-provider-top">
+          <div><div class="cal-provider-name">Google Calendar</div><div class="cal-provider-sub">Read-only access to your primary calendar's events.</div></div>
+          <span class="chip status-chip-Archived">Not Connected</span>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="${call("connectGoogleCalendar")}">Connect Google Calendar</button>
+        <div class="cal-provider-scope">Requests exactly one scope — <code>calendar.readonly</code>. Never Gmail, Contacts, Drive, or write access.</div>
+      </div>`;
+  } else {
+    const statusLabel = google.status === "connected" ? "Connected" : google.status === "expired" ? "Needs Re-authorisation" : "Connection Issue";
+    const chipClass = google.status === "connected" ? "status-chip-Final" : "status-chip-Superseded";
+    googleCard = `
+      <div class="card card-pad cal-provider-card">
+        <div class="cal-provider-top">
+          <div><div class="cal-provider-name">Google Calendar</div><div class="cal-provider-sub">${attrSafe(google.accountEmail || "")}</div></div>
+          <span class="chip ${chipClass}">${statusLabel}</span>
+        </div>
+        ${google.status !== "connected" ? `<div class="cal-provider-error">${attrSafe(google.lastError || STATE.calendar.error || "Please reconnect to keep My Day and This Week up to date.")}</div>` : ""}
+        <div class="cal-provider-sync">Last synced: ${fmtRelativeSync(google.lastSyncedAt)}</div>
+        <div class="cal-provider-actions">
+          <button class="btn btn-sm" onclick="${call("refreshCalendarData")}" ${loading ? "disabled" : ""}>${loading ? "Refreshing…" : "Refresh"}</button>
+          ${google.status !== "connected" ? `<button class="btn btn-sm btn-primary" onclick="${call("connectGoogleCalendar")}">Reconnect</button>` : ""}
+          <button class="btn btn-sm btn-ghost" onclick="${call("disconnectCalendar", "google")}">Disconnect</button>
+        </div>
+        <div class="cal-provider-scope">Disconnecting stops this app's own access immediately. It does not itself revoke the grant on your Google account — do that from your Google Account's own security settings if you want to fully revoke it.</div>
+      </div>`;
+  }
+
+  const outlookCard = `
+    <div class="card card-pad cal-provider-card cal-provider-disabled">
+      <div class="cal-provider-top">
+        <div><div class="cal-provider-name">Microsoft Outlook</div><div class="cal-provider-sub">Temporarily deferred — see Outlook Calendar for architecture status.</div></div>
+        <span class="chip status-chip-Archived">Not Available</span>
+      </div>
+      <button class="btn btn-sm" disabled style="opacity:.5;cursor:not-allowed">Connect Outlook</button>
+    </div>`;
+
+  const upcoming = connected ? STATE.calendar.events.slice().sort((a, b) => a.start.localeCompare(b.start)).slice(0, 8) : [];
+
+  return `
+    <div class="page-head"><div><div class="page-title">Connected Calendars</div><div class="page-sub">Live, read-only calendar connections. My Day and This Week populate from whatever is connected here — nothing is ever created, edited or deleted.</div></div></div>
+    ${STATE.calendar.error && connected && google && google.status === "connected" ? `<div class="callout" style="margin-bottom:16px"><span>ℹ</span><div>${attrSafe(STATE.calendar.error)}</div></div>` : ""}
+    <div class="grid grid-2" style="align-items:start;margin-bottom:24px">
+      ${googleCard}
+      ${outlookCard}
+    </div>
+    ${connected ? `
+      <div class="section">
+        <div class="section-head"><div class="section-title">This Week — Live from Google Calendar</div></div>
+        <div class="card card-pad">
+          ${upcoming.length ? upcoming.map((e) => googleEventRow(e)).join("") : `<div class="muted" style="padding:6px 4px">Nothing on your Google Calendar this week.</div>`}
+        </div>
+      </div>` : ""}
+  `;
+}
+
 /* ============================ Dispatcher / init ============================ */
 
 function renderScreen(path, query) {
@@ -2517,6 +2890,7 @@ function renderScreen(path, query) {
   if (path === "/settings") return renderSettingsScreen();
   if (path === "/drive") return renderDriveScreen();
   if (path === "/outlook") return renderOutlookScreen();
+  if (path === "/calendars") return renderConnectedCalendarsScreen(query);
   if (path === "/management") return renderManagementProgress();
   if (path.indexOf("/document/") === 0) {
     STATE.previewId = path.split("/")[2];
@@ -2729,7 +3103,7 @@ async function initApp() {
     AUTH.error = "Unable to reach the Command Centre.";
   }
   AUTH.checked = true;
-  if (AUTH.authenticated) render(); else renderAuthGateShell();
+  if (AUTH.authenticated) { render(); loadCalendarData(); maybeAnnounceCalendarReturn(); } else renderAuthGateShell();
 }
 
 function render() {
