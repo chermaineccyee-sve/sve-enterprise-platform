@@ -310,6 +310,126 @@ test("an exchange that returns no refresh_token is rejected — never stores a c
   assert.equal(connections.length, 0);
 });
 
+/* ---------- Stage-tagged diagnostics for the caught-error path after Google
+ * authorization (production incident: consent + code exchange reach the
+ * callback, but the connection is never persisted, and the UI only ever
+ * shows one generic message because every failure collapsed into the same
+ * catch-all). Each stage gets its own reason code and its own structured,
+ * secret-free console.error line so a real production failure is
+ * diagnosable from Netlify Observability without guessing. ---------- */
+
+async function withConsoleErrorSpy(fn) {
+  const calls = [];
+  const original = console.error;
+  console.error = (...args) => { calls.push(args); };
+  try {
+    await fn();
+  } finally {
+    console.error = original;
+  }
+  return calls;
+}
+
+function assertNoSecretsLogged(calls, secrets) {
+  const logged = JSON.stringify(calls);
+  for (const secret of secrets) assert.doesNotMatch(logged, new RegExp(secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+}
+
+test("token exchange failure: reason=token_exchange_failed, stage-tagged diagnostic, no connection stored, no secret logged", async () => {
+  resetFakeDb();
+  const cookie = await cookieHeaderFor();
+  const connectRes = await connectHandler(reqWithCookie("https://x/api/calendar/connect?provider=google", cookie));
+  const state = new URL(connectRes.headers.get("location")).searchParams.get("state");
+  globalThis.fetch = fetchScript({
+    "oauth2.googleapis.com/token": () => new Response("invalid_grant", { status: 400 }),
+  });
+  const calls = await withConsoleErrorSpy(async () => {
+    const res = await callbackHandler(reqWithCookie(`https://x/api/calendar/google/callback?code=super-secret-auth-code&state=${encodeURIComponent(state)}`, cookie));
+    assert.match(res.headers.get("location"), /calendar=error&reason=token_exchange_failed/);
+  });
+  assert.equal(connections.length, 0);
+  assert.equal(calls.length, 1);
+  const logged = JSON.parse(calls[0][0]);
+  assert.equal(logged.event, "calendar_google_callback_error");
+  assert.equal(logged.stage, "token_exchange");
+  assert.match(logged.errorMessage, /Google token exchange failed \(400\)/);
+  assertNoSecretsLogged(calls, ["super-secret-auth-code", CLIENT_SECRET, SESSION_SECRET, ENCRYPTION_KEY]);
+});
+
+test("calendar lookup failure (after a successful token exchange): reason=calendar_lookup_failed, stage-tagged, no connection stored, no token logged", async () => {
+  resetFakeDb();
+  const cookie = await cookieHeaderFor();
+  const connectRes = await connectHandler(reqWithCookie("https://x/api/calendar/connect?provider=google", cookie));
+  const state = new URL(connectRes.headers.get("location")).searchParams.get("state");
+  globalThis.fetch = fetchScript({
+    "oauth2.googleapis.com/token": () => jsonResponse({ access_token: "raw-access-secret", refresh_token: "raw-refresh-secret", expires_in: 3600, scope: "https://www.googleapis.com/auth/calendar.readonly", token_type: "Bearer" }),
+    "calendars/primary": () => new Response("forbidden", { status: 403 }),
+  });
+  const calls = await withConsoleErrorSpy(async () => {
+    const res = await callbackHandler(reqWithCookie(`https://x/api/calendar/google/callback?code=abc&state=${encodeURIComponent(state)}`, cookie));
+    assert.match(res.headers.get("location"), /calendar=error&reason=calendar_lookup_failed/);
+  });
+  assert.equal(connections.length, 0);
+  const logged = JSON.parse(calls[0][0]);
+  assert.equal(logged.stage, "calendar_lookup");
+  assert.equal(logged.httpStatus, 403);
+  assertNoSecretsLogged(calls, ["raw-access-secret", "raw-refresh-secret", CLIENT_SECRET, SESSION_SECRET, ENCRYPTION_KEY]);
+});
+
+test("a malformed EXECUTIVE_VAULT_TOKEN_ENCRYPTION_KEY (e.g. not 32 bytes after base64 decode) is a distinct token_encryption_failed stage, not a generic/db failure", async () => {
+  resetFakeDb();
+  const cookie = await cookieHeaderFor();
+  const connectRes = await connectHandler(reqWithCookie("https://x/api/calendar/connect?provider=google", cookie));
+  const state = new URL(connectRes.headers.get("location")).searchParams.get("state");
+  globalThis.fetch = fetchScript({
+    "oauth2.googleapis.com/token": () => jsonResponse({ access_token: "raw-access-secret", refresh_token: "raw-refresh-secret", expires_in: 3600, scope: "https://www.googleapis.com/auth/calendar.readonly", token_type: "Bearer" }),
+    "calendars/primary": () => jsonResponse({ id: "chingyeesve@gmail.com" }),
+  });
+  const badKey = Buffer.from("too-short").toString("base64"); // decodes to far fewer than 32 bytes
+  ENV.EXECUTIVE_VAULT_TOKEN_ENCRYPTION_KEY = badKey;
+  const calls = await withConsoleErrorSpy(async () => {
+    const res = await callbackHandler(reqWithCookie(`https://x/api/calendar/google/callback?code=abc&state=${encodeURIComponent(state)}`, cookie));
+    assert.match(res.headers.get("location"), /calendar=error&reason=token_encryption_failed/);
+  });
+  ENV.EXECUTIVE_VAULT_TOKEN_ENCRYPTION_KEY = ENCRYPTION_KEY; // restore for later tests
+  assert.equal(connections.length, 0);
+  const logged = JSON.parse(calls[0][0]);
+  assert.equal(logged.stage, "token_encryption");
+  assert.match(logged.errorMessage, /must decode to exactly 32 bytes/);
+  assertNoSecretsLogged(calls, ["raw-access-secret", "raw-refresh-secret", badKey, CLIENT_SECRET, SESSION_SECRET]);
+});
+
+test("a database failure at persist time (e.g. calendar_connections migration not applied in this environment) is a distinct db_persist_failed stage, with the Postgres SQLSTATE captured and no token logged", async () => {
+  resetFakeDb();
+  const cookie = await cookieHeaderFor();
+  const connectRes = await connectHandler(reqWithCookie("https://x/api/calendar/connect?provider=google", cookie));
+  const state = new URL(connectRes.headers.get("location")).searchParams.get("state");
+  globalThis.fetch = fetchScript({
+    "oauth2.googleapis.com/token": () => jsonResponse({ access_token: "raw-access-secret", refresh_token: "raw-refresh-secret", expires_in: 3600, scope: "https://www.googleapis.com/auth/calendar.readonly", token_type: "Bearer" }),
+    "calendars/primary": () => jsonResponse({ id: "chingyeesve@gmail.com" }),
+  });
+  const realSql = fakeDb.sql;
+  fakeDb.sql = (strings, ...values) => {
+    const text = strings.join("");
+    if (text.includes("INSERT INTO calendar_connections")) {
+      const err = new Error(`relation "calendar_connections" does not exist`);
+      err.code = "42P01"; // Postgres SQLSTATE for undefined_table — the exact "migration never applied" signature
+      throw err;
+    }
+    return realSql(strings, ...values);
+  };
+  const calls = await withConsoleErrorSpy(async () => {
+    const res = await callbackHandler(reqWithCookie(`https://x/api/calendar/google/callback?code=abc&state=${encodeURIComponent(state)}`, cookie));
+    assert.match(res.headers.get("location"), /calendar=error&reason=db_persist_failed/);
+  });
+  fakeDb.sql = realSql;
+  assert.equal(connections.length, 0);
+  const logged = JSON.parse(calls[0][0]);
+  assert.equal(logged.stage, "db_persist");
+  assert.equal(logged.pgErrorCode, "42P01");
+  assertNoSecretsLogged(calls, ["raw-access-secret", "raw-refresh-secret", CLIENT_SECRET, SESSION_SECRET, ENCRYPTION_KEY]);
+});
+
 /* ============================ calendar-events: normalization, timezone, refresh, linking ============================ */
 
 function connectedRow(overrides = {}) {

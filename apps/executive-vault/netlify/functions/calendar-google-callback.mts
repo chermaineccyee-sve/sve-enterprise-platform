@@ -16,6 +16,28 @@ function backToApp(query: string) {
   return new Response(null, { status: 302, headers: { Location: `/#/calendars?${query}` } });
 }
 
+/** Logs one structured, single-line diagnostic for a failed connect attempt —
+ * findable in Netlify Observability by stage without reading a stack trace.
+ * NEVER passed the authorization code, any token, the Google Client Secret,
+ * the encryption key, or the session secret — only a stage tag plus the
+ * small set of fields below, each individually safe: our own thrown errors
+ * use static, pre-written messages (see _calendar-google.mts/_calendar-
+ * model.mts) that never interpolate a secret or token; `httpStatus` is a
+ * provider HTTP status code; `pgErrorCode` is a 5-character Postgres
+ * SQLSTATE (e.g. "42P01" undefined_table, "23503" foreign_key_violation,
+ * "23505" unique_violation) — a classification code, never a row value. */
+function logCalendarCallbackError(stage: string, err: unknown) {
+  const e: any = err;
+  console.error(JSON.stringify({
+    event: "calendar_google_callback_error",
+    stage,
+    errorName: e?.name ?? typeof e,
+    errorMessage: typeof e?.message === "string" ? e.message : String(e),
+    httpStatus: typeof e?.status === "number" ? e.status : null,
+    pgErrorCode: typeof e?.code === "string" ? e.code : null,
+  }));
+}
+
 export default async (req: Request, _context: Context) => {
   const sessionSecret = Netlify.env.get("EXECUTIVE_VAULT_SESSION_SECRET");
   const encryptionKey = Netlify.env.get("EXECUTIVE_VAULT_TOKEN_ENCRYPTION_KEY");
@@ -41,13 +63,28 @@ export default async (req: Request, _context: Context) => {
     return backToApp("calendar=error&reason=session_mismatch");
   }
 
+  let tokens;
   try {
-    const tokens = await exchangeCodeForTokens(code, clientId, clientSecret, redirectUri);
-    if (!tokens.refresh_token) {
-      // Shouldn't happen with access_type=offline + prompt=consent, but never store a connection this app can't actually refresh later.
-      return backToApp("calendar=error&reason=no_refresh_token");
-    }
-    const accountEmail = await fetchPrimaryCalendarEmail(tokens.access_token);
+    tokens = await exchangeCodeForTokens(code, clientId, clientSecret, redirectUri);
+  } catch (err) {
+    logCalendarCallbackError("token_exchange", err);
+    return backToApp("calendar=error&reason=token_exchange_failed");
+  }
+
+  if (!tokens.refresh_token) {
+    // Shouldn't happen with access_type=offline + prompt=consent, but never store a connection this app can't actually refresh later.
+    return backToApp("calendar=error&reason=no_refresh_token");
+  }
+
+  let accountEmail: string;
+  try {
+    accountEmail = await fetchPrimaryCalendarEmail(tokens.access_token);
+  } catch (err) {
+    logCalendarCallbackError("calendar_lookup", err);
+    return backToApp("calendar=error&reason=calendar_lookup_failed");
+  }
+
+  try {
     const db = getDatabase();
     await upsertConnectionAfterAuth(db, {
       userEmail: session.email,
@@ -61,8 +98,9 @@ export default async (req: Request, _context: Context) => {
     });
     return backToApp("calendar=connected");
   } catch (err) {
-    console.error("Google Calendar connect error", err);
-    return backToApp("calendar=error&reason=exchange_failed");
+    const stage = (err as any)?.calendarStage || "db_persist";
+    logCalendarCallbackError(stage, err);
+    return backToApp(`calendar=error&reason=${stage === "token_encryption" ? "token_encryption_failed" : "db_persist_failed"}`);
   }
 };
 export const config: Config = { path: "/api/calendar/google/callback" };

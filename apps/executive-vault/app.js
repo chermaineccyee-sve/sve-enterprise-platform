@@ -567,6 +567,10 @@ function maybeAnnounceCalendarReturn() {
       invalid_state: "That connection link expired or was invalid — please try again.",
       session_mismatch: "Please try connecting again from this session.",
       no_refresh_token: "Google didn't grant offline access — please try again and accept the consent prompt fully.",
+      token_exchange_failed: "Google couldn't confirm the connection request. Please try again.",
+      calendar_lookup_failed: "Connected to Google, but couldn't read your calendar. Please try again.",
+      token_encryption_failed: "Something went wrong connecting to Google. Please try again or contact support if this persists.",
+      db_persist_failed: "Connected to Google, but the connection couldn't be saved. Please try again or contact support if this persists.",
       exchange_failed: "Something went wrong connecting to Google. Please try again.",
       not_configured: "Google Calendar isn't configured yet.",
     };

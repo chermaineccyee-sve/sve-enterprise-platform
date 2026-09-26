@@ -25,29 +25,53 @@ export async function getConnection(db: any, userEmail: string, provider: string
   return rows[0] || null;
 }
 
-/** First-time connect (OAuth callback) — always has both tokens, since access_type=offline+prompt=consent guarantees a refresh_token on this path. Re-running Connect for the same account updates the existing row (ON CONFLICT) rather than creating a duplicate. */
+/** Tags a caught error with which stage of a multi-step operation threw it, without altering its message/identity — callers (currently the OAuth callback) read `.calendarStage` to log/redirect distinctly per stage while never needing to parse error text. */
+function taggedStage(err: unknown, stage: string): Error {
+  const e = err instanceof Error ? err : new Error(String(err));
+  (e as any).calendarStage = stage;
+  return e;
+}
+
+/** First-time connect (OAuth callback) — always has both tokens, since access_type=offline+prompt=consent guarantees a refresh_token on this path. Re-running Connect for the same account updates the existing row (ON CONFLICT) rather than creating a duplicate.
+ *
+ * Encryption and persistence are wrapped separately so a caller can tell a
+ * malformed/misconfigured EXECUTIVE_VAULT_TOKEN_ENCRYPTION_KEY (stage
+ * "token_encryption" — a local, synchronous failure, never a network or
+ * database issue) apart from an actual database failure (stage
+ * "db_persist" — e.g. the calendar_connections table/migration missing in
+ * this environment, or a constraint violation) — see calendar-google-
+ * callback.mts's stage-tagged diagnostics. */
 export async function upsertConnectionAfterAuth(db: any, params: {
   userEmail: string; provider: string; providerAccountEmail: string;
   accessToken: string; refreshToken: string; expiresAt: string; scope: string; encryptionKey: string;
 }): Promise<ConnectionRow> {
-  const accessEnc = await encryptToken(params.accessToken, params.encryptionKey);
-  const refreshEnc = await encryptToken(params.refreshToken, params.encryptionKey);
-  const rows = await db.sql`
-    INSERT INTO calendar_connections
-      (user_email, provider, provider_account_email, access_token_encrypted, refresh_token_encrypted, token_expires_at, scope, status, last_error, updated_at)
-    VALUES
-      (${params.userEmail}, ${params.provider}, ${params.providerAccountEmail}, ${accessEnc}, ${refreshEnc}, ${params.expiresAt}, ${params.scope}, 'connected', NULL, NOW())
-    ON CONFLICT (user_email, provider, provider_account_email) DO UPDATE SET
-      access_token_encrypted = EXCLUDED.access_token_encrypted,
-      refresh_token_encrypted = EXCLUDED.refresh_token_encrypted,
-      token_expires_at = EXCLUDED.token_expires_at,
-      scope = EXCLUDED.scope,
-      status = 'connected',
-      last_error = NULL,
-      updated_at = NOW()
-    RETURNING *
-  `;
-  return rows[0];
+  let accessEnc: string, refreshEnc: string;
+  try {
+    accessEnc = await encryptToken(params.accessToken, params.encryptionKey);
+    refreshEnc = await encryptToken(params.refreshToken, params.encryptionKey);
+  } catch (err) {
+    throw taggedStage(err, "token_encryption");
+  }
+  try {
+    const rows = await db.sql`
+      INSERT INTO calendar_connections
+        (user_email, provider, provider_account_email, access_token_encrypted, refresh_token_encrypted, token_expires_at, scope, status, last_error, updated_at)
+      VALUES
+        (${params.userEmail}, ${params.provider}, ${params.providerAccountEmail}, ${accessEnc}, ${refreshEnc}, ${params.expiresAt}, ${params.scope}, 'connected', NULL, NOW())
+      ON CONFLICT (user_email, provider, provider_account_email) DO UPDATE SET
+        access_token_encrypted = EXCLUDED.access_token_encrypted,
+        refresh_token_encrypted = EXCLUDED.refresh_token_encrypted,
+        token_expires_at = EXCLUDED.token_expires_at,
+        scope = EXCLUDED.scope,
+        status = 'connected',
+        last_error = NULL,
+        updated_at = NOW()
+      RETURNING *
+    `;
+    return rows[0];
+  } catch (err) {
+    throw taggedStage(err, "db_persist");
+  }
 }
 
 /** A refreshed access token. refreshToken is optional — Google does not always rotate it, and omitting it here means the previously stored one is left untouched (never cleared, never overwritten with nothing). */
