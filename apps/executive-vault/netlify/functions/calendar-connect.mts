@@ -14,8 +14,16 @@ export default async (req: Request, _context: Context) => {
   const provider = url.searchParams.get("provider");
   if (provider !== "google") return Response.json({ error: "Unsupported calendar provider." }, { status: 400 });
 
-  const clientId = Netlify.env.get("GOOGLE_CALENDAR_CLIENT_ID");
-  const redirectUri = Netlify.env.get("GOOGLE_CALENDAR_REDIRECT_URI");
+  // Trimmed defensively — a stray leading/trailing space or newline from how
+  // the value was set in Netlify (a copy/paste, a `netlify env:set` from a
+  // file) would otherwise silently become part of client_id/redirect_uri,
+  // and must trim identically here and in calendar-google-callback.mts's
+  // token exchange so the SAME value is sent to Google at both the
+  // authorize step and the token-exchange step. Never alters the secret's
+  // actual characters — only surrounding whitespace, which is never part of
+  // a real client ID or URI.
+  const clientId = Netlify.env.get("GOOGLE_CALENDAR_CLIENT_ID")?.trim();
+  const redirectUri = Netlify.env.get("GOOGLE_CALENDAR_REDIRECT_URI")?.trim();
   if (!clientId || !redirectUri) return Response.json({ error: "Google Calendar is not configured." }, { status: 503 });
 
   const state = await signOAuthState(session.email, "google", sessionSecret);

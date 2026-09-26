@@ -356,6 +356,88 @@ test("token exchange failure: reason=token_exchange_failed, stage-tagged diagnos
   assertNoSecretsLogged(calls, ["super-secret-auth-code", CLIENT_SECRET, SESSION_SECRET, ENCRYPTION_KEY]);
 });
 
+/* ---------- Google's own OAuth error classification (RFC 6749 §5.2) —
+ * production reported token_exchange_failed with no way to tell
+ * invalid_client/invalid_grant/redirect_uri_mismatch apart. Google's token
+ * endpoint always returns a JSON {error, error_description} body on
+ * failure; exchangeCodeForTokens() now reads it instead of discarding it,
+ * and the callback surfaces the short `error` code both in its structured
+ * log and as a safe `detail=` query param on the redirect, so a real
+ * production failure is distinguishable without server-log access. ---------- */
+
+for (const googleErrorCode of ["invalid_client", "invalid_grant", "redirect_uri_mismatch"]) {
+  test(`token exchange rejected by Google as "${googleErrorCode}" is captured distinctly: detail= on the redirect, googleError in the structured log, never a secret`, async () => {
+    resetFakeDb();
+    const cookie = await cookieHeaderFor();
+    const connectRes = await connectHandler(reqWithCookie("https://x/api/calendar/connect?provider=google", cookie));
+    const state = new URL(connectRes.headers.get("location")).searchParams.get("state");
+    globalThis.fetch = fetchScript({
+      "oauth2.googleapis.com/token": () => jsonResponse({ error: googleErrorCode, error_description: `Google's own description of ${googleErrorCode}.` }, 400),
+    });
+    const calls = await withConsoleErrorSpy(async () => {
+      const res = await callbackHandler(reqWithCookie(`https://x/api/calendar/google/callback?code=abc&state=${encodeURIComponent(state)}`, cookie));
+      assert.match(res.headers.get("location"), /calendar=error&reason=token_exchange_failed/);
+      assert.match(res.headers.get("location"), new RegExp(`detail=${googleErrorCode}`));
+    });
+    assert.equal(connections.length, 0);
+    const logged = JSON.parse(calls[0][0]);
+    assert.equal(logged.stage, "token_exchange");
+    assert.equal(logged.googleError, googleErrorCode);
+    assert.match(logged.googleErrorDescription, new RegExp(googleErrorCode));
+    assertNoSecretsLogged(calls, [CLIENT_SECRET, SESSION_SECRET, ENCRYPTION_KEY]);
+  });
+}
+
+test("a non-JSON token-endpoint error body (e.g. an intermediary/proxy error page) degrades gracefully — still reason=token_exchange_failed, no detail= param, no crash", async () => {
+  resetFakeDb();
+  const cookie = await cookieHeaderFor();
+  const connectRes = await connectHandler(reqWithCookie("https://x/api/calendar/connect?provider=google", cookie));
+  const state = new URL(connectRes.headers.get("location")).searchParams.get("state");
+  globalThis.fetch = fetchScript({
+    "oauth2.googleapis.com/token": () => new Response("<html>502 Bad Gateway</html>", { status: 502, headers: { "Content-Type": "text/html" } }),
+  });
+  const calls = await withConsoleErrorSpy(async () => {
+    const res = await callbackHandler(reqWithCookie(`https://x/api/calendar/google/callback?code=abc&state=${encodeURIComponent(state)}`, cookie));
+    assert.match(res.headers.get("location"), /calendar=error&reason=token_exchange_failed$/);
+    assert.doesNotMatch(res.headers.get("location"), /detail=/);
+  });
+  const logged = JSON.parse(calls[0][0]);
+  assert.equal(logged.httpStatus, 502);
+  assert.equal(logged.googleError, null);
+});
+
+test("GOOGLE_CALENDAR_CLIENT_ID/CLIENT_SECRET/REDIRECT_URI with accidental surrounding whitespace are trimmed identically at both the authorize step (calendar-connect) and the token-exchange step (the callback) — never sent to Google with stray whitespace, and the secret's real characters are untouched", async () => {
+  resetFakeDb();
+  const realClientId = ENV.GOOGLE_CALENDAR_CLIENT_ID;
+  const realClientSecret = ENV.GOOGLE_CALENDAR_CLIENT_SECRET;
+  const realRedirectUri = ENV.GOOGLE_CALENDAR_REDIRECT_URI;
+  ENV.GOOGLE_CALENDAR_CLIENT_ID = `  ${realClientId}\n`;
+  ENV.GOOGLE_CALENDAR_CLIENT_SECRET = `${realClientSecret}\n`;
+  ENV.GOOGLE_CALENDAR_REDIRECT_URI = ` ${realRedirectUri} `;
+
+  const cookie = await cookieHeaderFor();
+  const connectRes = await connectHandler(reqWithCookie("https://x/api/calendar/connect?provider=google", cookie));
+  const authLocation = new URL(connectRes.headers.get("location"));
+  assert.equal(authLocation.searchParams.get("client_id"), realClientId);
+  assert.equal(authLocation.searchParams.get("redirect_uri"), realRedirectUri);
+  const state = authLocation.searchParams.get("state");
+
+  let exchangeBody = null;
+  globalThis.fetch = fetchScript({
+    "oauth2.googleapis.com/token": (init) => { exchangeBody = new URLSearchParams(init.body); return jsonResponse({ access_token: "a", refresh_token: "r", expires_in: 3600, scope: "https://www.googleapis.com/auth/calendar.readonly", token_type: "Bearer" }); },
+    "calendars/primary": () => jsonResponse({ id: "chingyeesve@gmail.com" }),
+  });
+  const res = await callbackHandler(reqWithCookie(`https://x/api/calendar/google/callback?code=abc&state=${encodeURIComponent(state)}`, cookie));
+  assert.match(res.headers.get("location"), /calendar=connected/);
+  assert.equal(exchangeBody.get("client_id"), realClientId);
+  assert.equal(exchangeBody.get("client_secret"), realClientSecret);
+  assert.equal(exchangeBody.get("redirect_uri"), realRedirectUri);
+
+  ENV.GOOGLE_CALENDAR_CLIENT_ID = realClientId;
+  ENV.GOOGLE_CALENDAR_CLIENT_SECRET = realClientSecret;
+  ENV.GOOGLE_CALENDAR_REDIRECT_URI = realRedirectUri;
+});
+
 test("calendar lookup failure (after a successful token exchange): reason=calendar_lookup_failed, stage-tagged, no connection stored, no token logged", async () => {
   resetFakeDb();
   const cookie = await cookieHeaderFor();

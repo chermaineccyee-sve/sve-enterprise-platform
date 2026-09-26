@@ -32,6 +32,15 @@ export function buildGoogleAuthUrl(clientId: string, redirectUri: string, state:
   return `${AUTH_URL}?${params.toString()}`;
 }
 
+/** On failure, Google's token endpoint always returns a JSON body shaped
+ * `{error, error_description}` per RFC 6749 §5.2 — a short, Google-authored
+ * classification string ("invalid_client", "invalid_grant",
+ * "redirect_uri_mismatch", …) that never echoes back the client secret or
+ * the authorization code. Discarding that body (as this function used to)
+ * throws away exactly the signal needed to tell those cases apart in
+ * production; callers read `.googleError`/`.googleErrorDescription` off the
+ * thrown error for stage-tagged diagnostics (see calendar-google-
+ * callback.mts), never anything from the request itself. */
 export async function exchangeCodeForTokens(code: string, clientId: string, clientSecret: string, redirectUri: string): Promise<GoogleTokenResponse> {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
@@ -40,7 +49,22 @@ export async function exchangeCodeForTokens(code: string, clientId: string, clie
       code, client_id: clientId, client_secret: clientSecret, redirect_uri: redirectUri, grant_type: "authorization_code",
     }),
   });
-  if (!res.ok) throw new Error(`Google token exchange failed (${res.status})`);
+  if (!res.ok) {
+    let googleError: string | null = null;
+    let googleErrorDescription: string | null = null;
+    try {
+      const body = await res.json();
+      if (typeof body?.error === "string") googleError = body.error;
+      if (typeof body?.error_description === "string") googleErrorDescription = body.error_description;
+    } catch {
+      // Not a JSON body (e.g. an intermediary/proxy error page) — no Google error classification available, still just the HTTP status.
+    }
+    const err: any = new Error(`Google token exchange failed (${res.status})${googleError ? `: ${googleError}` : ""}`);
+    err.status = res.status;
+    err.googleError = googleError;
+    err.googleErrorDescription = googleErrorDescription;
+    throw err;
+  }
   return res.json();
 }
 

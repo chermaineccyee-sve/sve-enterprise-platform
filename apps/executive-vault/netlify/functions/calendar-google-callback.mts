@@ -25,9 +25,18 @@ function backToApp(query: string) {
  * model.mts) that never interpolate a secret or token; `httpStatus` is a
  * provider HTTP status code; `pgErrorCode` is a 5-character Postgres
  * SQLSTATE (e.g. "42P01" undefined_table, "23503" foreign_key_violation,
- * "23505" unique_violation) — a classification code, never a row value. */
+ * "23505" unique_violation) — a classification code, never a row value;
+ * `googleError`/`googleErrorDescription` are Google's OWN short,
+ * Google-authored classification of a token-endpoint failure ("invalid_
+ * client", "invalid_grant", "redirect_uri_mismatch", …) straight from the
+ * OAuth spec's standard error response (RFC 6749 §5.2) — by definition
+ * never the client secret or the authorization code, since Google would
+ * never echo either of those back in an error body. `error_description` is
+ * truncated defensively in case anything ever puts unexpected free text
+ * there. */
 function logCalendarCallbackError(stage: string, err: unknown) {
   const e: any = err;
+  const googleErrorDescription = typeof e?.googleErrorDescription === "string" ? e.googleErrorDescription.slice(0, 300) : null;
   console.error(JSON.stringify({
     event: "calendar_google_callback_error",
     stage,
@@ -35,15 +44,23 @@ function logCalendarCallbackError(stage: string, err: unknown) {
     errorMessage: typeof e?.message === "string" ? e.message : String(e),
     httpStatus: typeof e?.status === "number" ? e.status : null,
     pgErrorCode: typeof e?.code === "string" ? e.code : null,
+    googleError: typeof e?.googleError === "string" ? e.googleError : null,
+    googleErrorDescription,
   }));
 }
 
 export default async (req: Request, _context: Context) => {
   const sessionSecret = Netlify.env.get("EXECUTIVE_VAULT_SESSION_SECRET");
   const encryptionKey = Netlify.env.get("EXECUTIVE_VAULT_TOKEN_ENCRYPTION_KEY");
-  const clientId = Netlify.env.get("GOOGLE_CALENDAR_CLIENT_ID");
-  const clientSecret = Netlify.env.get("GOOGLE_CALENDAR_CLIENT_SECRET");
-  const redirectUri = Netlify.env.get("GOOGLE_CALENDAR_REDIRECT_URI");
+  // Trimmed defensively (matches calendar-connect.mts) — a stray leading/
+  // trailing space or newline from how the value was set in Netlify would
+  // otherwise silently become part of client_id/client_secret/redirect_uri
+  // sent to Google's token endpoint. Never alters the secret's actual
+  // characters, only surrounding whitespace, which is never part of a real
+  // credential.
+  const clientId = Netlify.env.get("GOOGLE_CALENDAR_CLIENT_ID")?.trim();
+  const clientSecret = Netlify.env.get("GOOGLE_CALENDAR_CLIENT_SECRET")?.trim();
+  const redirectUri = Netlify.env.get("GOOGLE_CALENDAR_REDIRECT_URI")?.trim();
   if (!sessionSecret || !encryptionKey || !clientId || !clientSecret || !redirectUri) {
     return backToApp("calendar=error&reason=not_configured");
   }
@@ -68,7 +85,14 @@ export default async (req: Request, _context: Context) => {
     tokens = await exchangeCodeForTokens(code, clientId, clientSecret, redirectUri);
   } catch (err) {
     logCalendarCallbackError("token_exchange", err);
-    return backToApp("calendar=error&reason=token_exchange_failed");
+    // Google's own short error identifier (e.g. "invalid_grant",
+    // "invalid_client", "redirect_uri_mismatch") rides along as `detail=` —
+    // it's Google-authored and safe by definition (never the secret or the
+    // code), and putting it in the URL means the failure is diagnosable
+    // straight from the redirect, without needing server logs at all.
+    const googleError = (err as any)?.googleError;
+    const detail = typeof googleError === "string" ? `&detail=${encodeURIComponent(googleError)}` : "";
+    return backToApp(`calendar=error&reason=token_exchange_failed${detail}`);
   }
 
   if (!tokens.refresh_token) {

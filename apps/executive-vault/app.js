@@ -575,6 +575,14 @@ function maybeAnnounceCalendarReturn() {
       not_configured: "Google Calendar isn't configured yet.",
     };
     showToast(reasonMessages[query.reason] || "Unable to connect Google Calendar. Please try again.");
+    // `detail`, when present, is Google's OWN short OAuth error identifier
+    // (e.g. "invalid_grant", "invalid_client", "redirect_uri_mismatch") —
+    // safe by definition (never a secret or token), surfaced to the browser
+    // console only, never the user-facing toast, so it's easy to spot right
+    // after a real production attempt without needing server logs.
+    if (query.detail && typeof console !== "undefined" && console.warn) {
+      console.warn("Google Calendar connect failed — reason:", query.reason, "detail:", query.detail);
+    }
   }
   if (typeof location !== "undefined") location.hash = "#/calendars";
 }
