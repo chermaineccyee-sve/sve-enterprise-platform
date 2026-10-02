@@ -114,7 +114,7 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
               <figure key={i} className="my-12 font-sans">
                 <figcaption className="flex flex-wrap items-center justify-between gap-2">
                   <span>
-                    <span className="eyebrow text-gold-700">Table {numbering[i]}</span>
+                    <span className="eyebrow text-stone">Table {numbering[i]}</span>
                     <span className="mt-2 block font-serif text-[1.2rem] leading-snug text-teal-900">{b.caption}</span>
                   </span>
                   {b.layer && (
@@ -204,7 +204,7 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
           case "callout":
             return (
               <aside key={i} className="my-10 border border-rule bg-white p-5 font-sans">
-                <p className="eyebrow text-gold-700">{b.title}</p>
+                <p className="eyebrow text-stone">{b.title}</p>
                 <p className="mt-2 text-[14.5px] leading-relaxed text-charcoal">{b.text}</p>
               </aside>
             );

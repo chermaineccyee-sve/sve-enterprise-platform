@@ -25,8 +25,8 @@ export const GOVERNANCE_LAYERS = [
   },
   {
     n: "05",
-    title: "Independent Controls",
-    text: "Audit, custody and safekeeping functions kept separate from investment decision-making.",
+    title: "Safeguarding & Verification",
+    text: "How assets are safeguarded and records verified, kept distinct from investment decision-making. Arrangements to be confirmed.",
   },
   {
     n: "06",
@@ -60,14 +60,14 @@ export const DECISION_GATES = [
     id: "risk-review",
     title: "Risk review",
     question: "What could go wrong, and how badly?",
-    purpose: "Risks are identified and assessed independently of the people proposing the opportunity.",
+    purpose: "Risks are identified, assessed and documented as part of the review.",
     stops: "Risks that are unmeasured, unexplained or out of proportion.",
   },
   {
     id: "governance",
     title: "Governance",
-    question: "Has it been subjected to independent challenge?",
-    purpose: "Oversight and compliance review apply approvals, screening and separation of duties before any commitment.",
+    question: "Has it been appropriately reviewed and challenged?",
+    purpose: "Oversight and compliance review apply approvals and screening before any commitment.",
     stops: "Decisions without accountability or proper approval.",
   },
   {

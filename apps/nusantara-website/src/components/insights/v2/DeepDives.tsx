@@ -2,22 +2,18 @@
 
 import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { InsightVisual } from "@/components/insights/InsightVisual";
+import { useEffect, useState } from "react";
 import { INSIGHT_CATEGORIES, formatInsightDate, type InsightCategory, type InsightListing } from "@/content/insights/types";
 
 type Filter = "All" | InsightCategory;
 
 /**
  * Research index: large editorial rows rather than a card grid. Categories
- * filter in place (no reload); on desktop a motif preview follows the cursor.
+ * filter in place (no reload).
  */
 export function DeepDives({ insights }: { insights: InsightListing[] }) {
   const [cat, setCat] = useState<Filter>("All");
   const [q, setQ] = useState("");
-  const [hover, setHover] = useState<InsightListing | null>(null);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const c = new URLSearchParams(window.location.search).get("category");
@@ -69,13 +65,7 @@ export function DeepDives({ insights }: { insights: InsightListing[] }) {
       </p>
 
       <div
-        ref={listRef}
         className="relative mt-4"
-        onMouseMove={(e) => {
-          const r = listRef.current?.getBoundingClientRect();
-          if (r) setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
-        }}
-        onMouseLeave={() => setHover(null)}
       >
         <ol>
           <AnimatePresence initial={false} mode="popLayout">
@@ -83,12 +73,10 @@ export function DeepDives({ insights }: { insights: InsightListing[] }) {
               <m.li key={i.slug} layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.35 }} className="border-b border-rule">
                 <Link
                   href={`/insights/${i.slug}`}
-                  onMouseEnter={() => setHover(i)}
-                  onFocus={() => setHover(null)}
                   className="group grid gap-2 py-7 md:grid-cols-[60px_200px_minmax(0,1fr)_170px] md:items-baseline md:gap-6"
                 >
                   <span className="num text-[12px] text-mist">{String(k + 1).padStart(2, "0")}</span>
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-700">{i.category}</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">{i.category}</span>
                   <span>
                     <span className="block font-serif text-[1.6rem] leading-[1.15] text-teal-900 transition-transform duration-500 group-hover:translate-x-2 md:text-[2rem]">{i.title}</span>
                     <span className="mt-2 block max-w-2xl text-[14.5px] leading-relaxed text-stone">{i.summary}</span>
@@ -103,22 +91,6 @@ export function DeepDives({ insights }: { insights: InsightListing[] }) {
           </AnimatePresence>
         </ol>
         {shown.length === 0 && <p className="py-16 text-center text-stone">No research matches this filter yet.</p>}
-        <AnimatePresence>
-          {hover && (
-            <m.div
-              key="preview"
-              aria-hidden
-              className="pointer-events-none absolute z-10 hidden h-[170px] w-[260px] overflow-hidden shadow-2xl lg:block"
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1, x: pos.x + 24, y: pos.y - 85 }}
-              exit={{ opacity: 0, scale: 0.92 }}
-              transition={{ type: "spring", stiffness: 260, damping: 28 }}
-              style={{ left: 0, top: 0 }}
-            >
-              <InsightVisual insight={hover} />
-            </m.div>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   );

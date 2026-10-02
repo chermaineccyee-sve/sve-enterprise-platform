@@ -3,8 +3,6 @@
 import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
-import { Lattice } from "@/components/identity/Lattice";
-import { NStar } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
 import { THEMES } from "@/content/intelligence";
 import type { InsightListing } from "@/content/insights/types";
@@ -46,13 +44,10 @@ export function Themes({
         })}
       </ol>
       <div className="relative lg:col-span-6 lg:col-start-7">
-        <div aria-hidden className="pointer-events-none absolute -right-28 -top-36 h-72 w-72 text-white/[0.07]">
-          <Lattice className="h-full w-full" strokeWidth={0.8} activeArm={active % 4} accent="rgba(205,174,115,0.35)" />
-        </div>
         <AnimatePresence mode="wait" initial={false}>
           <m.div key={t.id} id="theme-panel" role="tabpanel" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.35 }} className="relative">
             <p className="font-serif text-[1.8rem] leading-snug text-gold-200 md:text-[2.2rem]">“{t.statement}”</p>
-            <p className="eyebrow mt-10 text-gold-300">Research</p>
+            <p className="eyebrow mt-10 text-teal-200">Research</p>
             <ul className="mt-3 divide-y divide-white/10 border-y border-white/10">
               {t.insights.map((s) => insights[s]).filter(Boolean).map((i) => (
                 <li key={i.slug}>
@@ -65,7 +60,7 @@ export function Themes({
             </ul>
             {(t.instruments.length > 0 || t.indicators.length > 0) && (
               <>
-                <p className="eyebrow mt-8 text-gold-300">Signals behind it · illustrative</p>
+                <p className="eyebrow mt-8 text-teal-200">Signals behind it · illustrative</p>
                 <ul className="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
                   {t.instruments.map((id) => instruments[id]).filter(Boolean).map((s) => (
                     <li key={s.instrument.id} className="flex items-center justify-between gap-3 border-b border-white/10 py-2 text-[13px]">
@@ -80,7 +75,6 @@ export function Themes({
                   {t.indicators.map((id) => indicators[id]).filter(Boolean).map((ind) => (
                     <li key={ind.id} className="flex items-center justify-between gap-3 border-b border-white/10 py-2 text-[13px]">
                       <span className="flex items-center gap-2 text-white">
-                        <NStar className="h-2 w-2 text-gold-400" />
                         {ind.title}
                       </span>
                       <span className="num text-teal-100">

@@ -25,7 +25,7 @@ export const PROCESS_STEPS = [
     n: "04",
     id: "risk-governance",
     title: "Risk & Governance",
-    question: "Has it been subjected to independent challenge?",
+    question: "Has it been appropriately reviewed and challenged?",
     text: "Opportunities pass through oversight, compliance review and risk assessment before any commitment is made. Governance is part of the process, not an afterthought.",
   },
   {
@@ -90,5 +90,5 @@ export const RESILIENCE_CONCEPTS = [
   { title: "Risk assessment", text: "Downside defined before upside is pursued." },
   { title: "Suitability", text: "Appropriate opportunities for the investor concerned." },
   { title: "Monitoring", text: "Assumptions reviewed on a defined cycle." },
-  { title: "Governance oversight", text: "Independent challenge built into the process." },
+  { title: "Governance oversight", text: "Review and challenge built into the process." },
 ] as const;

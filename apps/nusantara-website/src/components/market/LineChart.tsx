@@ -208,8 +208,6 @@ export function LineChart({
                     strokeWidth={s.emphasis ? 2.5 : 2}
                     strokeLinejoin="round"
                     strokeLinecap="round"
-                    pathLength={1000}
-                    className="chart-draw"
                   />
                   {markers &&
                     s.values.map((v, i) => (

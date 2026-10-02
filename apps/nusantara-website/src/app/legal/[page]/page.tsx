@@ -44,7 +44,7 @@ export default async function LegalPageView({ params }: PageProps<"/legal/[page]
             </ul>
           </nav>
           <div className="max-w-3xl lg:col-span-8 lg:col-start-5">
-            <ReviewPlaceholder label="Draft — subject to legal review">
+            <ReviewPlaceholder label="Draft · Pending legal review">
               This text is a working draft for the prototype. It must be reviewed and approved by legal counsel before publication.
             </ReviewPlaceholder>
             {p.sections.map((s) => (

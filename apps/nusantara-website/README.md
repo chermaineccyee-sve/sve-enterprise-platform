@@ -9,7 +9,36 @@ research is sample content, and the site is excluded from search indexing
 (`site.isPrototype` in `src/lib/site.ts`). The app is self-contained and has no
 dependency on any other app or service in this repository.
 
-## V2 experience (current)
+## V2.1 design maturity pass (current)
+
+A subtraction and refinement pass on V2 — no new pages, features or motion.
+
+- **Lattice and markers** kept only in the hero, the investment process, the
+  governance architecture and governance signal, and a few status markers.
+  Eyebrows and category labels are neutral; gold is reserved for meaning
+  (the Nusantara View signal, the active process stage, disclosure labels).
+- **Governance language** describes process and control concepts ("reviewed
+  and challenged", "safeguarding and verification"), never a confirmed
+  structure, layer count or independence claim.
+- **Nusantara Market State** is framed as a *demonstration framework*:
+  illustrative readings for management review, not a current house view.
+- **Three layers kept visually distinct**: market data (observed ·
+  illustrative), the Nusantara View (interpretation: Signal · Context · What we
+  are watching · Key risk · Related insight) and sample content.
+- **Homepage**: who we are → what we watch → how we think/invest → what we
+  read → how we govern. The Market Lens section was removed; the ribbon and
+  hero monitor link to the dashboard (`?instrument=<id>`).
+- **Strategies**: progressive disclosure (role, key considerations, market
+  relationships, related insight; detail behind "More detail"). The tokenised
+  real-world assets capability was removed pending approval.
+- **Mobile**: one idea at a time — Market State dimension chips; dashboard
+  order instrument select → number → chart → period → Nusantara View
+  (collapsed) → statistics → related markets.
+- **Charts**: restrained teal / gold / grey palette, no draw-in animation.
+- **Disclosure vocabulary**: Management review · Illustrative · Pending
+  approval, kept secondary; the top banner is the master disclosure.
+
+## V2 experience
 
 V2 rebuilt the presentation and interaction layer on the same data and content
 architecture. See [`docs/V2_CREATIVE_REVIEW.md`](./docs/V2_CREATIVE_REVIEW.md) for
@@ -26,9 +55,8 @@ the section-by-section review of what changed and why.
   `prefers-reduced-motion` rules disable all of it. Illustrative values never
   update on their own.
 - **Homepage**: live market canvas hero, continuous market ribbon (pausable;
-  swipe on mobile), Nusantara Market State, Market → Signal → Insight lens,
-  scroll-revealed statement, sticky scroll investment story, research rail,
-  governance signal.
+  swipe on mobile), Nusantara Market State, scroll-revealed statement, sticky
+  scroll investment story, research rail, governance signal.
 - **Market Dashboard**: intelligence workspace (market rail · morphing chart or
   table · Nusantara View panel), historical comparison, cross-asset view
   (derived measures + sample view), schematic markets map, structural indicators.
@@ -41,7 +69,7 @@ the section-by-section review of what changed and why.
 
 The intelligence layer — Market State, per-instrument views, signals, themes,
 cross-asset view and map — lives in `src/content/intelligence.ts` and is
-**sample content for management review**, labelled as such wherever shown.
+**illustrative content for management review**, labelled as such wherever shown.
 
 ## Running
 
@@ -61,8 +89,8 @@ dependency-free SVG components. Fonts: Newsreader (display) and IBM Plex Sans
 
 | Route | Purpose |
 |---|---|
-| `/` | Homepage: hero, market pulse, philosophy, process, capabilities, market intelligence, Nusantara View, insights, governance, contact |
-| `/market-dashboard` | Public dashboard. Level A market data (tabs, periods, region filter, cards/table, single/compare chart) and Level B strategic intelligence |
+| `/` | Homepage: hero, market ribbon, who we are, Nusantara Market State, investment process, research, governance, contact |
+| `/market-dashboard` | Public dashboard: market workspace (rail · chart/table · Nusantara View), cross-asset view, markets map, structural indicators. Accepts `?instrument=<id>` |
 | `/insights`, `/insights/[slug]` | Research library and article template |
 | `/investment-approach`, `/strategies`, `/strategies/[slug]`, `/governance`, `/about`, `/contact` | Core pages |
 | `/legal/[page]` | Privacy, Terms of Use, Important Information, Disclaimer (draft) |
@@ -109,7 +137,7 @@ charts and the reusable `scenario` block (Nusantara Scenario Analysis). Set
 ### Strategy status
 
 `src/content/strategies.ts` drives a five-state status (`capability`,
-`under-review`, `strategy`, `active`, `future-development`). All entries are
+`under-review`, `strategy`, `active`, `future-development`). All seven entries are
 `capability` or `future-development`; objective, time horizon and documents are
 `null` and render as management-review placeholders.
 

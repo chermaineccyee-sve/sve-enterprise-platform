@@ -1,4 +1,3 @@
-import { NStar } from "@/components/identity/NStar";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -6,7 +5,6 @@ import { ContactCTA } from "@/components/sections/ContactCTA";
 import { StatusLabel } from "@/components/sections/StrategyCard";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { HeroLines } from "@/components/ui/PageHero";
 import { ReviewPlaceholder } from "@/components/ui/ReviewPlaceholder";
 import { getStrategy, STATUS_INFO, STRATEGIES } from "@/content/strategies";
 import { generalDisclaimer } from "@/lib/site";
@@ -39,7 +37,7 @@ const SECTIONS = [
 function Row({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-h`} className="grid scroll-mt-32 gap-4 border-b border-rule py-10 md:grid-cols-12 md:gap-10">
-      <h2 id={`${id}-h`} className="eyebrow pt-1 text-gold-700 md:col-span-3">
+      <h2 id={`${id}-h`} className="eyebrow pt-1 text-stone md:col-span-3">
         {title}
       </h2>
       <div className="md:col-span-9">{children}</div>
@@ -58,7 +56,6 @@ export default async function StrategyPage({ params }: PageProps<"/strategies/[s
   return (
     <>
       <section className="relative overflow-hidden bg-ivory">
-        <HeroLines />
         <div className="container-site relative pt-10 pb-16 md:pt-14 md:pb-20">
           <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Strategies", href: "/strategies" }, { label: s.name }]} />
           <div className="mt-14 md:mt-20">
@@ -115,7 +112,6 @@ export default async function StrategyPage({ params }: PageProps<"/strategies/[s
               <ul className="space-y-3">
                 {s.riskConsiderations.map((r) => (
                   <li key={r} className="flex gap-3 text-[15px] text-charcoal">
-                    <NStar className="mt-1.5 h-2 w-2 text-gold-500" />
                     {r}
                   </li>
                 ))}
@@ -149,7 +145,7 @@ export default async function StrategyPage({ params }: PageProps<"/strategies/[s
                   ))}
                 </ul>
               ) : (
-                <ReviewPlaceholder label="No documents published">
+                <ReviewPlaceholder label="Documents · Pending approval">
                   Offering documents, factsheets and risk disclosures will appear here only for approved strategies, subject to
                   eligibility and applicable selling restrictions.
                 </ReviewPlaceholder>
@@ -163,7 +159,7 @@ export default async function StrategyPage({ params }: PageProps<"/strategies/[s
                 ← All capabilities
               </Link>
               <Link href={`/strategies/${next.slug}`} className="group text-right">
-                <span className="eyebrow block text-gold-700">Next</span>
+                <span className="eyebrow block text-stone">Next</span>
                 <span className="mt-1 block font-serif text-[1.3rem] text-teal-900 group-hover:text-teal-700">{next.name} →</span>
               </Link>
             </div>

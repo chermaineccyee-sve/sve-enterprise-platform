@@ -4,8 +4,6 @@ import { DeepDives } from "@/components/insights/v2/DeepDives";
 import { FeaturedResearch } from "@/components/insights/v2/FeaturedResearch";
 import { LatestSignals } from "@/components/insights/v2/LatestSignals";
 import { Themes } from "@/components/insights/v2/Themes";
-import { Lattice } from "@/components/identity/Lattice";
-import { NStar } from "@/components/identity/NStar";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { CTA } from "@/components/ui/CTA";
 import { getAllInsights, getAllListings } from "@/content/insights";
@@ -36,13 +34,10 @@ export default async function InsightsPage() {
     <>
       {/* Masthead */}
       <section className="relative overflow-hidden bg-ivory">
-        <div aria-hidden className="pointer-events-none absolute -right-20 top-10 hidden h-[460px] w-[460px] text-teal-800/15 md:block">
-          <Lattice className="h-full w-full" strokeWidth={0.45} accent="#b8955a" />
-        </div>
         <div className="container-site relative pt-10 pb-14 md:pt-14 md:pb-20">
           <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Insights" }]} />
-          <p className="eyebrow mt-14 flex items-center gap-3 text-gold-700">
-            <NStar className="h-2.5 w-2.5" /> Nusantara Insights
+          <p className="eyebrow mt-14 flex items-center gap-3 text-stone">
+            Nusantara Insights
           </p>
           <h1 className="display-xl mt-6 max-w-[12ch] text-teal-900">What it may mean.</h1>
           <ol className="mt-12 grid max-w-3xl gap-6 border-t border-rule pt-6 sm:grid-cols-3">
@@ -74,8 +69,8 @@ export default async function InsightsPage() {
         <div className="container-site py-16 md:py-24">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div>
-              <p className="eyebrow flex items-center gap-3 text-gold-700">
-                <NStar className="h-2.5 w-2.5" /> Latest signals
+              <p className="eyebrow text-stone">
+                Latest signals
               </p>
               <h2 id="signals" className="display-m mt-4 text-teal-900">
                 What we are watching, briefly.
@@ -92,8 +87,8 @@ export default async function InsightsPage() {
       {/* Deep dives */}
       <section aria-labelledby="deep-dives" className="border-t border-rule bg-white">
         <div className="container-site py-16 md:py-24">
-          <p className="eyebrow flex items-center gap-3 text-gold-700">
-            <NStar className="h-2.5 w-2.5" /> Deep dives
+          <p className="eyebrow text-stone">
+            Deep dives
           </p>
           <h2 id="deep-dives" className="display-m mt-4 text-teal-900">
             The research library.
@@ -107,8 +102,8 @@ export default async function InsightsPage() {
       {/* Themes */}
       <section aria-labelledby="themes" className="on-dark overflow-hidden bg-teal-950 text-white">
         <div className="container-site py-16 md:py-24">
-          <p className="eyebrow flex items-center gap-3 text-gold-300">
-            <NStar className="h-2.5 w-2.5" /> Themes we are watching
+          <p className="eyebrow text-teal-200">
+            Themes we are watching
           </p>
           <h2 id="themes" className="display-m mt-4 max-w-2xl">
             Six threads that run through our research.

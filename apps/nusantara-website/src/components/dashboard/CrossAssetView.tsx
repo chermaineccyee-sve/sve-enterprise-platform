@@ -2,7 +2,6 @@
 
 import { AnimatePresence, m } from "motion/react";
 import { useState } from "react";
-import { NStar } from "@/components/identity/NStar";
 import { CROSS_ASSET_VIEW } from "@/content/intelligence";
 import type { CrossAssetMeasure } from "@/lib/market/analytics";
 import { signed } from "@/lib/market/format";
@@ -53,7 +52,7 @@ export function CrossAssetView({ measures }: { measures: Record<AssetClass, Cros
     <div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] border-collapse text-left">
-          <caption className="sr-only">Cross-asset view: derived measures and Nusantara sample view by asset class</caption>
+          <caption className="sr-only">Cross-asset view: derived measures and illustrative Nusantara view by asset class</caption>
           <thead>
             <tr>
               <th scope="col" className="w-[150px]" />
@@ -69,7 +68,6 @@ export function CrossAssetView({ measures }: { measures: Record<AssetClass, Cros
               <tr key={row} className={row === "Nusantara view" ? "border-t-2 border-teal-800" : "border-t border-rule-soft"}>
                 <th scope="row" className="py-1.5 pr-4 text-[12.5px] font-medium text-charcoal">
                   <span className="flex items-center gap-2">
-                    {row === "Nusantara view" && <NStar className="h-2 w-2 text-gold-500" />}
                     {row}
                   </span>
                 </th>
@@ -100,7 +98,7 @@ export function CrossAssetView({ measures }: { measures: Record<AssetClass, Cros
       <div className="mt-5 min-h-[72px] border-l-2 border-gold-500 pl-4" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <m.div key={`${cell.row}-${cell.c}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-700">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone">
               {cell.row} · {ASSET_CLASS_LABELS[cell.c]}
             </p>
             <p className="mt-1 text-[14px] leading-relaxed text-charcoal">{detail(cell.row, cell.c)}</p>
@@ -108,7 +106,7 @@ export function CrossAssetView({ measures }: { measures: Record<AssetClass, Cros
         </AnimatePresence>
       </div>
       <p className="mt-4 text-[11.5px] leading-relaxed text-stone">
-        Momentum, volatility and direction are calculated from the illustrative dataset using documented thresholds, so they are illustrative too. The Nusantara row is a sample reading for management review.
+        Momentum, volatility and direction are calculated from the illustrative dataset using documented thresholds, so they are illustrative too. The Nusantara row is an illustrative view for management review.
       </p>
     </div>
   );

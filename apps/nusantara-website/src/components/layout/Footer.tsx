@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { generalDisclaimer, legalNav, site } from "@/lib/site";
-import { AxisRule } from "@/components/identity/AxisRule";
 import { Logo } from "./Logo";
 
 const columns: { title: string; links: { label: string; href: string }[] }[] = [
@@ -50,7 +49,7 @@ export function Footer() {
           <div className="grid gap-10 sm:grid-cols-3 lg:col-span-8 lg:pl-8">
             {columns.map((col) => (
               <nav key={col.title} aria-label={col.title}>
-                <h2 className="eyebrow text-gold-300">{col.title}</h2>
+                <h2 className="eyebrow text-teal-200">{col.title}</h2>
                 <ul className="mt-5 space-y-3">
                   {col.links.map((l) => (
                     <li key={l.href}>
@@ -65,9 +64,8 @@ export function Footer() {
           </div>
         </div>
 
-        <AxisRule tone="dark" className="mt-16" />
-        <div className="pt-8">
-          <h2 className="eyebrow text-gold-300">Important information</h2>
+        <div className="mt-16 border-t border-white/10 pt-8">
+          <h2 className="eyebrow text-teal-200">Important information</h2>
           <p className="mt-4 max-w-5xl text-[13px] leading-relaxed text-teal-200">{generalDisclaimer}</p>
           {site.isPrototype && (
             <p className="mt-3 max-w-5xl text-[13px] leading-relaxed text-teal-200">

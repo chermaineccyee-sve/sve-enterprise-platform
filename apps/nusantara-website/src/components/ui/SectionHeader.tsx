@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { NStar } from "@/components/identity/NStar";
 
 type SectionHeaderProps = {
   index?: string;
@@ -32,7 +31,6 @@ export function SectionHeader({
   return (
     <div className={className}>
       <div className={`flex items-center gap-4 ${dark ? "text-gold-300" : "text-gold-700"}`}>
-        <NStar className="h-2.5 w-2.5" />
         {index && <span className="eyebrow num">{index}</span>}
         <span className="eyebrow">{eyebrow}</span>
         <span aria-hidden className={`h-px flex-1 ${dark ? "bg-white/15" : "bg-rule"}`} />

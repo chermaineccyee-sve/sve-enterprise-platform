@@ -2,7 +2,6 @@
 
 import { AnimatePresence, m } from "motion/react";
 import { useState } from "react";
-import { NStar } from "@/components/identity/NStar";
 import { Sparkline } from "@/components/market/Sparkline";
 import { formatValue } from "@/lib/market/format";
 import { INTELLIGENCE_CATEGORIES, type IntelligenceCategory, type IntelligenceIndicator } from "@/lib/market/types";
@@ -31,7 +30,7 @@ export function StructuralIndicators({ indicators }: { indicators: IntelligenceI
             return (
               <m.li key={ind.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="border-b border-rule">
                 <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : ind.id)} className="grid w-full grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 py-4 text-left md:grid-cols-[200px_minmax(0,1fr)_120px_110px_90px_20px]">
-                  <span className="hidden text-[11px] uppercase tracking-[0.14em] text-gold-700 md:block">{ind.category}</span>
+                  <span className="hidden text-[11px] uppercase tracking-[0.14em] text-stone md:block">{ind.category}</span>
                   <span className="font-serif text-[1.15rem] leading-snug text-teal-900">{ind.title}</span>
                   <span className="hidden md:block">
                     <Sparkline values={ind.series.map((s) => s.v)} width={110} height={26} label={`${ind.title} trend`} className="text-teal-800" />
@@ -49,7 +48,6 @@ export function StructuralIndicators({ indicators }: { indicators: IntelligenceI
                       <div className="grid gap-4 pb-6 md:grid-cols-[200px_minmax(0,1fr)_340px] md:gap-x-6">
                         <span className="hidden md:block" />
                         <p className="flex gap-3 text-[15px] leading-relaxed text-charcoal">
-                          <NStar className="mt-2 h-2 w-2 text-gold-500" />
                           <span>
                             <span className="font-semibold text-teal-900">Nusantara reading. </span>
                             {ind.reading}

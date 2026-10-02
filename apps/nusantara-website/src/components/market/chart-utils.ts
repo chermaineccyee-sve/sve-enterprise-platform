@@ -1,8 +1,13 @@
-/** Validated categorical palette (light surface) — fixed order, never cycled. */
-export const SERIES_COLORS = ["#0E6C95", "#B07F1C", "#17A08C", "#C04B30"] as const;
+/**
+ * Restrained Nusantara palette — deep teal, light teal, gold, neutral grey.
+ * Fixed order, never cycled. Adjacent-pair separation and contrast validated;
+ * deep teal and grey sit outside the generic lightness/chroma bands by brand
+ * choice, so multi-series charts always carry a legend.
+ */
+export const SERIES_COLORS = ["#12384A", "#5E9DB3", "#B07F1C", "#5F676B"] as const;
 
-/** Scenario palette, ordered Downside → Base → Upside (validated). */
-export const SCENARIO_COLORS = { downside: "#C04B30", base: "#0E6C95", upside: "#17A08C" } as const;
+/** Scenario palette, Downside → Base → Upside: grey, deep teal, gold (validated). */
+export const SCENARIO_COLORS = { downside: "#7A8387", base: "#12384A", upside: "#B07F1C" } as const;
 
 /** Single-series ink. */
 export const PRIMARY_LINE = "#12384A";

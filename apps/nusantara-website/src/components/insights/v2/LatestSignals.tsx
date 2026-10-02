@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { NStar } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
 import type { Signal } from "@/content/intelligence";
 import { formatInsightDate } from "@/content/insights/types";
@@ -16,7 +15,6 @@ export function LatestSignals({ signals, instruments }: { signals: Signal[]; ins
           <li key={s.id} className="w-[78vw] shrink-0 snap-start border-l border-rule px-6 py-6 md:w-auto md:border-t md:[&:nth-child(-n+2)]:border-t-0 xl:[&:nth-child(-n+3)]:border-t-0">
             <p className="flex items-center justify-between text-[11px] uppercase tracking-[0.14em]">
               <span className="flex items-center gap-2 font-semibold text-gold-700">
-                <NStar className="h-2 w-2" />
                 {s.theme}
               </span>
               <time className="num text-stone" dateTime={s.date}>

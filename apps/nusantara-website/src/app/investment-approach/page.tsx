@@ -1,9 +1,7 @@
-import { NStar } from "@/components/identity/NStar";
 import type { Metadata } from "next";
 import { ContactCTA } from "@/components/sections/ContactCTA";
 import { ProcessStory } from "@/components/home/ProcessStory";
 import { AccessToAllocation } from "@/components/sections/AccessToAllocation";
-import { GOVERNANCE_LAYERS } from "@/content/governance";
 import { INSTRUMENTS } from "@/lib/market/instruments";
 import { ILLUSTRATIVE_INDICATORS } from "@/lib/market/providers/illustrative-intelligence";
 import { RiskFramework } from "@/components/sections/RiskFramework";
@@ -46,9 +44,9 @@ const STAGES = [
   {
     id: "risk-governance",
     title: "Risk & Governance",
-    lead: "Independent challenge.",
+    lead: "Reviewed and challenged.",
     text: "Opportunities are subject to oversight, compliance review and risk assessment before any commitment. Governance shapes the decision; it is not applied afterwards.",
-    points: ["Oversight and approval", "Compliance and investor screening", "Risk assessment and limits", "Separation of independent controls"],
+    points: ["Oversight and approval", "Compliance and investor screening", "Risk assessment and limits", "Separation of duties (control concept)"],
   },
   {
     id: "allocation-discipline",
@@ -86,7 +84,7 @@ export default function InvestmentApproachPage() {
       <section aria-labelledby="philosophy" className="bg-paper">
         <div className="container-site grid gap-12 py-20 md:py-28 lg:grid-cols-12">
           <div className="lg:col-span-5">
-            <p className="eyebrow text-gold-700">Our philosophy</p>
+            <p className="eyebrow text-stone">Our philosophy</p>
             <h2 id="philosophy" className="display-m mt-5 text-teal-900">
               From access to governed allocation.
             </h2>
@@ -119,7 +117,7 @@ export default function InvestmentApproachPage() {
             intro="Six stages, each designed to reduce a particular kind of error — noise at the start, poor fit in the middle, drift once capital is deployed."
           />
           <div className="mt-10 lg:-mt-10">
-            <ProcessStory counts={{ instruments: INSTRUMENTS.length, indicators: ILLUSTRATIVE_INDICATORS.length, governanceLayers: GOVERNANCE_LAYERS.length }} />
+            <ProcessStory counts={{ instruments: INSTRUMENTS.length, indicators: ILLUSTRATIVE_INDICATORS.length }} />
           </div>
         </div>
       </section>
@@ -139,7 +137,6 @@ export default function InvestmentApproachPage() {
                 <ul className="space-y-2 lg:col-span-3">
                   {s.points.map((p) => (
                     <li key={p} className="flex gap-3 text-[14px] text-stone">
-                      <NStar className="mt-1.5 h-2 w-2 text-gold-500" />
                       {p}
                     </li>
                   ))}
@@ -194,7 +191,7 @@ export default function InvestmentApproachPage() {
       <section aria-labelledby="pillars" className="border-t border-rule bg-paper">
         <div className="container-site grid gap-12 py-20 md:py-24 lg:grid-cols-12">
           <div className="lg:col-span-4">
-            <p className="eyebrow text-gold-700">Four pillars</p>
+            <p className="eyebrow text-stone">Four pillars</p>
             <h2 id="pillars" className="display-m mt-5 text-teal-900">
               Curated access. Governed execution. Clear communication.
             </h2>

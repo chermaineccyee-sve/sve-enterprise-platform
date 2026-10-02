@@ -36,7 +36,7 @@ export function AccessToAllocation() {
 
       <div className="mt-14 grid gap-10 lg:grid-cols-12">
         <div className="lg:col-span-4">
-          <p className="eyebrow text-gold-700">The shift</p>
+          <p className="eyebrow text-stone">The shift</p>
           <p className="display-s mt-4 text-teal-900">The question is no longer whether an opportunity can be reached, but whether it is properly selected, governed, explained and monitored.</p>
         </div>
         <div className="lg:col-span-7 lg:col-start-6">

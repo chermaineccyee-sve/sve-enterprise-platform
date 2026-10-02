@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Statement } from "@/components/home/Statement";
-import { NStar } from "@/components/identity/NStar";
 import { ContactCTA } from "@/components/sections/ContactCTA";
 import { CTA } from "@/components/ui/CTA";
 import { PageHero } from "@/components/ui/PageHero";
@@ -31,7 +30,7 @@ export default function AboutPage() {
       <section aria-labelledby="who" className="bg-paper">
         <div className="container-site grid gap-12 py-20 md:py-28 lg:grid-cols-12">
           <div className="lg:col-span-4">
-            <p className="eyebrow text-gold-700">Who we are</p>
+            <p className="eyebrow text-stone">Who we are</p>
             <h2 id="who" className="display-m mt-5 text-teal-900">
               A platform for considered allocation.
             </h2>
@@ -56,8 +55,8 @@ export default function AboutPage() {
 
       <section aria-labelledby="purpose" className="overflow-hidden border-y border-rule bg-paper">
         <div className="container-site py-24 md:py-32">
-          <h2 id="purpose" className="eyebrow flex items-center gap-3 text-gold-700">
-            <NStar className="h-2.5 w-2.5" /> Our purpose
+          <h2 id="purpose" className="eyebrow text-stone">
+            Our purpose
           </h2>
           <div className="mt-10">
             <Statement phrases={["To make investment", "opportunity understandable,", "governed and accountable —", "for the long term."]} />
@@ -125,7 +124,7 @@ export default function AboutPage() {
       <section aria-labelledby="long-term" className="bg-ivory">
         <div className="container-site grid gap-12 py-20 md:py-28 lg:grid-cols-12">
           <div className="lg:col-span-5">
-            <p className="eyebrow text-gold-700">Governance &amp; long-term perspective</p>
+            <p className="eyebrow text-stone">Governance &amp; long-term perspective</p>
             <h2 id="long-term" className="display-m mt-5 text-teal-900">
               Built to be explained, and built to last.
             </h2>
@@ -133,7 +132,7 @@ export default function AboutPage() {
           <div className="space-y-6 text-[16.5px] leading-relaxed text-charcoal lg:col-span-6 lg:col-start-7">
             <p>
               Governance is part of our investment proposition, not a back-office function. Each layer of oversight — from
-              investment review to independent controls and reporting — exists so that decisions can be examined and explained.
+              investment review to control functions and reporting — exists so that decisions can be examined and explained.
             </p>
             <p>
               We take a long-term perspective. That means preferring durable processes to opportunistic ones, documenting the
@@ -150,11 +149,11 @@ export default function AboutPage() {
         <div className="container-site py-20 md:py-24">
           <SectionHeader eyebrow="Corporate information" title={<span id="corporate">Leadership and corporate details.</span>} />
           <div className="mt-12 grid gap-6 md:grid-cols-2">
-            <ReviewPlaceholder label="Leadership — information required">
+            <ReviewPlaceholder label="Leadership · Pending approval">
               Leadership profiles, roles and credentials will be published once supplied and approved by management. No
               individuals are named in this prototype.
             </ReviewPlaceholder>
-            <ReviewPlaceholder label="Corporate details — information required">
+            <ReviewPlaceholder label="Corporate details · Pending approval">
               Legal entity name, registration, regulatory status, licences, offices and history will be added only once
               confirmed and approved for publication.
             </ReviewPlaceholder>

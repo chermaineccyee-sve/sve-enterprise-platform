@@ -28,3 +28,8 @@ export function useMarketFocus() {
   if (!ctx) throw new Error("useMarketFocus must be used inside MarketFocusProvider");
   return ctx;
 }
+
+/** Like useMarketFocus, but returns null outside a provider (e.g. homepage links). */
+export function useOptionalMarketFocus() {
+  return useContext(MarketFocusContext);
+}

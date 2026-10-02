@@ -2,9 +2,8 @@
 
 import { AnimatePresence, m, useInView } from "motion/react";
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMarketFocus } from "@/components/home/MarketFocus";
-import { NStar } from "@/components/identity/NStar";
 import { StateGauge } from "@/components/identity/StateGauge";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { Change } from "@/components/market/Change";
@@ -13,7 +12,7 @@ import { Provenance } from "@/components/market/MarketStatus";
 import { MarketTable } from "@/components/market/MarketTable";
 import { MorphChart } from "@/components/market/MorphChart";
 import { Sparkline } from "@/components/market/Sparkline";
-import { getInstrumentView, INTELLIGENCE_STATUS } from "@/content/intelligence";
+import { getInstrumentView } from "@/content/intelligence";
 import type { InsightListing } from "@/content/insights/types";
 import { useHistories, useMarketHistory } from "@/hooks/useMarketData";
 import { realisedVol, resample, resampleSeries, seriesChange } from "@/lib/market/analytics";
@@ -63,6 +62,17 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
   const [view, setView] = useState<"chart" | "table">("chart");
   const { byId, loading } = useMarketHistory(period, { period: "1M", data: initialHistory });
 
+  // Open on a market linked from elsewhere (e.g. /market-dashboard?instrument=gold).
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("instrument");
+    const inst = id ? snapshot.instruments.find((s) => s.instrument.id === id)?.instrument : undefined;
+    if (inst) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from URL once on mount
+      setCategory(inst.assetClass);
+      setFocus(inst.id);
+    }
+  }, [snapshot.instruments, setFocus]);
+
   const all = snapshot.instruments;
   const rows = useMemo(() => {
     if (category === "overview") return OVERVIEW_INSTRUMENT_IDS.map((id) => all.find((s) => s.instrument.id === id)!).filter(Boolean);
@@ -86,7 +96,7 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
     <div className="border-y border-rule bg-white lg:border">
       <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_360px]">
         {/* RAIL */}
-        <aside aria-label="Market universe" className="border-b border-rule bg-paper lg:border-b-0 lg:border-r">
+        <aside aria-label="Market universe" className="hidden border-rule bg-paper lg:row-span-3 lg:block lg:border-r xl:row-span-2">
           <div role="tablist" aria-label="Category" className="no-scrollbar flex overflow-x-auto lg:flex-col lg:overflow-visible">
             {CATEGORIES.map((c) => {
               const on = c.id === category;
@@ -128,7 +138,7 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
                           className={`relative w-full px-3 py-2.5 text-left transition-colors ${on ? "bg-white" : "hover:bg-white/60"}`}
                         >
                           {on && <m.span layoutId="rail-row" className="absolute inset-y-0 left-0 w-[2px] bg-teal-800" />}
-                          <span className="block text-[10.5px] uppercase tracking-[0.12em] text-gold-700">{ind.category}</span>
+                          <span className="block text-[10.5px] uppercase tracking-[0.12em] text-stone">{ind.category}</span>
                           <span className="mt-0.5 block whitespace-nowrap text-[13px] text-ink lg:whitespace-normal">{ind.title}</span>
                         </button>
                       </li>
@@ -176,15 +186,46 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
           </div>
         </aside>
 
-        {/* CENTRE */}
-        <section aria-label="Chart" className="min-w-0 border-b border-rule xl:border-b-0">
+        {/* Mobile instrument selector */}
+        <div className="border-b border-rule bg-paper px-5 py-4 lg:hidden">
+          <label htmlFor="ws-instrument" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">
+            Instrument
+          </label>
+          <select
+            id="ws-instrument"
+            value={selected.instrument.id}
+            onChange={(e) => {
+              const id = e.target.value;
+              const cls = all.find((x) => x.instrument.id === id)?.instrument.assetClass;
+              if (cls) setCategory(cls);
+              setMode("single");
+              setView("chart");
+              setFocus(id);
+            }}
+            className="mt-2 block h-12 w-full border border-rule bg-white px-3 text-[16px] font-medium text-ink focus:border-teal-800 focus:outline-none"
+          >
+            {(["equities", "fx", "rates", "commodities"] as AssetClass[]).map((c) => (
+              <optgroup key={c} label={ASSET_CLASS_LABELS[c]}>
+                {all
+                  .filter((x) => x.instrument.assetClass === c)
+                  .map((x) => (
+                    <option key={x.instrument.id} value={x.instrument.id}>
+                      {x.instrument.shortName} — {x.instrument.name}
+                    </option>
+                  ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+
+        {/* CENTRE — market data */}
+        <section aria-label="Market data" className="min-w-0 lg:col-start-2 xl:row-start-1">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule-soft px-5 py-3 md:px-8">
-            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-700">
-              <NStar className="h-2 w-2" />
-              {isMacro ? "Structural indicator" : mode === "compare" ? "Comparison · rebased to 100" : "Instrument"}
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">
+              Market data <span className="font-normal normal-case tracking-normal text-stone">· {isMacro ? "structural indicator" : mode === "compare" ? "comparison, rebased to 100" : "observed"} · illustrative</span>
             </p>
             {!isMacro && (
-              <div className="flex flex-wrap gap-2">
+              <div className="hidden flex-wrap gap-2 lg:flex">
                 <Segmented label="View" value={view} options={[["chart", "Chart"], ["table", "Table"]]} onChange={(v) => setView(v as "chart" | "table")} />
                 {view === "chart" && <Segmented label="Mode" value={mode} options={[["single", "Single"], ["compare", "Compare"]]} onChange={(v) => setMode(v as "single" | "compare")} />}
                 <Segmented label="Period" value={period} options={CHART_PERIODS.map((p) => [p, p])} onChange={(v) => setPeriod(v as ChartPeriod)} />
@@ -212,20 +253,33 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
             ) : (
               <InstrumentCentre snap={selected} points={byId.get(selected.instrument.id) ?? []} period={period} loading={loading} />
             )}
+            {!isMacro && (
+              <div className="mt-5 lg:hidden">
+                <Segmented label="Chart period" value={period} options={CHART_PERIODS.map((p) => [p, p])} onChange={(v) => setPeriod(v as ChartPeriod)} />
+              </div>
+            )}
           </div>
         </section>
 
         {/* INTELLIGENCE */}
-        <aside aria-label="Nusantara View" className="min-w-0 bg-teal-900 text-white on-dark lg:col-span-2 xl:col-span-1">
+        <aside aria-label="Nusantara View" className="on-dark min-w-0 bg-teal-900 text-white lg:col-start-2 xl:col-start-3 xl:row-span-2 xl:row-start-1">
           {isMacro && indicator ? (
             <IndicatorIntel indicator={indicator} />
           ) : (
-            <InstrumentIntel snap={selected} all={all} insights={insights} onPick={(id) => { setMode("single"); setFocus(id); }} />
+            <InstrumentIntel snap={selected} insights={insights} />
           )}
         </aside>
-      </div>
 
-      {!isMacro && mode === "single" && view === "chart" && <PeriodStrip snap={selected} />}
+        {/* Statistics + related markets (single instrument) */}
+        {!isMacro && mode === "single" && view === "chart" && (
+          <section aria-label="Market statistics" className="min-w-0 border-t border-rule lg:col-start-2 xl:row-start-2">
+            <InstrumentStats snap={selected} points={byId.get(selected.instrument.id) ?? []} period={period} all={all} onPick={(id) => setFocus(id)} />
+            <div className="hidden lg:block">
+              <PeriodStrip snap={selected} />
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   );
 }
@@ -245,15 +299,11 @@ function Segmented({ label, value, options, onChange }: { label: string; value: 
 
 function InstrumentCentre({ snap, points, period, loading }: { snap: InstrumentSnapshot; points: InstrumentHistory["points"]; period: ChartPeriod; loading: boolean }) {
   const inst = snap.instrument;
-  const isYield = inst.convention === "yield";
   const { values, stamps } = useMemo(() => resampleSeries(points, N), [points]);
   const raw = points.map((p) => p.v);
   const pc = period === "1D" || raw.length < 2 ? snap.quote : changeOverPeriod(inst, raw[0], raw[raw.length - 1]);
   const unit = inst.unit === "%" ? "%" : "";
   const fmt = (v: number) => `${formatValue(v, inst.decimals)}${unit}`;
-  const hi = raw.length ? Math.max(...raw) : snap.quote.value;
-  const lo = raw.length ? Math.min(...raw) : snap.quote.value;
-  const vol = realisedVol(raw, isYield);
 
   return (
     <div>
@@ -265,13 +315,13 @@ function InstrumentCentre({ snap, points, period, loading }: { snap: InstrumentS
               {inst.unit && inst.unit !== "%" ? ` · ${inst.unit}` : ""}
             </m.p>
           </AnimatePresence>
-          <p className="mt-2 text-[3rem] font-medium leading-none tracking-tight text-ink">
+          <p className="mt-2 text-[2.6rem] font-medium leading-none tracking-tight text-ink md:text-[3rem]">
             <AnimatedNumber value={snap.quote.value} format={fmt} />
           </p>
         </div>
-        <div className="text-right">
+        <div className="sm:text-right">
           <p className="text-[11px] uppercase tracking-[0.12em] text-stone">{period === "1D" ? "Day change" : `${period} change`}</p>
-          <Change instrument={inst} change={pc.change} changePct={pc.changePct} changeBp={pc.changeBp} size="md" className="mt-1" />
+          <Change instrument={inst} change={pc.change} changePct={pc.changePct} changeBp={pc.changeBp} size="md" className="mt-1 sm:justify-end" />
         </div>
       </div>
       <div className={`mt-6 transition-opacity duration-300 ${loading ? "opacity-50" : ""}`} aria-busy={loading}>
@@ -280,7 +330,7 @@ function InstrumentCentre({ snap, points, period, loading }: { snap: InstrumentS
             series={[{ id: "main", label: inst.shortName, color: PRIMARY_LINE, values }]}
             labels={stamps.map((t) => formatTimestamp(t, { time: period === "1D" || period === "1W" }))}
             format={fmt}
-            height={380}
+            height={340}
             reference={period === "1D" ? { value: snap.quote.previousClose, label: "Previous close" } : undefined}
             ariaLabel={`${inst.name}, ${period}, illustrative. Latest ${fmt(snap.quote.value)}.`}
           />
@@ -288,7 +338,24 @@ function InstrumentCentre({ snap, points, period, loading }: { snap: InstrumentS
           <div className="flex h-[380px] items-center justify-center text-stone">Loading…</div>
         )}
       </div>
-      <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-rule-soft pt-5 sm:grid-cols-4">
+    </div>
+  );
+}
+
+function InstrumentStats({ snap, points, period, all, onPick }: { snap: InstrumentSnapshot; points: InstrumentHistory["points"]; period: ChartPeriod; all: InstrumentSnapshot[]; onPick: (id: string) => void }) {
+  const inst = snap.instrument;
+  const isYield = inst.convention === "yield";
+  const raw = points.map((p) => p.v);
+  const unit = inst.unit === "%" ? "%" : "";
+  const fmt = (v: number) => `${formatValue(v, inst.decimals)}${unit}`;
+  const hi = raw.length ? Math.max(...raw) : snap.quote.value;
+  const lo = raw.length ? Math.min(...raw) : snap.quote.value;
+  const vol = realisedVol(raw, isYield);
+  const related = all.filter((s) => s.instrument.assetClass === inst.assetClass && s.instrument.id !== inst.id).slice(0, 4);
+  return (
+    <div className="px-5 py-6 md:px-8">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">Market statistics</p>
+      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
         {[
           ["Previous close", <AnimatedNumber key="pc" value={snap.quote.previousClose} format={fmt} />],
           [`${period} high`, <AnimatedNumber key="hi" value={hi} format={fmt} />],
@@ -301,6 +368,21 @@ function InstrumentCentre({ snap, points, period, loading }: { snap: InstrumentS
           </div>
         ))}
       </dl>
+      <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">Related markets</p>
+      <ul className="mt-2 divide-y divide-rule-soft border-y border-rule-soft">
+        {related.map((r) => (
+          <li key={r.instrument.id}>
+            <button type="button" onClick={() => onPick(r.instrument.id)} className="flex w-full items-center justify-between gap-3 py-2.5 text-left text-[13.5px] hover:text-teal-800">
+              <span className="w-24 font-semibold text-ink">{r.instrument.shortName}</span>
+              <span className="num flex-1 text-right text-charcoal">
+                {formatValue(r.quote.value, r.instrument.decimals)}
+                {r.instrument.unit === "%" ? "%" : ""}
+              </span>
+              <Change instrument={r.instrument} change={r.quote.change} changePct={r.quote.changePct} changeBp={r.quote.changeBp} showAbsolute={false} className="w-24 justify-end" />
+            </button>
+          </li>
+        ))}
+      </ul>
       <div className="mt-5">
         <Provenance provenance={snap.provenance} />
       </div>
@@ -360,7 +442,7 @@ function IndicatorCentre({ indicator }: { indicator: IntelligenceIndicator }) {
     <div>
       <AnimatePresence mode="wait" initial={false}>
         <m.div key={indicator.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-          <p className="text-[11px] uppercase tracking-[0.14em] text-gold-700">{indicator.category}</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] text-stone">{indicator.category}</p>
           <h3 className="mt-2 font-serif text-[1.8rem] leading-tight text-teal-900">{indicator.title}</h3>
           <p className="mt-1 text-[13px] text-stone">{indicator.measure}</p>
         </m.div>
@@ -380,78 +462,61 @@ function IndicatorCentre({ indicator }: { indicator: IntelligenceIndicator }) {
 
 function IntelBlock({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <details open className="group border-t border-white/10 py-4 lg:py-5 [&_summary::-webkit-details-marker]:hidden">
-      <summary className="flex cursor-pointer list-none items-center justify-between text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300 xl:pointer-events-none">
-        {label}
-        <span aria-hidden className="text-teal-300 transition-transform group-open:rotate-45 xl:hidden">+</span>
-      </summary>
-      <div className="mt-3">{children}</div>
-    </details>
+    <div className="border-t border-white/10 py-4">
+      <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-teal-200">{label}</p>
+      <div className="mt-1.5">{children}</div>
+    </div>
   );
 }
 
-function InstrumentIntel({ snap, all, insights, onPick }: { snap: InstrumentSnapshot; all: InstrumentSnapshot[]; insights: Record<string, InsightListing>; onPick: (id: string) => void }) {
+/** Interpretation layer. Collapsed on mobile; always visible from lg. */
+function InstrumentIntel({ snap, insights }: { snap: InstrumentSnapshot; insights: Record<string, InsightListing> }) {
+  const [open, setOpen] = useState(false);
   const inst = snap.instrument;
   const view = getInstrumentView(inst.id, inst.assetClass);
   const insight = insights[view.insight];
-  const related = all.filter((s) => s.instrument.assetClass === inst.assetClass && s.instrument.id !== inst.id).slice(0, 4);
   return (
-    <div className="p-6 md:p-8">
-      <div className="flex items-center justify-between">
-        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
-          <NStar className="star-breathe h-2.5 w-2.5 text-gold-400" /> Nusantara View
-        </p>
-        <span className="text-[10px] uppercase tracking-[0.12em] text-gold-300">Sample</span>
+    <div className="px-5 py-5 md:px-8 lg:py-7">
+      <div className="hidden lg:block">
+        <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</p>
+        <p className="mt-0.5 text-[11px] text-teal-200">Interpretation · illustrative · management review</p>
       </div>
-      <AnimatePresence mode="wait" initial={false}>
-        <m.div key={inst.id} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.35 }}>
-          <div className="mt-6">
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">Signal · {inst.shortName}</p>
-            <p className="mt-2 font-serif text-[2.2rem] leading-none text-white">{view.signal}</p>
-            <div className="mt-4">
-              <StateGauge id={`ws-${inst.id}`} scale={view.scale} position={view.position} showLabels tone="dark" />
+      <button type="button" aria-expanded={open} aria-controls="intel-body" onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between text-left lg:hidden">
+        <span>
+          <span className="block text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</span>
+          <span className="mt-0.5 block text-[11px] text-teal-200">Interpretation · illustrative · management review</span>
+        </span>
+        <span aria-hidden className={`text-xl text-gold-300 transition-transform ${open ? "rotate-45" : ""}`}>+</span>
+      </button>
+      <div id="intel-body" className={`${open ? "block" : "hidden"} lg:block`}>
+        <AnimatePresence mode="wait" initial={false}>
+          <m.div key={inst.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+            <div className="mt-6 pb-5">
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">Signal</p>
+              <p className="mt-1 font-serif text-[2.1rem] leading-none text-white">{view.signal}</p>
+              <div className="mt-4">
+                <StateGauge id={`ws-${inst.id}`} scale={view.scale} position={view.position} showLabels tone="dark" />
+              </div>
             </div>
-          </div>
-          <div className="mt-6">
             <IntelBlock label="Context">
-              <p className="text-[14.5px] leading-relaxed text-teal-50">{view.context}</p>
+              <p className="text-[14.5px] leading-snug text-teal-50">{view.context}</p>
             </IntelBlock>
             <IntelBlock label="What we are watching">
-              <p className="text-[14.5px] leading-relaxed text-teal-50">{view.watching}</p>
+              <p className="text-[14.5px] leading-snug text-teal-50">{view.watching}</p>
             </IntelBlock>
             <IntelBlock label="Key risk">
-              <p className="text-[14.5px] leading-relaxed text-teal-50">{view.risk}</p>
+              <p className="text-[14.5px] leading-snug text-teal-50">{view.risk}</p>
             </IntelBlock>
             {insight && (
-              <IntelBlock label="What it may mean">
+              <IntelBlock label="Related insight">
                 <Link href={`/insights/${insight.slug}`} className="group block">
-                  <span className="block font-serif text-[1.2rem] leading-snug text-white group-hover:text-gold-200">{insight.title}</span>
-                  <span className="mt-2 inline-flex items-center gap-2 text-[12.5px] text-gold-300">
-                    Read the research <span className="transition-transform group-hover:translate-x-1">→</span>
-                  </span>
+                  <span className="font-serif text-[1.15rem] leading-snug text-white group-hover:text-gold-200">{insight.title} →</span>
                 </Link>
               </IntelBlock>
             )}
-            <IntelBlock label="Related markets">
-              <ul className="space-y-1">
-                {related.map((r) => (
-                  <li key={r.instrument.id}>
-                    <button type="button" onClick={() => onPick(r.instrument.id)} className="flex w-full items-center justify-between gap-3 py-1 text-left text-[13px] hover:text-gold-200">
-                      <span className="font-semibold text-white">{r.instrument.shortName}</span>
-                      <span className="num text-teal-100">
-                        {formatValue(r.quote.value, r.instrument.decimals)}
-                        {r.instrument.unit === "%" ? "%" : ""}
-                      </span>
-                      <Change instrument={r.instrument} change={r.quote.change} changePct={r.quote.changePct} changeBp={r.quote.changeBp} showAbsolute={false} tone="dark" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </IntelBlock>
-          </div>
-        </m.div>
-      </AnimatePresence>
-      <p className="mt-4 text-[11px] leading-relaxed text-teal-200">{INTELLIGENCE_STATUS.note}</p>
+          </m.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
@@ -460,7 +525,7 @@ function IndicatorIntel({ indicator }: { indicator: IntelligenceIndicator }) {
   return (
     <div className="p-6 md:p-8">
       <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
-        <NStar className="star-breathe h-2.5 w-2.5 text-gold-400" /> Nusantara reading
+        Nusantara reading
       </p>
       <AnimatePresence mode="wait" initial={false}>
         <m.div key={indicator.id} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
@@ -492,7 +557,7 @@ function PeriodStrip({ snap }: { snap: InstrumentSnapshot }) {
   return (
     <div ref={ref} className="border-t border-rule px-5 py-6 md:px-8">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-gold-700">Historical comparison · {inst.shortName}</p>
+        <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-stone">Historical comparison · {inst.shortName}</p>
         <p className="text-[11.5px] text-stone">Change over each period · {isYield ? "basis points" : "percent"} · illustrative</p>
       </div>
       <ul className="mt-5 grid grid-cols-3 gap-4 sm:grid-cols-6">

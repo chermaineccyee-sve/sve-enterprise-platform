@@ -6,12 +6,10 @@ import { InsightVisual } from "@/components/insights/InsightVisual";
 import { ShareTools } from "@/components/insights/ShareTools";
 import { ArticleToc } from "@/components/insights/v2/ArticleToc";
 import { PrintOpen } from "@/components/insights/v2/PrintOpen";
-import { NStar } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
 import { Sparkline } from "@/components/market/Sparkline";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { ReviewPlaceholder } from "@/components/ui/ReviewPlaceholder";
 import { formatInsightDate, getAllInsights, getInsight, getRelatedInsights, readingMinutes, toListing } from "@/content/insights";
 import { getInstrumentView } from "@/content/intelligence";
 import { formatTimestamp, formatValue } from "@/lib/market/format";
@@ -65,8 +63,8 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
 
   const marketSignals = snapshot?.instruments.length ? (
     <div>
-      <p className="eyebrow flex items-center gap-2 text-gold-700">
-        <NStar className="h-2 w-2" /> Market signals
+      <p className="eyebrow flex items-center gap-2 text-stone">
+        Market signals
       </p>
       <ul className="mt-3 space-y-3">
         {snapshot.instruments.map((s) => {
@@ -110,8 +108,8 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
             ]}
           />
           <div className="mt-14 max-w-5xl">
-            <p className="eyebrow flex items-center gap-3 text-gold-700">
-              <NStar className="h-2.5 w-2.5" /> {insight.category}
+            <p className="eyebrow text-stone">
+              {insight.category}
             </p>
             <h1 className="display-l mt-5 text-teal-900">{insight.title}</h1>
             <p className="mt-6 max-w-3xl font-serif text-[1.35rem] leading-snug text-charcoal md:text-[1.55rem]">{insight.subtitle}</p>
@@ -148,7 +146,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
             <div className="lg:sticky lg:top-28">
               <ArticleToc items={toc} targetId="article-body" />
               <div className="mt-10 hidden border-t border-rule pt-6 lg:block">
-                <p className="eyebrow text-gold-700">Reading layers</p>
+                <p className="eyebrow text-stone">Reading layers</p>
                 <ul className="mt-4 space-y-3">
                   {(["data", "interpretation", "implication"] as const).map((l) => (
                     <li key={l} className="flex items-center gap-3 text-[13px] text-charcoal">
@@ -165,14 +163,13 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
 
           <div id="article-body" className="min-w-0 lg:col-span-9 xl:col-span-7">
             {insight.status === "sample" && (
-              <ReviewPlaceholder label="Sample research — management review" className="mb-10">
-                Prepared to demonstrate the Nusantara research template. Subject to review and approval before publication. Any data
-                shown is illustrative.
-              </ReviewPlaceholder>
+              <p className="mb-10 border-l-2 border-gold-500 pl-4 text-[12.5px] text-stone">
+                <span className="font-semibold uppercase tracking-[0.12em] text-gold-800">Management review · Pending approval.</span> Data shown is illustrative.
+              </p>
             )}
 
             <section id="summary" aria-labelledby="summary-heading" className="scroll-mt-32 border-t-2 border-teal-800 bg-white p-6 md:p-8">
-              <h2 id="summary-heading" className="eyebrow text-gold-700">
+              <h2 id="summary-heading" className="eyebrow text-stone">
                 Executive summary
               </h2>
               <div className="mt-4 space-y-4 font-serif text-[1.15rem] leading-relaxed text-charcoal">
@@ -182,7 +179,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
               </div>
               {/* Takeaways inline below xl; in the margin from xl */}
               <div className="xl:hidden">
-                <h3 className="eyebrow mt-8 border-t border-rule-soft pt-6 text-gold-700">Key takeaways</h3>
+                <h3 className="eyebrow mt-8 border-t border-rule-soft pt-6 text-stone">Key takeaways</h3>
                 <ul className="mt-4 grid gap-4 sm:grid-cols-2">
                   {insight.keyTakeaways.map((t, i) => (
                     <li key={i} className="flex gap-3 text-[14.5px] leading-snug text-ink">
@@ -200,7 +197,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
             </div>
 
             <section id="sources" aria-labelledby="sources-heading" className="mt-16 scroll-mt-32 border-t border-rule pt-8">
-              <h2 id="sources-heading" className="eyebrow text-gold-700">
+              <h2 id="sources-heading" className="eyebrow text-stone">
                 Sources
               </h2>
               <ol className="mt-4 divide-y divide-rule-soft border-y border-rule-soft">
@@ -222,7 +219,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
               {insight.methodology && (
                 <details className="group mt-6 border border-rule bg-white p-5">
                   <summary className="flex cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden">
-                    <span className="eyebrow text-gold-700">Methodology</span>
+                    <span className="eyebrow text-stone">Methodology</span>
                     <span aria-hidden className="text-teal-800 transition-transform group-open:rotate-45">+</span>
                   </summary>
                   <p className="mt-3 text-[14px] leading-relaxed text-charcoal">{insight.methodology}</p>
@@ -243,7 +240,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
           <aside className="hidden xl:col-span-3 xl:block" aria-label="Margin notes" data-print="hide">
             <div className="sticky top-28 space-y-10">
               <div>
-                <p className="eyebrow text-gold-700">Key takeaways</p>
+                <p className="eyebrow text-stone">Key takeaways</p>
                 <ol className="mt-3 space-y-4">
                   {insight.keyTakeaways.map((t, i) => (
                     <li key={i} className="border-l border-gold-500 pl-4 font-serif text-[1.05rem] leading-snug text-teal-900">
@@ -274,7 +271,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
               <li key={r.slug} className="border-b border-rule">
                 <Link href={`/insights/${r.slug}`} className="group grid gap-2 py-6 md:grid-cols-[60px_200px_minmax(0,1fr)_40px] md:items-baseline md:gap-6">
                   <span className="num text-[12px] text-mist">{String(i + 1).padStart(2, "0")}</span>
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-700">{r.category}</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">{r.category}</span>
                   <span className="font-serif text-[1.5rem] leading-snug text-teal-900 transition-transform duration-500 group-hover:translate-x-2">{r.title}</span>
                   <span aria-hidden className="hidden text-teal-800 md:block">→</span>
                 </Link>

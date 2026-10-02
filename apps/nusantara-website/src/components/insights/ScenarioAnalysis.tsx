@@ -1,6 +1,5 @@
 "use client";
 
-import { NStar } from "@/components/identity/NStar";
 import { LineChart } from "@/components/market/LineChart";
 import { SCENARIO_COLORS } from "@/components/market/chart-utils";
 import type { ScenarioSpec } from "@/content/insights/types";
@@ -33,9 +32,8 @@ export function ScenarioAnalysis({ spec }: { spec: ScenarioSpec }) {
   return (
     <section aria-labelledby={`${spec.id}-title`} className="not-prose my-12 border border-rule bg-white font-sans">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-teal-900 px-5 py-3 text-white md:px-7">
-        <p className="eyebrow text-gold-300">Nusantara Scenario Analysis</p>
+        <p className="eyebrow text-teal-200">Nusantara Scenario Analysis</p>
         <span className="inline-flex items-center gap-1.5 border border-gold-300/60 px-2 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gold-200">
-          <NStar className="h-2 w-2" />
           Scenario analysis · not a forecast
         </span>
       </header>

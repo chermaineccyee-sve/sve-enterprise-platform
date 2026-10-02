@@ -32,7 +32,7 @@ export default function ContactPage() {
             <ContactForm />
           </div>
           <aside className="lg:col-span-4 lg:col-start-9">
-            <h2 className="eyebrow text-gold-700">Contact details</h2>
+            <h2 className="eyebrow text-stone">Contact details</h2>
             <dl className="mt-6 divide-y divide-rule border-y border-rule">
               {DETAILS.map((d) => (
                 <div key={d.label} className="py-4">
@@ -43,11 +43,11 @@ export default function ContactPage() {
                 </div>
               ))}
             </dl>
-            <ReviewPlaceholder label="Contact information required" className="mt-6">
+            <ReviewPlaceholder label="Contact details · Pending approval" className="mt-6">
               Office address, telephone and email have not been supplied. They are shown as placeholders and will not be invented.
             </ReviewPlaceholder>
             <div className="mt-10 border-l-2 border-gold-500 pl-5">
-              <p className="eyebrow text-gold-700">Please note</p>
+              <p className="eyebrow text-stone">Please note</p>
               <p className="mt-2 text-[13.5px] leading-relaxed text-stone">
                 Do not include confidential personal or financial information in this form. Submitting an enquiry does not create
                 a client relationship and is not a request to invest.

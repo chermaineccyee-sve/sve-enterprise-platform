@@ -3,14 +3,12 @@
 import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
-import { ARCH_INNER, ARCH_OUTER, ARM_ROTATIONS } from "@/components/identity/Lattice";
-import { NStar, STAR_PATH } from "@/components/identity/NStar";
+import { STAR_PATH } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
 import type { InsightListing } from "@/content/insights/types";
 import { PROFILE_AXES, STATUS_INFO, type Strategy } from "@/content/strategies";
 import { formatValue } from "@/lib/market/format";
 import type { InstrumentSnapshot, IntelligenceIndicator } from "@/lib/market/types";
-import { ReviewPlaceholder } from "@/components/ui/ReviewPlaceholder";
 
 const LEVEL = ["Lower", "Moderate", "Higher"];
 
@@ -67,20 +65,11 @@ export function AllocationUniverse({
         })}
       </ol>
 
-      {/* Canvas */}
-      <div className="lg:col-span-4">
+      {/* Canvas (desktop) */}
+      <div className="hidden lg:col-span-4 lg:block">
         <svg viewBox="-200 -200 400 400" className="mx-auto aspect-square w-full max-w-[440px]" role="img" aria-label={`Allocation universe: ${s.name} selected`}>
           <circle r="150" fill="none" stroke="var(--color-rule)" strokeDasharray="1 5" />
           <circle r="96" fill="none" stroke="var(--color-rule-soft)" />
-          <g transform="scale(0.9)" stroke="var(--color-teal-800)" strokeOpacity="0.35" fill="none" strokeWidth="1">
-            {ARM_ROTATIONS.map((r) => (
-              <g key={r} transform={`rotate(${r})`}>
-                <path d={ARCH_OUTER} />
-                <path d={ARCH_INNER} />
-              </g>
-            ))}
-          </g>
-          <circle r="17" fill="var(--color-ivory)" />
           <path d={STAR_PATH(12)} fill="#b8955a" />
           <m.line x1="0" y1="0" initial={false} animate={{ x2: sel.x, y2: sel.y }} transition={{ type: "spring", stiffness: 140, damping: 20 }} stroke="#b8955a" strokeWidth="1.4" />
           {nodes.map(({ st, i, x, y }) => {
@@ -96,8 +85,84 @@ export function AllocationUniverse({
             );
           })}
         </svg>
+      </div>
+
+      {/* Panel */}
+      <div className="lg:col-span-5" aria-live="polite">
+        <AnimatePresence mode="wait" initial={false}>
+          <m.div key={s.slug} id="universe-panel" role="tabpanel" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.35 }}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">{STATUS_INFO[s.status].label} · not an offered product</p>
+            <h3 className="display-m mt-3 text-teal-900">{s.name}</h3>
+            <p className="mt-4 font-serif text-[1.35rem] italic leading-snug text-gold-700">{s.role}</p>
+
+            <p className="eyebrow mt-8 text-stone">Key considerations</p>
+            <ul className="mt-3 space-y-1.5">
+              {s.characteristics.map((c) => (
+                <li key={c} className="text-[15px] text-charcoal">
+                  {c}
+                </li>
+              ))}
+            </ul>
+
+            {(s.relatedInstruments.length > 0 || s.relatedIndicators.length > 0) && (
+              <>
+                <p className="eyebrow mt-8 text-stone">Market relationships · illustrative</p>
+                <ul className="mt-2">
+                  {s.relatedInstruments.map((id) => instruments[id]).filter(Boolean).map((x) => (
+                    <li key={x.instrument.id} className="flex items-center justify-between gap-2 border-b border-rule-soft py-1.5 text-[13px]">
+                      <span className="font-semibold">{x.instrument.shortName}</span>
+                      <span className="num">
+                        {formatValue(x.quote.value, x.instrument.decimals)}
+                        {x.instrument.unit === "%" ? "%" : ""}
+                      </span>
+                      <Change instrument={x.instrument} change={x.quote.change} changePct={x.quote.changePct} changeBp={x.quote.changeBp} showAbsolute={false} />
+                    </li>
+                  ))}
+                  {s.relatedIndicators.map((id) => indicators[id]).filter(Boolean).map((x) => (
+                    <li key={x.id} className="flex items-center justify-between gap-2 border-b border-rule-soft py-1.5 text-[13px]">
+                      <span>{x.title}</span>
+                      <span className="num">
+                        {formatValue(x.value, x.decimals)}
+                        {x.unit ?? ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {insight && (
+              <Link href={`/insights/${insight.slug}`} className="group mt-8 block border-l-2 border-teal-800 bg-white px-5 py-4 hover:border-gold-500">
+                <span className="eyebrow text-stone">Related insight</span>
+                <span className="mt-1 block font-serif text-[1.2rem] text-teal-900 group-hover:text-teal-700">{insight.title} →</span>
+              </Link>
+            )}
+
+            <Link href={`/strategies/${s.slug}`} className="btn-fill mt-8 inline-flex h-11 items-center gap-3 border border-teal-800/40 px-5 text-[14px] font-medium text-teal-800 hover:text-white [--fill:var(--color-teal-800)]">
+              Explore capability <span aria-hidden>→</span>
+            </Link>
+
+            <details className="group mt-8 border-t border-rule pt-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between text-[13px] font-medium text-teal-800 [&::-webkit-details-marker]:hidden">
+                More detail
+                <span aria-hidden className="transition-transform group-open:rotate-45">+</span>
+              </summary>
+              <div className="mt-4 space-y-6">
+                <p className="text-[14.5px] leading-relaxed text-charcoal">{s.overview}</p>
+                <div>
+                  <p className="eyebrow text-stone">Risk considerations</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-[13.5px] text-charcoal marker:text-gold-500">
+                    {s.riskConsiderations.map((r) => (
+                      <li key={r}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="eyebrow text-stone">Time horizon</p>
+                  <p className="mt-2 text-[13.5px] text-stone">{s.timeHorizon ?? "To be confirmed on approval."}</p>
+                </div>
         {/* Indicative profile */}
-        <div className="mt-6">
+                <div>
           <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-stone">Indicative asset-class profile</p>
           {s.profile ? (
             <dl className="mt-3 space-y-3">
@@ -121,77 +186,8 @@ export function AllocationUniverse({
           )}
           <p className="mt-3 text-[11px] leading-relaxed text-stone">General characteristics of the asset class, for orientation only. Not product terms; subject to management review.</p>
         </div>
-      </div>
-
-      {/* Panel */}
-      <div className="lg:col-span-5" aria-live="polite">
-        <AnimatePresence mode="wait" initial={false}>
-          <m.div key={s.slug} id="universe-panel" role="tabpanel" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.35 }}>
-            <p className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-700">
-              <NStar className="h-2 w-2" /> {STATUS_INFO[s.status].label}
-            </p>
-            <h3 className="display-m mt-3 text-teal-900">{s.name}</h3>
-            <p className="mt-4 font-serif text-[1.35rem] italic leading-snug text-gold-700">{s.role}</p>
-            <p className="mt-4 text-[15px] leading-relaxed text-charcoal">{s.overview}</p>
-
-            <div className="mt-8 grid gap-8 sm:grid-cols-2">
-              <div>
-                <p className="eyebrow text-stone">Risk considerations</p>
-                <ul className="mt-3 space-y-2">
-                  {s.riskConsiderations.map((r) => (
-                    <li key={r} className="flex items-start gap-2 text-[13.5px] text-charcoal">
-                      <NStar className="mt-1.5 h-2 w-2 text-gold-500" />
-                      {r}
-                    </li>
-                  ))}
-                </ul>
               </div>
-              <div>
-                <p className="eyebrow text-stone">Time horizon</p>
-                {s.timeHorizon ? <p className="mt-3 text-[14px]">{s.timeHorizon}</p> : <p className="mt-3 text-[13.5px] text-gold-800">[To be confirmed on approval]</p>}
-                {(s.relatedInstruments.length > 0 || s.relatedIndicators.length > 0) && (
-                  <>
-                    <p className="eyebrow mt-6 text-stone">Related markets · illustrative</p>
-                    <ul className="mt-2">
-                      {s.relatedInstruments.map((id) => instruments[id]).filter(Boolean).map((x) => (
-                        <li key={x.instrument.id} className="flex items-center justify-between gap-2 border-b border-rule-soft py-1.5 text-[13px]">
-                          <span className="font-semibold">{x.instrument.shortName}</span>
-                          <span className="num">
-                            {formatValue(x.quote.value, x.instrument.decimals)}
-                            {x.instrument.unit === "%" ? "%" : ""}
-                          </span>
-                          <Change instrument={x.instrument} change={x.quote.change} changePct={x.quote.changePct} changeBp={x.quote.changeBp} showAbsolute={false} />
-                        </li>
-                      ))}
-                      {s.relatedIndicators.map((id) => indicators[id]).filter(Boolean).map((x) => (
-                        <li key={x.id} className="flex items-center justify-between gap-2 border-b border-rule-soft py-1.5 text-[13px]">
-                          <span>{x.title}</span>
-                          <span className="num">
-                            {formatValue(x.value, x.decimals)}
-                            {x.unit ?? ""}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {insight && (
-              <Link href={`/insights/${insight.slug}`} className="group mt-8 block border-l-2 border-teal-800 bg-white px-5 py-4 hover:border-gold-500">
-                <span className="eyebrow text-gold-700">Related research</span>
-                <span className="mt-1 block font-serif text-[1.2rem] text-teal-900 group-hover:text-teal-700">{insight.title} →</span>
-              </Link>
-            )}
-            <div className="mt-6 flex flex-wrap items-center gap-6">
-              <Link href={`/strategies/${s.slug}`} className="link-underline text-[14px] font-medium text-teal-800">
-                Capability overview →
-              </Link>
-            </div>
-            <ReviewPlaceholder label="Not an offered product" className="mt-6">
-              {STATUS_INFO[s.status].description} Objectives, documents and terms will be published only for approved strategies.
-            </ReviewPlaceholder>
+            </details>
           </m.div>
         </AnimatePresence>
       </div>

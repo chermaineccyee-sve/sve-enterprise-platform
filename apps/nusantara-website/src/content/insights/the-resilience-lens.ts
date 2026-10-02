@@ -62,7 +62,7 @@ export const resilienceLens: Insight = {
         "Risk assessment — downside defined before upside is pursued",
         "Suitability — the right opportunity for the right investor",
         "Monitoring — assumptions reviewed on a defined cycle",
-        "Governance oversight — independent challenge built into the process",
+        "Governance oversight — review and challenge built into the process",
       ],
     },
     {

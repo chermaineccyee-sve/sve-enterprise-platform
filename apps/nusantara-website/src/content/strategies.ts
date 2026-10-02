@@ -198,26 +198,6 @@ export const STRATEGIES: Strategy[] = [
     relatedIndicators: [],
     insight: "shariah-capable-allocation-shared-principles",
   },
-  {
-    slug: "tokenised-real-world-assets",
-    name: "Tokenised Real-World Assets",
-    status: "future-development",
-    summary: "An area of future review only, subject to legal, custody and governance requirements.",
-    overview:
-      "Tokenisation may in time improve access, settlement and operational efficiency for some assets. It does not remove the need for legal clarity, custody control, liquidity and investor protection.",
-    objective: null,
-    approach: "Framework-first: no exposure would be considered until legal title, enforceability, custody and regulatory questions are satisfactorily answered.",
-    opportunitySet: ["Under review — no current opportunity set"],
-    riskConsiderations: ["Legal and enforceability risk", "Custody and technology risk", "Liquidity risk", "Regulatory uncertainty"],
-    timeHorizon: null,
-    characteristics: ["Future review only", "Framework-first"],
-    documents: [],
-    role: "Future review only — framework before exposure.",
-    profile: null,
-    relatedInstruments: [],
-    relatedIndicators: [],
-    insight: "tokenisation-a-framework-first-approach",
-  },
 ];
 
 export function getStrategy(slug: string) {

@@ -1,25 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { NStar } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
 import { formatTimestamp, formatValue } from "@/lib/market/format";
 import type { InstrumentSnapshot } from "@/lib/market/types";
-import { useMarketFocus } from "./MarketFocus";
+import { useOptionalMarketFocus } from "./MarketFocus";
 
-function Item({ s, hidden, on, onSelect }: { s: InstrumentSnapshot; hidden?: boolean; on: boolean; onSelect: (id: string) => void }) {
+function Item({ s, hidden, on, onSelect }: { s: InstrumentSnapshot; hidden?: boolean; on: boolean; onSelect: ((id: string) => void) | null }) {
   const inst = s.instrument;
-  return (
-    <li className="relative shrink-0 snap-start" aria-hidden={hidden || undefined}>
-      <button
-        type="button"
-        tabIndex={hidden ? -1 : 0}
-        onClick={() => onSelect(inst.id)}
-        aria-label={`${inst.shortName} ${formatValue(s.quote.value, inst.decimals)}. Show Nusantara view`}
-        className={`group flex h-14 items-center gap-3 border-r border-white/10 px-6 text-left transition-colors ${
-          on ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"
-        }`}
-      >
+  const cls = `group flex h-14 items-center gap-3 border-r border-white/10 px-6 text-left transition-colors ${on ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"}`;
+  const label = `${inst.shortName} ${formatValue(s.quote.value, inst.decimals)}. Open in Market Dashboard`;
+  const body = (
+    <>
         {on && <NStar className="h-2 w-2 text-gold-400" />}
         <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white">{inst.shortName}</span>
         <span className="num text-[13px] text-teal-100">
@@ -27,7 +21,19 @@ function Item({ s, hidden, on, onSelect }: { s: InstrumentSnapshot; hidden?: boo
           {inst.unit === "%" ? "%" : ""}
         </span>
         <Change instrument={inst} change={s.quote.change} changePct={s.quote.changePct} changeBp={s.quote.changeBp} showAbsolute={false} tone="dark" />
-      </button>
+    </>
+  );
+  return (
+    <li className="relative shrink-0 snap-start" aria-hidden={hidden || undefined}>
+      {onSelect ? (
+        <button type="button" tabIndex={hidden ? -1 : 0} onClick={() => onSelect(inst.id)} aria-label={label} className={cls}>
+          {body}
+        </button>
+      ) : (
+        <Link href={`/market-dashboard?instrument=${inst.id}`} tabIndex={hidden ? -1 : 0} aria-label={label} className={cls}>
+          {body}
+        </Link>
+      )}
     </li>
   );
 }
@@ -35,14 +41,15 @@ function Item({ s, hidden, on, onSelect }: { s: InstrumentSnapshot; hidden?: boo
 /**
  * Continuous market ribbon. Moves on larger screens (pauses on hover, focus,
  * or via the pause control; static under reduced motion). On mobile it is a
- * swipeable, snap-scrolling carousel. Selecting a market opens its view in
- * the Market Lens.
+ * swipeable, snap-scrolling carousel. On the dashboard, selecting a market
+ * selects it in the workspace; elsewhere it opens the dashboard on that market.
  */
 export function MarketRibbon({ instruments }: { instruments: InstrumentSnapshot[] }) {
-  const { focusId, setFocus } = useMarketFocus();
+  const focus = useOptionalMarketFocus();
+  const focusId = focus?.focusId ?? "";
   const [paused, setPaused] = useState(false);
   const asOf = instruments[0]?.provenance.asOf;
-  const select = (id: string) => setFocus(id, { scroll: true });
+  const select = focus ? (id: string) => focus.setFocus(id, { scroll: true }) : null;
 
   return (
     <section aria-label="Market ribbon (illustrative data)" className="on-dark relative z-10 border-y border-white/10 bg-teal-950 text-white">

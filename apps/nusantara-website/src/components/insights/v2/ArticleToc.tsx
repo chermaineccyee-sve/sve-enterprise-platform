@@ -27,7 +27,7 @@ export function ArticleToc({ items, targetId }: { items: { id: string; text: str
 
   return (
     <nav aria-label="Contents" className="hidden lg:block">
-      <p className="eyebrow text-gold-700">Contents</p>
+      <p className="eyebrow text-stone">Contents</p>
       <div className="relative mt-4">
         <span className="absolute inset-y-0 left-0 w-px bg-rule" />
         {target && <Progress target={target} />}

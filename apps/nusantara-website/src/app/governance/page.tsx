@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { ContactCTA } from "@/components/sections/ContactCTA";
 import { GovernanceSignal } from "@/components/home/GovernanceSignal";
-import { NStar } from "@/components/identity/NStar";
 import { GovernanceArchitecture } from "@/components/sections/GovernanceArchitecture";
 import { RiskFramework } from "@/components/sections/RiskFramework";
 import { Disclaimer } from "@/components/ui/Disclaimer";
@@ -12,14 +11,14 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 export const metadata: Metadata = {
   title: "Governance",
   description:
-    "Governance is part of the Nusantara investment process: oversight, investment review, risk management, compliance, independent controls, administration and reporting.",
+    "Governance is part of the Nusantara investment process: oversight, investment review, risk management, compliance, safeguarding and verification, administration and reporting.",
   alternates: { canonical: "/governance" },
 };
 
 const PRINCIPLES = [
   { title: "Visibility", text: "Each control layer should be visible and explainable to investors and their advisers." },
-  { title: "Separation", text: "Functions that safeguard assets and verify records are kept separate from investment decision-making." },
-  { title: "Challenge", text: "Investment proposals are subject to independent review before commitment, not after." },
+  { title: "Separation", text: "Safeguarding and verification are kept distinct from investment decision-making." },
+  { title: "Challenge", text: "Investment proposals are reviewed and challenged before commitment, not after." },
   { title: "Documentation", text: "Decisions and their rationale are recorded so that they can be reviewed and revisited." },
   { title: "Accountability", text: "Responsibility for each function is clearly assigned and periodically reviewed." },
 ];
@@ -41,8 +40,8 @@ export default function GovernancePage() {
         <div className="container-site py-20 md:py-28">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-7">
-              <p className="eyebrow flex items-center gap-3 text-gold-300">
-                <NStar className="h-2.5 w-2.5" /> The decision path
+              <p className="eyebrow text-teal-200">
+                The decision path
               </p>
               <h2 id="flow" className="display-l mt-6">
                 Every decision passes the same gates.
@@ -61,14 +60,14 @@ export default function GovernancePage() {
 
       <section aria-labelledby="architecture" className="on-dark border-t border-white/10 bg-teal-900 text-white">
         <div className="container-site py-20 md:py-28">
-          <p className="eyebrow flex items-center gap-3 text-gold-300">
-            <NStar className="h-2.5 w-2.5" /> Control architecture
+          <p className="eyebrow text-teal-200">
+            Control architecture
           </p>
           <h2 id="architecture" className="display-m mt-5 max-w-2xl">
-            Seven functions, nested around every allocation.
+            Control concepts around every allocation.
           </h2>
           <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-teal-100">
-            Described at the level of function. Named bodies, committees and service providers will be published only once approved.
+            These are process and control concepts, not a confirmed structure. Governance bodies, independence arrangements and service providers will be described only once management has confirmed them.
           </p>
           <div className="mt-14">
             <GovernanceArchitecture />
@@ -107,7 +106,7 @@ export default function GovernancePage() {
       <section aria-labelledby="dual-track" className="bg-paper">
         <div className="container-site grid gap-12 py-20 md:py-24 lg:grid-cols-12">
           <div className="lg:col-span-5">
-            <p className="eyebrow text-gold-700">One standard</p>
+            <p className="eyebrow text-stone">One standard</p>
             <h2 id="dual-track" className="display-m mt-5 text-teal-900">
               Conventional and Shariah-capable allocation share the same discipline.
             </h2>
@@ -129,18 +128,18 @@ export default function GovernancePage() {
 
       <section aria-labelledby="pending" className="border-t border-rule bg-white">
         <div className="container-site py-16 md:py-20">
-          <h2 id="pending" className="eyebrow text-gold-700">
+          <h2 id="pending" className="eyebrow text-stone">
             Governance information pending approval
           </h2>
           <div className="mt-8 grid gap-6 md:grid-cols-3">
-            <ReviewPlaceholder label="Governance bodies">
+            <ReviewPlaceholder label="Governance bodies · Pending approval">
               Board composition, committees and their terms of reference will be published once approved.
             </ReviewPlaceholder>
-            <ReviewPlaceholder label="Service providers">
+            <ReviewPlaceholder label="Service providers · Pending approval">
               Administrators, auditors, custodians and banking arrangements will be named only once appointed and approved for
               disclosure.
             </ReviewPlaceholder>
-            <ReviewPlaceholder label="Regulatory information">
+            <ReviewPlaceholder label="Regulatory information · Pending approval">
               Regulatory status and licensing information will be added only once confirmed for publication.
             </ReviewPlaceholder>
           </div>

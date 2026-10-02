@@ -69,7 +69,7 @@ export function ContactForm() {
   if (state === "done") {
     return (
       <div ref={doneRef} tabIndex={-1} role="status" className="border border-teal-800 bg-white p-8 outline-none">
-        <p className="eyebrow text-gold-700">Enquiry received</p>
+        <p className="eyebrow text-stone">Enquiry received</p>
         <h2 className="display-s mt-4 text-teal-900">Thank you, {values.name.split(" ")[0]}.</h2>
         <p className="mt-4 text-[15px] leading-relaxed text-charcoal">
           Your enquiry passed validation. <strong>In this management-review prototype, enquiries are not stored or sent.</strong>{" "}

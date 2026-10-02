@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ARM_TIPS, Lattice } from "@/components/identity/Lattice";
 import { NStar } from "@/components/identity/NStar";
@@ -8,8 +9,8 @@ import { Change } from "@/components/market/Change";
 import { Sparkline } from "@/components/market/Sparkline";
 import { formatTimestamp, formatValue } from "@/lib/market/format";
 import type { AssetClass, InstrumentSnapshot } from "@/lib/market/types";
-import { useMarketFocus } from "./MarketFocus";
 
+const MLink = m.create(Link);
 const ARM_OF: Record<AssetClass, number> = { equities: 0, fx: 1, rates: 2, commodities: 3 };
 const ARM_LABEL = ["Equities", "FX", "Rates", "Commodities"];
 const W = 1000;
@@ -39,7 +40,6 @@ function makeWalk(seed: number, points = 120) {
  */
 export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSnapshot[]; sparks: Record<string, number[]> }) {
   const reduce = useReducedMotion();
-  const { setFocus } = useMarketFocus();
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const lineRef = useRef<SVGGElement>(null);
@@ -100,8 +100,8 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
         <defs>
           <linearGradient id="hero-fade" x1="0" x2="1">
             <stop offset="0" stopColor="#f7f3ea" stopOpacity="1" />
-            <stop offset="0.3" stopColor="#f7f3ea" stopOpacity="0.92" />
-            <stop offset="0.55" stopColor="#f7f3ea" stopOpacity="0" />
+            <stop offset="0.42" stopColor="#f7f3ea" stopOpacity="0.96" />
+            <stop offset="0.66" stopColor="#f7f3ea" stopOpacity="0" />
           </linearGradient>
         </defs>
         {/* data coordinates */}
@@ -113,7 +113,7 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
             <line key={f} y1="0" y2={H} x1={f * W} x2={f * W} />
           ))}
         </g>
-        <g className="num" fontSize="10" fill="rgba(18,56,74,0.38)" letterSpacing="1">
+        <g className="num hidden md:block" fontSize="10" fill="rgba(18,56,74,0.3)" letterSpacing="1">
           {["+2.0σ", "+1.0σ", "0.0", "−1.0σ", "−2.0σ"].map((l, i) => (
             <text key={l} x={W - 14} y={(0.2 + i * 0.15) * H - 6} textAnchor="end">
               {l}
@@ -127,8 +127,8 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
         </g>
         {/* abstract market lines (loop seamlessly) */}
         <g ref={lineRef}>
-          <path d={pathFor(walk2) + pathFor(walk2, W).replace("M", "L")} fill="none" stroke="rgba(184,149,90,0.35)" strokeWidth="1" />
-          <path d={pathFor(walk) + pathFor(walk, W).replace("M", "L")} fill="none" stroke="rgba(18,56,74,0.55)" strokeWidth="1.4" />
+          <path d={pathFor(walk2) + pathFor(walk2, W).replace("M", "L")} fill="none" stroke="rgba(184,149,90,0.25)" strokeWidth="1" />
+          <path d={pathFor(walk) + pathFor(walk, W).replace("M", "L")} fill="none" stroke="rgba(18,56,74,0.4)" strokeWidth="1.2" />
         </g>
         {/* reading head */}
         <line x1={0.7 * W} x2={0.7 * W} y1={0.12 * H} y2={0.88 * H} stroke="rgba(18,56,74,0.18)" strokeDasharray="2 5" />
@@ -169,16 +169,15 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
         </div>
         <div className="relative mt-4 h-[92px]" aria-live="polite">
           <AnimatePresence mode="wait" initial={false}>
-            <m.button
+            <MLink
               key={inst.id}
-              type="button"
-              onClick={() => setFocus(inst.id, { scroll: true })}
+              href={`/market-dashboard?instrument=${inst.id}`}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.4 }}
               className="absolute inset-0 flex items-end justify-between gap-3 text-left"
-              aria-label={`${inst.name}: open Nusantara view`}
+              aria-label={`${inst.name}: open in Market Dashboard`}
             >
               <span>
                 <span className="block text-[12px] text-stone">
@@ -198,7 +197,7 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
                 />
               </span>
               <Sparkline values={sparks[inst.id] ?? []} width={96} height={40} label={`${inst.shortName} one-month trend`} className="text-teal-800" />
-            </m.button>
+            </MLink>
           </AnimatePresence>
         </div>
         <div className="mt-4 flex items-center justify-between border-t border-rule-soft pt-3">

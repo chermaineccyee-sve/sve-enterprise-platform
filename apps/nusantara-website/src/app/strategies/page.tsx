@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { ContactCTA } from "@/components/sections/ContactCTA";
 import { AllocationUniverse } from "@/components/sections/AllocationUniverse";
 import { StatusLabel } from "@/components/sections/StrategyCard";
-import { Disclaimer } from "@/components/ui/Disclaimer";
 import { PageHero } from "@/components/ui/PageHero";
 import { ReviewPlaceholder } from "@/components/ui/ReviewPlaceholder";
 import { getAllListings } from "@/content/insights";
@@ -61,7 +60,7 @@ export default async function StrategiesPage() {
       <section aria-labelledby="status" className="bg-ivory">
         <div className="container-site grid gap-12 py-20 md:py-24 lg:grid-cols-12">
           <div className="lg:col-span-4">
-            <p className="eyebrow text-gold-700">Status architecture</p>
+            <p className="eyebrow text-stone">Status architecture</p>
             <h2 id="status" className="display-m mt-5 text-teal-900">
               Every capability carries an explicit status.
             </h2>
@@ -88,15 +87,11 @@ export default async function StrategiesPage() {
       </section>
 
       <section className="bg-paper">
-        <div className="container-site grid gap-6 py-16 md:grid-cols-2">
-          <ReviewPlaceholder label="Strategy information — approval required">
-            Objectives, time horizons, characteristics, fees and documents for any strategy will be published only once approved.
-            Internal strategy parameters are not shown on this website.
+        <div className="container-site py-12">
+          <ReviewPlaceholder>
+            Objectives, time horizons, documents and terms will be published only for approved strategies. Capability descriptions
+            are general information, not an offer.
           </ReviewPlaceholder>
-          <Disclaimer>
-            Capability descriptions are for general information only and do not constitute an offer or solicitation. Any future
-            offering would be made only through formal offering documents to eligible investors.
-          </Disclaimer>
         </div>
       </section>
 

@@ -27,7 +27,7 @@ export function ArticleChart({ block, index }: { block: ChartBlock; index: numbe
     <figure className="not-prose my-12 border-y border-rule py-6 font-sans">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <figcaption className="max-w-xl">
-          <span className="eyebrow text-gold-700">Figure {index}</span>
+          <span className="eyebrow text-stone">Figure {index}</span>
           <span className="mt-2 block font-serif text-[1.2rem] leading-snug text-teal-900">{block.caption}</span>
         </figcaption>
         {block.illustrative && <MarketStatus status="illustrative" />}

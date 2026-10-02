@@ -5,8 +5,6 @@ import { StructuralIndicators } from "@/components/dashboard/StructuralIndicator
 import { Workspace } from "@/components/dashboard/Workspace";
 import { MarketFocusProvider } from "@/components/home/MarketFocus";
 import { MarketRibbon } from "@/components/home/MarketRibbon";
-import { Lattice } from "@/components/identity/Lattice";
-import { NStar } from "@/components/identity/NStar";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { CTA } from "@/components/ui/CTA";
 import { getAllListings } from "@/content/insights";
@@ -44,50 +42,41 @@ export default async function MarketDashboardPage() {
     <MarketFocusProvider initial="klci" targetId="workspace">
       {/* Masthead */}
       <section className="on-dark relative overflow-hidden bg-teal-950 text-white">
-        <div aria-hidden className="pointer-events-none absolute -right-24 -top-32 h-[520px] w-[520px] text-white/10">
-          <Lattice className="h-full w-full" strokeWidth={0.45} accent="rgba(205,174,115,0.6)" />
-        </div>
         <div className="container-site relative pt-8 pb-10 md:pt-10 md:pb-14">
           <Breadcrumb tone="dark" items={[{ label: "Home", href: "/" }, { label: "Market Dashboard" }]} />
           <div className="mt-10 grid gap-8 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-7">
-              <p className="eyebrow flex items-center gap-3 text-gold-300">
-                <NStar className="h-2.5 w-2.5" /> Nusantara Market Dashboard
+              <p className="eyebrow text-teal-200">
+                Nusantara Market Dashboard
               </p>
               <h1 className="display-l mt-5">Markets at a glance.</h1>
             </div>
             <div className="lg:col-span-5">
               <p className="text-[15px] leading-relaxed text-teal-100">
-                What is happening, beside what we are watching. Select any market — the chart, the figures and the Nusantara view
-                respond together.
+                Market data on the left and centre; the Nusantara View — our interpretation — on the right.
               </p>
-              <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-teal-200">
-                <span className="inline-flex items-center gap-1.5 border border-gold-300/50 px-2 py-0.5 font-semibold uppercase tracking-[0.12em] text-gold-200">
-                  <NStar className="h-2 w-2" /> Illustrative
-                </span>
-                <span>Source: {snapshot.provenance.source}</span>
-                <span className="num">As at {formatTimestamp(snapshot.provenance.asOf)}</span>
-              </p>
+              <p className="num mt-4 text-[12px] text-teal-200">Illustrative data · As at {formatTimestamp(snapshot.provenance.asOf)}</p>
             </div>
           </div>
         </div>
       </section>
-      <MarketRibbon instruments={snapshot.instruments} />
+      <div className="hidden md:block">
+        <MarketRibbon instruments={snapshot.instruments} />
+      </div>
 
       {/* Workspace */}
       <section id="workspace" aria-label="Market workspace" className="scroll-mt-16 bg-paper">
         <div className="mx-auto max-w-[1720px] py-8 lg:px-8 lg:py-10">
           <Workspace snapshot={snapshot} initialHistory={h1m} indicators={intelligence.indicators} insights={listings} />
-          <p className="mt-4 px-5 text-[12px] leading-relaxed text-stone lg:px-0">{snapshot.disclaimer} Values are generated and do not reflect any exchange, index provider or data vendor.</p>
         </div>
       </section>
 
       {/* Cross-asset + map */}
-      <section aria-label="Cross-asset view and markets we monitor" className="border-t border-rule bg-white">
+      <section aria-label="Cross-asset view and markets we monitor" className="hidden border-t border-rule bg-white md:block">
         <div className="mx-auto grid max-w-[1720px] grid-cols-[minmax(0,1fr)] gap-16 px-5 py-16 md:px-10 lg:grid-cols-2 lg:px-8 lg:py-24">
           <div>
-            <p className="eyebrow flex items-center gap-3 text-gold-700">
-              <NStar className="h-2.5 w-2.5" /> Cross-asset view
+            <p className="eyebrow text-stone">
+              Cross-asset view
             </p>
             <h2 className="display-m mt-4 text-teal-900">Signals across asset classes.</h2>
             <div className="mt-10">
@@ -95,8 +84,8 @@ export default async function MarketDashboardPage() {
             </div>
           </div>
           <div>
-            <p className="eyebrow flex items-center gap-3 text-gold-700">
-              <NStar className="h-2.5 w-2.5" /> Markets we monitor
+            <p className="eyebrow text-stone">
+              Markets we monitor
             </p>
             <h2 className="display-m mt-4 text-teal-900">A regional and global watch-list.</h2>
             <div className="mt-10">
@@ -111,8 +100,8 @@ export default async function MarketDashboardPage() {
         <div className="container-site py-16 md:py-24">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-7">
-              <p className="eyebrow flex items-center gap-3 text-gold-700">
-                <NStar className="h-2.5 w-2.5" /> Strategic market intelligence
+              <p className="eyebrow text-stone">
+                Strategic market intelligence
               </p>
               <h2 id="structural" className="display-m mt-4 text-teal-900">
                 Beneath the prices.
@@ -145,7 +134,7 @@ export default async function MarketDashboardPage() {
       <section aria-labelledby="methodology" className="bg-paper">
         <div className="container-site grid gap-12 py-16 md:py-20 lg:grid-cols-12">
           <div className="lg:col-span-4">
-            <p className="eyebrow text-gold-700">Data methodology</p>
+            <p className="eyebrow text-stone">Data methodology</p>
             <h2 id="methodology" className="display-s mt-4 text-teal-900">
               Every figure carries its source, timestamp and status.
             </h2>

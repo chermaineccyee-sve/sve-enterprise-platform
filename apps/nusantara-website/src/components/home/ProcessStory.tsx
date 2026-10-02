@@ -3,15 +3,14 @@
 import { AnimatePresence, m } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { AllocationSystem } from "@/components/identity/AllocationSystem";
-import { NStar } from "@/components/identity/NStar";
 import { PROCESS_STEPS } from "@/content/approach";
 
-function evidence(counts: { instruments: number; indicators: number; governanceLayers: number }): string[][] {
+function evidence(counts: { instruments: number; indicators: number }): string[][] {
   return [
     [`${counts.instruments} market instruments`, `${counts.indicators} structural indicators`, "Prototype dataset"],
     ["Relevance", "Quality", "Transparency", "Portfolio fit"],
     ["Return drivers", "Downside cases", "Liquidity terms", "Valuation method"],
-    [`${counts.governanceLayers} governance layers`, "Independent controls", "Compliance review"],
+    ["Oversight", "Review and challenge", "Compliance review"],
     ["Sizing", "Liquidity alignment", "Concentration", "Suitability"],
     ["Defined review cycle", "Thesis re-tested", "Material change reported"],
   ];
@@ -22,7 +21,7 @@ function evidence(counts: { instruments: number; indicators: number; governanceL
  * visual on the left transforms as each stage scrolls past on the right.
  * Mobile: a snap-scrolling sequence of stages, each with its own state.
  */
-export function ProcessStory({ counts }: { counts: { instruments: number; indicators: number; governanceLayers: number } }) {
+export function ProcessStory({ counts }: { counts: { instruments: number; indicators: number } }) {
   const [active, setActive] = useState(0);
   const blocks = useRef<(HTMLElement | null)[]>([]);
   const ev = evidence(counts);
@@ -93,7 +92,6 @@ export function ProcessStory({ counts }: { counts: { instruments: number; indica
               <ul className="mt-8 flex flex-wrap gap-2">
                 {ev[i].map((e) => (
                   <li key={e} className="flex items-center gap-2 border border-white/15 px-3 py-1.5 text-[12.5px] text-teal-50">
-                    <NStar className="h-2 w-2 text-gold-400" />
                     {e}
                   </li>
                 ))}

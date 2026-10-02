@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { InsightVisual } from "@/components/insights/InsightVisual";
-import { NStar } from "@/components/identity/NStar";
 import { MorphChart } from "@/components/market/MorphChart";
 import { SERIES_COLORS, PRIMARY_LINE } from "@/components/market/chart-utils";
 import { formatInsightDate, type InsightListing } from "@/content/insights/types";
@@ -37,8 +36,8 @@ export function ResearchRail({ featured, chart, items }: { featured: InsightList
     <div>
       <div className="container-site flex items-end justify-between gap-6">
         <div>
-          <p className="eyebrow flex items-center gap-3 text-gold-700">
-            <NStar className="h-2.5 w-2.5" /> Nusantara Insights
+          <p className="eyebrow text-stone">
+            Nusantara Insights
           </p>
           <h2 className="display-l mt-5 text-teal-900">What it may mean.</h2>
         </div>
@@ -62,7 +61,7 @@ export function ResearchRail({ featured, chart, items }: { featured: InsightList
         <li className="w-[88vw] shrink-0 snap-start md:w-[min(820px,72vw)]">
           <article className="grid h-full border border-teal-800 bg-white md:grid-cols-5">
             <div className="flex flex-col p-6 md:col-span-2 md:p-8">
-              <p className="eyebrow text-gold-700">Featured research · {featured.category}</p>
+              <p className="eyebrow text-stone">Featured research · {featured.category}</p>
               <h3 className="mt-4 font-serif text-[1.8rem] leading-[1.1] text-teal-900">
                 <Link href={`/insights/${featured.slug}`} className="hover:text-teal-700">
                   {featured.title}
@@ -101,7 +100,7 @@ export function ResearchRail({ featured, chart, items }: { featured: InsightList
                 <InsightVisual insight={i} className="transition-transform duration-700 group-hover:scale-[1.04]" />
                 <span className="num absolute left-4 top-4 text-[11px] text-gold-300">{String(k + 2).padStart(2, "0")}</span>
               </div>
-              <p className="eyebrow mt-5 text-gold-700">{i.category}</p>
+              <p className="eyebrow mt-5 text-stone">{i.category}</p>
               <h3 className="mt-2 font-serif text-[1.35rem] leading-snug text-teal-900 group-hover:text-teal-700">{i.title}</h3>
               <p className="num mt-auto pt-4 text-[12px] text-stone">
                 {formatInsightDate(i.date)} · {i.readingTime} min

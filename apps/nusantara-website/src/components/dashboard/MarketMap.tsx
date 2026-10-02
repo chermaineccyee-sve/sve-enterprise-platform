@@ -3,7 +3,6 @@
 import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
-import { NStar } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
 import { MARKET_NODES } from "@/content/intelligence";
 import type { InsightListing } from "@/content/insights/types";
@@ -70,7 +69,6 @@ export function MarketMap({ instruments, insights }: { instruments: Record<strin
               style={{ left: `${n.x}%`, top: `${n.y}%` }}
             >
               <span className={`flex items-center gap-2 whitespace-nowrap border px-2.5 py-1.5 transition-all duration-300 ${on ? "scale-105 border-teal-800 bg-teal-800 text-white shadow-lg" : "border-rule bg-white text-ink hover:border-teal-600"}`}>
-                <NStar className={`h-2 w-2 ${on ? "text-gold-300" : "text-gold-500"}`} />
                 <span className="whitespace-nowrap text-[12px] font-semibold">{n.name}</span>
                 {idx && (
                   <span className={`num hidden text-[11px] sm:inline ${on ? "text-teal-100" : "text-stone"}`}>
@@ -85,7 +83,7 @@ export function MarketMap({ instruments, insights }: { instruments: Record<strin
       <div className="md:col-span-5" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <m.div key={node.id} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-700">Market</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone">Market</p>
             <h3 className="mt-2 font-serif text-[2rem] leading-tight text-teal-900">{node.name}</h3>
             <div className="mt-5 border-t border-rule">
               {row(node.index, "Index")}
@@ -94,7 +92,7 @@ export function MarketMap({ instruments, insights }: { instruments: Record<strin
             </div>
             {insight && (
               <Link href={`/insights/${insight.slug}`} className="group mt-6 block">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-700">Related insight</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone">Related insight</span>
                 <span className="mt-1 block font-serif text-[1.2rem] leading-snug text-teal-900 group-hover:text-teal-700">{insight.title} →</span>
               </Link>
             )}

@@ -120,7 +120,7 @@ export const fromAccessToGovernedAllocation: Insight = {
         ["Market insight", "Identifies relevant themes and conditions", "Places opportunity in context"],
         ["Curation", "Filters strategies and asset classes", "Reduces noise before review"],
         ["Investment review", "Assesses merits, risks and fit", "Tests the thesis against evidence"],
-        ["Governance", "Applies oversight, compliance and independent control", "Builds confidence in the process"],
+        ["Governance", "Applies oversight, compliance review and control", "Builds confidence in the process"],
         ["Allocation", "Executes with sizing and liquidity discipline", "Turns intent into position"],
         ["Monitoring and reporting", "Reviews positions and communicates material change", "Sustains accountability over time"],
       ],

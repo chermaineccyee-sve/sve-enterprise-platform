@@ -3,12 +3,10 @@
 import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import { useRef, useState, type KeyboardEvent } from "react";
-import { Lattice } from "@/components/identity/Lattice";
-import { NStar } from "@/components/identity/NStar";
 import { StateGauge } from "@/components/identity/StateGauge";
 import { Change } from "@/components/market/Change";
 import { Sparkline } from "@/components/market/Sparkline";
-import { INTELLIGENCE_STATUS, MARKET_STATE } from "@/content/intelligence";
+import { MARKET_STATE } from "@/content/intelligence";
 import type { InsightListing } from "@/content/insights/types";
 import { formatValue } from "@/lib/market/format";
 import type { InstrumentSnapshot } from "@/lib/market/types";
@@ -17,7 +15,8 @@ import type { InstrumentSnapshot } from "@/lib/market/types";
  * NUSANTARA MARKET STATE — a visual interpretation layer over market data.
  * Six dimensions, each a qualitative reading on a five-step scale. Selecting a
  * dimension reveals the reading, what would change it, the indicators behind
- * it and the research that develops it. All states are sample content.
+ * it and the research that develops it. A demonstration framework for
+ * management review — not a house view.
  */
 export function MarketState({
   instruments,
@@ -43,10 +42,32 @@ export function MarketState({
   };
 
   return (
-    <div className="grid gap-10 lg:grid-cols-12 lg:gap-0">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-12 lg:gap-0">
       {/* Dimensions */}
       <div className="lg:col-span-7 lg:border-r lg:border-rule lg:pr-12">
-        <div role="tablist" aria-orientation="vertical" aria-label="Market state dimensions">
+        {/* Mobile: one dimension at a time */}
+        <div role="tablist" aria-label="Market state dimensions" className="no-scrollbar -mx-5 flex snap-x gap-1 overflow-x-auto px-5 md:hidden">
+          {MARKET_STATE.map((dim, i) => (
+            <button
+              key={dim.id}
+              role="tab"
+              aria-selected={i === active}
+              aria-controls="state-panel"
+              onClick={() => setActive(i)}
+              className={`h-10 shrink-0 snap-start border px-4 text-[13px] font-medium ${i === active ? "border-teal-800 bg-teal-800 text-white" : "border-rule text-charcoal"}`}
+            >
+              {dim.label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-6 md:hidden">
+          <p className="font-serif text-[2.4rem] leading-none text-teal-900">{d.state}</p>
+          <div className="mt-4">
+            <StateGauge id={`m-${d.id}`} scale={d.scale} position={d.position} showLabels />
+          </div>
+        </div>
+
+        <div role="tablist" aria-orientation="vertical" aria-label="Market state dimensions" className="hidden md:block">
           {MARKET_STATE.map((dim, i) => {
             const on = i === active;
             return (
@@ -88,18 +109,13 @@ export function MarketState({
             );
           })}
         </div>
-        <p className="mt-5 flex items-start gap-2 text-[12px] leading-relaxed text-stone">
-          <NStar className="mt-1 h-2 w-2 text-gold-500" />
-          {INTELLIGENCE_STATUS.note}
-        </p>
       </div>
 
       {/* Reading panel */}
       <div className="lg:col-span-5 lg:pl-12">
         <div className="lg:sticky lg:top-28">
           <div className="flex items-center justify-between">
-            <p className="eyebrow text-gold-700">Nusantara reading</p>
-            <Lattice className="h-10 w-10 text-teal-800/50" strokeWidth={4} activeArm={active % 4} showAxes={false} />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone">Illustrative reading</p>
           </div>
           <AnimatePresence mode="wait" initial={false}>
             <m.div
@@ -112,7 +128,7 @@ export function MarketState({
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.35 }}
             >
-              <h3 className="display-s mt-4 text-teal-900">
+              <h3 className="display-s mt-4 hidden text-teal-900 md:block">
                 {d.label}: <em className="text-gold-700">{d.state.toLowerCase()}</em>
               </h3>
               <p className="mt-4 text-[16px] leading-relaxed text-charcoal">{d.reading}</p>
@@ -121,12 +137,12 @@ export function MarketState({
               <ul className="mt-3 space-y-2">
                 {d.watching.map((w) => (
                   <li key={w} className="flex items-start gap-3 text-[14.5px] text-charcoal">
-                    <NStar className="mt-1.5 h-2 w-2 text-gold-500" />
                     {w}
                   </li>
                 ))}
               </ul>
 
+              <div className="hidden md:block">
               <p className="eyebrow mt-8 text-stone">What would change our reading</p>
               <p className="mt-2 text-[14.5px] leading-relaxed text-charcoal">{d.wouldChange}</p>
 
@@ -149,10 +165,11 @@ export function MarketState({
                 })}
               </ul>
               <p className="mt-2 text-[11px] text-stone">Illustrative data · day change</p>
+              </div>
 
               {insight && (
                 <Link href={`/insights/${insight.slug}`} className="group mt-8 block border-l-2 border-teal-800 bg-white px-5 py-4 transition-colors hover:border-gold-500">
-                  <span className="eyebrow text-gold-700">What it may mean · {insight.category}</span>
+                  <span className="eyebrow text-stone">What it may mean · {insight.category}</span>
                   <span className="mt-2 block font-serif text-[1.25rem] leading-snug text-teal-900 group-hover:text-teal-700">{insight.title}</span>
                   <span className="mt-2 inline-flex items-center gap-2 text-[13px] text-teal-800">
                     Read the research <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>

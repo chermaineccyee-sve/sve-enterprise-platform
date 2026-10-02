@@ -1,4 +1,3 @@
-import { ARCH_INNER, ARCH_OUTER } from "@/components/identity/Lattice";
 import type { Insight } from "@/content/insights/types";
 
 function seeded(slug: string) {
@@ -36,22 +35,16 @@ export function InsightVisual({
 
   let content: React.ReactNode = null;
   if (motif === "arcs") {
-    // Lattice, enlarged and cropped: the interlace as landscape.
-    const cx = q(520 + r() * 160);
-    const cy = q(300 + r() * 80);
-    const k = 3.4;
+    // Contour lines: a quiet, data-like landscape.
+    const phase = r() * 6;
     content = (
       <>
-        <line x1="0" y1={cy} x2={W} y2={cy} stroke={line} />
-        <line x1={cx} y1="0" x2={cx} y2={H} stroke={line} />
-        <g transform={`translate(${cx} ${cy}) scale(${k})`} fill="none" strokeWidth={1 / k}>
-          {[0, 90, 180, 270].map((rot, i) => (
-            <g key={rot} transform={`rotate(${rot})`}>
-              <path d={ARCH_OUTER} stroke={i === 1 ? gold : line} />
-              <path d={ARCH_INNER} stroke={i === 1 ? gold : line} />
-            </g>
-          ))}
-        </g>
+        {Array.from({ length: 14 }, (_, k) => {
+          const base = 70 + k * 28;
+          const pts: string[] = [];
+          for (let x = 0; x <= W; x += 20) pts.push(`${x},${q(base + Math.sin(x / 140 + phase + k * 0.35) * (18 + k * 1.5))}`);
+          return <polyline key={k} points={pts.join(" ")} fill="none" stroke={k === 6 ? gold : line} strokeWidth={k === 6 ? 1.6 : 1} />;
+        })}
       </>
     );
   } else if (motif === "lines") {

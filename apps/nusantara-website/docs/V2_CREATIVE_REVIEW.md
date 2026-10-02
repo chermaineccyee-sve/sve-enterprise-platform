@@ -1,5 +1,10 @@
 # V2 creative review — what V1 got wrong, and what replaces it
 
+> **Superseded in part by the V2.1 maturity pass** (see the README): the lattice
+> and star markers are now used far more sparingly, the Market Lens section was
+> removed, governance is described as process and control concepts, and
+> decorative chart animation was removed.
+
 V1 was structurally sound but compositionally repetitive: almost every section
 followed *eyebrow → serif headline → paragraph → grid of bordered boxes*, inside
 the same 1320px container, with a single fade-up entrance. The site had no visual
