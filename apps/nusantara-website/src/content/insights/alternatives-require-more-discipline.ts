@@ -89,6 +89,6 @@ export const alternativesRequireDiscipline: Insight = {
       text: "Alternative investments may be illiquid, difficult to value and subject to the loss of some or all capital invested. They are not suitable for every investor.",
     },
   ],
-  related: ["private-credit-the-terms-behind-the-yield", "from-access-to-governed-allocation", "tokenisation-a-framework-first-approach"],
+  related: ["private-credit-the-terms-behind-the-yield", "from-access-to-governed-allocation"],
   relatedInstruments: ["gold"],
 };

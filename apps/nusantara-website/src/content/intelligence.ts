@@ -397,12 +397,4 @@ export const THEMES: Theme[] = [
     instruments: ["klci", "sti", "jci"],
     indicators: ["cf-portfolio", "macro-growth"],
   },
-  {
-    id: "digital-assets",
-    title: "Digital assets",
-    statement: "Framework first: legal title and custody before efficiency gains.",
-    insights: ["tokenisation-a-framework-first-approach"],
-    instruments: [],
-    indicators: [],
-  },
 ];

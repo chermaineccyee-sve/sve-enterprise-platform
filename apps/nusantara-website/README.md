@@ -30,7 +30,8 @@ A subtraction and refinement pass on V2 — no new pages, features or motion.
   hero monitor link to the dashboard (`?instrument=<id>`).
 - **Strategies**: progressive disclosure (role, key considerations, market
   relationships, related insight; detail behind "More detail"). The tokenised
-  real-world assets capability was removed pending approval.
+  real-world assets capability was removed pending approval, and the
+  tokenisation research note was withdrawn before management review.
 - **Mobile**: one idea at a time — Market State dimension chips; dashboard
   order instrument select → number → chart → period → Nusantara View
   (collapsed) → statistics → related markets.

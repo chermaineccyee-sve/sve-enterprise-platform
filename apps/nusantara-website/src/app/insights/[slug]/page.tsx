@@ -16,7 +16,8 @@ import { formatTimestamp, formatValue } from "@/lib/market/format";
 import { getMarketHistory, getMarketSnapshot } from "@/lib/market/service";
 import { generalDisclaimer, site } from "@/lib/site";
 
-export const dynamicParams = false;
+/** Unknown slugs render notFound() on request, so the 404 hydrates with the real path. */
+export const dynamicParams = true;
 
 export function generateStaticParams() {
   return getAllInsights().map((i) => ({ slug: i.slug }));

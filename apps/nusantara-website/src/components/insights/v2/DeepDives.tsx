@@ -17,11 +17,11 @@ export function DeepDives({ insights }: { insights: InsightListing[] }) {
 
   useEffect(() => {
     const c = new URLSearchParams(window.location.search).get("category");
-    if (c && (INSIGHT_CATEGORIES as readonly string[]).includes(c)) {
+    if (c && (INSIGHT_CATEGORIES as readonly string[]).includes(c) && insights.some((i) => i.category === c)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from URL once on mount
       setCat(c as InsightCategory);
     }
-  }, []);
+  }, [insights]);
 
   const select = (c: Filter) => {
     setCat(c);
@@ -42,7 +42,7 @@ export function DeepDives({ insights }: { insights: InsightListing[] }) {
     <div>
       <div className="flex flex-col gap-5 border-b border-rule pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div role="group" aria-label="Filter by category" className="no-scrollbar -mx-5 flex min-w-0 gap-1 overflow-x-auto px-5 lg:mx-0 lg:flex-wrap lg:px-0">
-          {(["All", ...INSIGHT_CATEGORIES] as Filter[]).map((c) => {
+          {(["All", ...INSIGHT_CATEGORIES.filter((c) => counts.has(c))] as Filter[]).map((c) => {
             const n = c === "All" ? insights.length : counts.get(c) ?? 0;
             const on = cat === c;
             return (

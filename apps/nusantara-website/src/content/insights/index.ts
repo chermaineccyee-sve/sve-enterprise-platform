@@ -6,7 +6,6 @@ import { q4MarketOutlook } from "./q4-2026-market-outlook";
 import { ratesCurrencies } from "./rates-currencies-and-the-regional-allocator";
 import { resilienceLens } from "./the-resilience-lens";
 import { shariahCapable } from "./shariah-capable-allocation";
-import { tokenisation } from "./tokenisation-a-framework-first-approach";
 import type { Block, Insight, InsightListing } from "./types";
 
 export * from "./types";
@@ -19,7 +18,6 @@ const ALL: Insight[] = [
   privateCreditTerms,
   resilienceLens,
   ratesCurrencies,
-  tokenisation,
   shariahCapable,
   preciousMetals,
 ];

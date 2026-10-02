@@ -9,7 +9,8 @@ import { ReviewPlaceholder } from "@/components/ui/ReviewPlaceholder";
 import { getStrategy, STATUS_INFO, STRATEGIES } from "@/content/strategies";
 import { generalDisclaimer } from "@/lib/site";
 
-export const dynamicParams = false;
+/** Unknown slugs render notFound() on request, so the 404 hydrates with the real path. */
+export const dynamicParams = true;
 
 export function generateStaticParams() {
   return STRATEGIES.map((s) => ({ slug: s.slug }));

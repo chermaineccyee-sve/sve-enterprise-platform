@@ -87,6 +87,6 @@ export const preciousMetals: Insight = {
       text: "Precious metals can be volatile, generate no income and may be subject to custody, counterparty and currency risks. This note is not a recommendation.",
     },
   ],
-  related: ["the-resilience-lens", "alternatives-require-more-discipline", "tokenisation-a-framework-first-approach"],
+  related: ["the-resilience-lens", "alternatives-require-more-discipline"],
   relatedInstruments: ["gold", "silver"],
 };
