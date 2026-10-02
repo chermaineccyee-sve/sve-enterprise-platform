@@ -5,32 +5,39 @@ import Link from "next/link";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { StateGauge } from "@/components/identity/StateGauge";
 import { Change } from "@/components/market/Change";
+import { StaleMark } from "@/components/market/MarketStatus";
 import { Sparkline } from "@/components/market/Sparkline";
-import { MARKET_STATE } from "@/content/intelligence";
 import type { InsightListing } from "@/content/insights/types";
+import type { MarketStateEdition } from "@/content/model/intelligence";
 import { formatValue } from "@/lib/market/format";
-import type { InstrumentSnapshot } from "@/lib/market/types";
+import { statusTitle } from "@/lib/market/status";
+import type { DataProvenance, InstrumentSnapshot } from "@/lib/market/types";
 
 /**
  * NUSANTARA MARKET STATE — a visual interpretation layer over market data.
- * Six dimensions, each a qualitative reading on a five-step scale. Selecting a
- * dimension reveals the reading, what would change it, the indicators behind
- * it and the research that develops it. A demonstration framework for
- * management review — not a house view.
+ * Renders whichever edition the content repository publishes (dimensions,
+ * readings, watch items, change conditions and supporting markets are all
+ * data). Selecting a dimension reveals the reading, what would change it, the
+ * markets behind it and the research that develops it.
  */
 export function MarketState({
+  edition,
   instruments,
   sparks,
   insights,
+  provenance,
 }: {
+  edition: MarketStateEdition;
   instruments: Record<string, InstrumentSnapshot>;
   sparks: Record<string, number[]>;
   insights: Record<string, InsightListing>;
+  provenance: DataProvenance;
 }) {
+  const MARKET_STATE = edition.dimensions;
   const [active, setActive] = useState(0);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const d = MARKET_STATE[active];
-  const insight = insights[d.insight];
+  const insight = d.relatedInsight ? insights[d.relatedInsight] : undefined;
 
   const onKey = (e: KeyboardEvent, i: number) => {
     const next = e.key === "ArrowDown" ? i + 1 : e.key === "ArrowUp" ? i - 1 : null;
@@ -63,7 +70,7 @@ export function MarketState({
         <div className="mt-6 md:hidden">
           <p className="font-serif text-[2.4rem] leading-none text-teal-900">{d.state}</p>
           <div className="mt-4">
-            <StateGauge id={`m-${d.id}`} scale={d.scale} position={d.position} showLabels />
+            <StateGauge id={`m-${d.id}`} scale={d.stance.scale} position={d.stance.position} showLabels />
           </div>
         </div>
 
@@ -103,7 +110,7 @@ export function MarketState({
                   {dim.state}
                 </span>
                 <span className="col-span-2 md:col-span-1">
-                  <StateGauge id={dim.id} scale={dim.scale} position={dim.position} showLabels={on} />
+                  <StateGauge id={dim.id} scale={dim.stance.scale} position={dim.stance.position} showLabels={on} />
                 </span>
               </button>
             );
@@ -115,7 +122,7 @@ export function MarketState({
       <div className="lg:col-span-5 lg:pl-12">
         <div className="lg:sticky lg:top-28">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone">Illustrative reading</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone">{edition.sample ? "Illustrative reading" : "Nusantara reading"}</p>
           </div>
           <AnimatePresence mode="wait" initial={false}>
             <m.div
@@ -131,11 +138,11 @@ export function MarketState({
               <h3 className="display-s mt-4 hidden text-teal-900 md:block">
                 {d.label}: <em className="text-gold-700">{d.state.toLowerCase()}</em>
               </h3>
-              <p className="mt-4 text-[16px] leading-relaxed text-charcoal">{d.reading}</p>
+              <p className="mt-4 text-[16px] leading-relaxed text-charcoal">{d.summary}</p>
 
               <p className="eyebrow mt-8 text-stone">What we are watching</p>
               <ul className="mt-3 space-y-2">
-                {d.watching.map((w) => (
+                {d.watchItems.map((w) => (
                   <li key={w} className="flex items-start gap-3 text-[14.5px] text-charcoal">
                     {w}
                   </li>
@@ -144,16 +151,18 @@ export function MarketState({
 
               <div className="hidden md:block">
               <p className="eyebrow mt-8 text-stone">What would change our reading</p>
-              <p className="mt-2 text-[14.5px] leading-relaxed text-charcoal">{d.wouldChange}</p>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-charcoal">{d.changeConditions}</p>
 
               <p className="eyebrow mt-8 text-stone">Market data behind it</p>
               <ul className="mt-3 divide-y divide-rule-soft border-y border-rule-soft">
-                {d.instruments.map((id) => {
+                {d.supportingMarkets.map((id) => {
                   const s = instruments[id];
                   if (!s) return null;
                   return (
                     <li key={id} className="flex items-center justify-between gap-3 py-2.5">
-                      <span className="w-20 text-[13px] font-semibold text-ink">{s.instrument.shortName}</span>
+                      <span className="w-20 text-[13px] font-semibold text-ink">
+                        {s.instrument.shortName} <StaleMark provenance={s.provenance} />
+                      </span>
                       <Sparkline values={sparks[id] ?? []} width={72} height={22} label={`${s.instrument.shortName} trend`} className="text-teal-800" />
                       <span className="num w-20 text-right text-[13px] text-ink">
                         {formatValue(s.quote.value, s.instrument.decimals)}
@@ -164,7 +173,7 @@ export function MarketState({
                   );
                 })}
               </ul>
-              <p className="mt-2 text-[11px] text-stone">Illustrative data · day change</p>
+              <p className="mt-2 text-[11px] text-stone">{statusTitle(provenance)} data · day change</p>
               </div>
 
               {insight && (

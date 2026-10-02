@@ -4,6 +4,10 @@ import { Footer } from "@/components/layout/Footer";
 import { Navbar } from "@/components/layout/Navbar";
 import { PrototypeBanner } from "@/components/layout/PrototypeBanner";
 import { MotionProvider } from "@/components/motion/MotionProvider";
+import { config } from "@/lib/config";
+import { getInsights } from "@/lib/content/repository";
+import { getMarketSnapshot } from "@/lib/market/service";
+import { statusTitle } from "@/lib/market/status";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -39,15 +43,20 @@ export const metadata: Metadata = {
     locale: "en_GB",
   },
   twitter: { card: "summary_large_image" },
-  // Prototype: keep out of search indexes until management approves publication.
-  robots: site.isPrototype ? { index: false, follow: false } : { index: true, follow: true },
+  // Indexing follows the environment; production only once management decides (src/lib/config.ts).
+  robots: config.indexing === "allow" ? { index: true, follow: true } : { index: false, follow: false },
 };
 
 export const viewport: Viewport = {
   themeColor: "#12384a",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const [{ provenance }, insights] = await Promise.all([getMarketSnapshot(), getInsights()]);
+  const scenario = insights.find((i) => i.body.some((b) => b.type === "scenario"));
+  const scenarioHref = scenario ? `/insights/${scenario.slug}#scenario` : null;
+  const dataLabel = provenance.status === "unavailable" ? "Data unavailable" : `${statusTitle(provenance)} data`;
+  const prototypeNote = config.isPrototype ? "Management-review prototype. Market information shown on this website is illustrative." : null;
   return (
     <html lang="en-GB" className={`${newsreader.variable} ${plex.variable}`} suppressHydrationWarning>
       <head>
@@ -65,11 +74,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         </a>
         <MotionProvider>
           <PrototypeBanner />
-          <Navbar />
+          <Navbar dataLabel={dataLabel} prototypeNote={prototypeNote} />
           <main id="main" tabIndex={-1} className="outline-none">
             {children}
           </main>
-          <Footer />
+          <Footer prototype={config.isPrototype} scenarioHref={scenarioHref} />
         </MotionProvider>
       </body>
     </html>

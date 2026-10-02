@@ -18,7 +18,7 @@ function isActive(pathname: string, href: string) {
  * item and rests under the current section; a hairline tracks reading
  * progress through the page.
  */
-export function Navbar() {
+export function Navbar({ dataLabel, prototypeNote }: { dataLabel: string; prototypeNote: string | null }) {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -129,12 +129,12 @@ export function Navbar() {
             <Link
               href="/market-dashboard"
               className="group flex items-center gap-2 border-l border-rule pl-5 text-[11.5px] text-stone hover:text-teal-800"
-              title="Market data on this prototype is illustrative"
+              title={prototypeNote ? "Market data on this prototype is illustrative" : `Market data: ${dataLabel.toLowerCase()}`}
             >
               <NStar className="star-breathe h-2.5 w-2.5 text-gold-500" />
               <span>
                 <span className="block font-semibold uppercase tracking-[0.14em] text-teal-800">Markets</span>
-                <span className="block leading-tight">Illustrative data</span>
+                <span className="block leading-tight">{dataLabel}</span>
               </span>
             </Link>
             <Link
@@ -206,10 +206,12 @@ export function Navbar() {
               );
             })}
           </ul>
-          <p className="mt-auto flex items-center gap-2 pt-10 text-xs leading-relaxed text-stone">
-            <NStar className="h-2 w-2 text-gold-500" />
-            Management-review prototype. Market information shown on this website is illustrative.
-          </p>
+          {prototypeNote && (
+            <p className="mt-auto flex items-center gap-2 pt-10 text-xs leading-relaxed text-stone">
+              <NStar className="h-2 w-2 text-gold-500" />
+              {prototypeNote}
+            </p>
+          )}
         </nav>
       </div>
     </>

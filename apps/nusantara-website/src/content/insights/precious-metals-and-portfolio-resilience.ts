@@ -1,3 +1,4 @@
+import { researchSample } from "./sample";
 import type { Insight } from "./types";
 
 export const preciousMetals: Insight = {
@@ -22,7 +23,8 @@ export const preciousMetals: Insight = {
   ],
   tags: ["Precious metals", "Gold", "Resilience", "Custody"],
   hero: { motif: "rings" },
-  status: "sample",
+  ...researchSample("2026-09-24"),
+  assetClasses: ["Commodities"],
   sources: [
     { label: "Nusantara Research", detail: "Framework and interpretation developed for this note." },
     { label: "Nusantara Market Dashboard", detail: "Illustrative prototype dataset used for the chart in this note." },
@@ -88,5 +90,5 @@ export const preciousMetals: Insight = {
     },
   ],
   related: ["the-resilience-lens", "alternatives-require-more-discipline"],
-  relatedInstruments: ["gold", "silver"],
+  markets: ["gold", "silver"],
 };

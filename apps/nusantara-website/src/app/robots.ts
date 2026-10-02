@@ -1,8 +1,13 @@
 import type { MetadataRoute } from "next";
+import { config } from "@/lib/config";
 import { site } from "@/lib/site";
 
+/**
+ * Indexing follows the environment (src/lib/config.ts): prototype and staging
+ * are excluded entirely; production is indexed only when management has
+ * decided so (SITE_INDEXING=allow).
+ */
 export default function robots(): MetadataRoute.Robots {
-  // While in management review the whole site is excluded from indexing.
-  if (site.isPrototype) return { rules: { userAgent: "*", disallow: "/" } };
+  if (config.indexing !== "allow") return { rules: { userAgent: "*", disallow: "/" } };
   return { rules: { userAgent: "*", allow: "/", disallow: "/api/" }, sitemap: `${site.url}/sitemap.xml` };
 }

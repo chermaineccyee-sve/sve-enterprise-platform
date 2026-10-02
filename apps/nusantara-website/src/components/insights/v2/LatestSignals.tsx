@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Change } from "@/components/market/Change";
-import type { Signal } from "@/content/intelligence";
+import { StaleMark } from "@/components/market/MarketStatus";
+import type { Signal } from "@/content/model/intelligence";
 import { formatInsightDate } from "@/content/insights/types";
 import { formatValue } from "@/lib/market/format";
 import type { InstrumentSnapshot } from "@/lib/market/types";
@@ -27,6 +28,7 @@ export function LatestSignals({ signals, instruments }: { signals: Signal[]; ins
               {inst ? (
                 <span className="flex items-center gap-2 text-[12px]">
                   <span className="font-semibold text-ink">{inst.instrument.shortName}</span>
+                  <StaleMark provenance={inst.provenance} />
                   <span className="num text-charcoal">
                     {formatValue(inst.quote.value, inst.instrument.decimals)}
                     {inst.instrument.unit === "%" ? "%" : ""}

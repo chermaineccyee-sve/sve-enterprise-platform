@@ -1,3 +1,4 @@
+import { researchSample } from "./sample";
 import type { Insight } from "./types";
 
 export const alternativesRequireDiscipline: Insight = {
@@ -21,7 +22,8 @@ export const alternativesRequireDiscipline: Insight = {
   ],
   tags: ["Alternatives", "Liquidity", "Valuation", "Due diligence"],
   hero: { motif: "grid" },
-  status: "sample",
+  ...researchSample("2026-09-18"),
+  assetClasses: ["Alternatives", "Private markets"],
   sources: [{ label: "Nusantara Research", detail: "Framework and interpretation developed for this note." }],
   body: [
     { type: "heading", id: "context", text: "From periphery to core" },
@@ -90,5 +92,5 @@ export const alternativesRequireDiscipline: Insight = {
     },
   ],
   related: ["private-credit-the-terms-behind-the-yield", "from-access-to-governed-allocation"],
-  relatedInstruments: ["gold"],
+  markets: ["gold"],
 };

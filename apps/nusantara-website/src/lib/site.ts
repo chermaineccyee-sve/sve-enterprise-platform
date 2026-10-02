@@ -1,7 +1,8 @@
 /**
  * Central site configuration. Corporate facts that have not been approved
  * for publication are deliberately represented as `null` and rendered as
- * management-review placeholders rather than invented.
+ * management-review placeholders rather than invented. Environment
+ * behaviour (prototype / staging / production) lives in ./config.ts.
  */
 export const site = {
   name: "Nusantara Fund Management",
@@ -11,8 +12,6 @@ export const site = {
     "Disciplined investment thinking, market intelligence and governed allocation for long-term value creation.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.example.com",
   copyrightYear: 2026,
-  /** Set to false once the site moves from management review to publication. */
-  isPrototype: true,
   contact: {
     // Not supplied — rendered as clearly marked placeholders.
     address: null as string | null,

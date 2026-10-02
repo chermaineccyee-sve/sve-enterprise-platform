@@ -2,6 +2,8 @@ import { getMarketHistory } from "@/lib/market/service";
 import { CHART_PERIODS, type ChartPeriod } from "@/lib/market/types";
 
 export const dynamic = "force-static";
+/** Rebuilt at most every 60 s, so a delayed or live provider is re-read without a redeploy. */
+export const revalidate = 60;
 export const dynamicParams = false;
 
 export function generateStaticParams() {

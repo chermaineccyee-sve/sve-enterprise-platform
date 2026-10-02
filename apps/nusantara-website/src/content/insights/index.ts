@@ -10,7 +10,13 @@ import type { Block, Insight, InsightListing } from "./types";
 
 export * from "./types";
 
-/** Register new articles here. Order does not matter; lists sort by date. */
+/**
+ * LOCAL CONTENT SOURCE for research. Pages never read this directly — they
+ * use src/lib/content/repository.ts, which applies publication rules. A CMS
+ * adapter replaces this registry without touching any page or component.
+ *
+ * Register new articles here. Order does not matter; lists sort by date.
+ */
 const ALL: Insight[] = [
   fromAccessToGovernedAllocation,
   q4MarketOutlook,
@@ -30,20 +36,7 @@ export function getInsight(slug: string): Insight | undefined {
   return ALL.find((i) => i.slug === slug);
 }
 
-export function getFeaturedInsight(): Insight {
-  return getAllInsights().find((i) => i.featured) ?? getAllInsights()[0];
-}
-
-export function getRelatedInsights(insight: Insight, limit = 3): Insight[] {
-  const explicit = (insight.related ?? []).map(getInsight).filter((i): i is Insight => !!i);
-  const fallback = getAllInsights().filter(
-    (i) => i.slug !== insight.slug && !explicit.includes(i) && i.category === insight.category,
-  );
-  const rest = getAllInsights().filter((i) => i.slug !== insight.slug && !explicit.includes(i) && !fallback.includes(i));
-  return [...explicit, ...fallback, ...rest].slice(0, limit);
-}
-
-function blockText(b: Block): string {
+export function blockText(b: Block): string {
   switch (b.type) {
     case "heading":
     case "paragraph":
@@ -78,16 +71,14 @@ export function toListing(i: Insight): InsightListing {
     subtitle: i.subtitle,
     category: i.category,
     date: i.date,
+    updatedAt: i.updatedAt,
     author: i.author,
     summary: i.summary,
     tags: i.tags,
     hero: i.hero,
     featured: i.featured,
     status: i.status,
+    sample: i.sample,
     readingTime: readingMinutes(i),
   };
-}
-
-export function getAllListings(): InsightListing[] {
-  return getAllInsights().map(toListing);
 }

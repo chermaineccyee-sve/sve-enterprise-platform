@@ -1,3 +1,4 @@
+import { researchSample } from "./sample";
 import type { Insight } from "./types";
 
 export const resilienceLens: Insight = {
@@ -21,7 +22,8 @@ export const resilienceLens: Insight = {
   ],
   tags: ["Risk", "Resilience", "Portfolio construction"],
   hero: { motif: "rings" },
-  status: "sample",
+  ...researchSample("2026-08-27"),
+  assetClasses: ["Multi-asset"],
   sources: [{ label: "Nusantara Research", detail: "Framework and interpretation developed for this note." }],
   body: [
     { type: "heading", id: "risk-resilience-return", text: "Between risk and return" },
@@ -72,5 +74,5 @@ export const resilienceLens: Insight = {
     },
   ],
   related: ["from-access-to-governed-allocation", "alternatives-require-more-discipline", "q4-2026-market-outlook"],
-  relatedInstruments: ["spx", "gold"],
+  markets: ["spx", "gold"],
 };

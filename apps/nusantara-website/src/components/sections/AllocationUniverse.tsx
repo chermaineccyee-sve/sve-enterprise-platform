@@ -5,10 +5,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { STAR_PATH } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
+import { StaleMark } from "@/components/market/MarketStatus";
 import type { InsightListing } from "@/content/insights/types";
 import { PROFILE_AXES, STATUS_INFO, type Strategy } from "@/content/strategies";
+import { track } from "@/lib/analytics";
 import { formatValue } from "@/lib/market/format";
-import type { InstrumentSnapshot, IntelligenceIndicator } from "@/lib/market/types";
+import { statusPhrase } from "@/lib/market/status";
+import type { DataProvenance, InstrumentSnapshot, IntelligenceIndicator } from "@/lib/market/types";
 
 const LEVEL = ["Lower", "Moderate", "Higher"];
 
@@ -23,11 +26,14 @@ export function AllocationUniverse({
   instruments,
   indicators,
   insights,
+  provenance,
 }: {
   strategies: Strategy[];
   instruments: Record<string, InstrumentSnapshot>;
   indicators: Record<string, IntelligenceIndicator>;
-  insights: Record<string, InsightListing>;
+  /** The most relevant visible insight per capability slug, resolved by the relationship engine. */
+  insights: Record<string, InsightListing | null>;
+  provenance: DataProvenance;
 }) {
   const [active, setActive] = useState(0);
   const s = strategies[active];
@@ -37,7 +43,7 @@ export function AllocationUniverse({
     return { st, i, x: Math.round(Math.cos(a) * 150 * 100) / 100, y: Math.round(Math.sin(a) * 150 * 100) / 100 };
   });
   const sel = nodes[active];
-  const insight = insights[s.insight];
+  const insight = insights[s.slug] ?? null;
 
   return (
     <div className="grid gap-10 lg:grid-cols-12 lg:gap-8">
@@ -74,7 +80,7 @@ export function AllocationUniverse({
           <m.line x1="0" y1="0" initial={false} animate={{ x2: sel.x, y2: sel.y }} transition={{ type: "spring", stiffness: 140, damping: 20 }} stroke="#b8955a" strokeWidth="1.4" />
           {nodes.map(({ st, i, x, y }) => {
             const on = i === active;
-            const future = st.status === "future-development";
+            const future = st.stage === "future-development";
             return (
               <g key={st.slug} transform={`translate(${x} ${y})`} onClick={() => setActive(i)} onMouseEnter={() => setActive(i)} className="cursor-pointer" aria-hidden>
                 <circle r={on ? 20 : 15} fill={on ? "var(--color-teal-800)" : "var(--color-paper)"} stroke={future ? "var(--color-mist)" : "var(--color-teal-800)"} strokeDasharray={future ? "3 3" : undefined} style={{ transition: "r 300ms, fill 300ms" }} />
@@ -91,7 +97,10 @@ export function AllocationUniverse({
       <div className="lg:col-span-5" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <m.div key={s.slug} id="universe-panel" role="tabpanel" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.35 }}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">{STATUS_INFO[s.status].label} · not an offered product</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">
+              {STATUS_INFO[s.stage].label}
+              {s.status === "active-product" ? "" : " · not an offered product"}
+            </p>
             <h3 className="display-m mt-3 text-teal-900">{s.name}</h3>
             <p className="mt-4 font-serif text-[1.35rem] italic leading-snug text-gold-700">{s.role}</p>
 
@@ -104,13 +113,15 @@ export function AllocationUniverse({
               ))}
             </ul>
 
-            {(s.relatedInstruments.length > 0 || s.relatedIndicators.length > 0) && (
+            {(s.markets.some((id) => instruments[id]) || s.indicators.some((id) => indicators[id])) && (
               <>
-                <p className="eyebrow mt-8 text-stone">Market relationships · illustrative</p>
+                <p className="eyebrow mt-8 text-stone">Market relationships · {statusPhrase(provenance)}</p>
                 <ul className="mt-2">
-                  {s.relatedInstruments.map((id) => instruments[id]).filter(Boolean).map((x) => (
+                  {s.markets.map((id) => instruments[id]).filter(Boolean).map((x) => (
                     <li key={x.instrument.id} className="flex items-center justify-between gap-2 border-b border-rule-soft py-1.5 text-[13px]">
-                      <span className="font-semibold">{x.instrument.shortName}</span>
+                      <span className="font-semibold">
+                        {x.instrument.shortName} <StaleMark provenance={x.provenance} />
+                      </span>
                       <span className="num">
                         {formatValue(x.quote.value, x.instrument.decimals)}
                         {x.instrument.unit === "%" ? "%" : ""}
@@ -118,7 +129,7 @@ export function AllocationUniverse({
                       <Change instrument={x.instrument} change={x.quote.change} changePct={x.quote.changePct} changeBp={x.quote.changeBp} showAbsolute={false} />
                     </li>
                   ))}
-                  {s.relatedIndicators.map((id) => indicators[id]).filter(Boolean).map((x) => (
+                  {s.indicators.map((id) => indicators[id]).filter(Boolean).map((x) => (
                     <li key={x.id} className="flex items-center justify-between gap-2 border-b border-rule-soft py-1.5 text-[13px]">
                       <span>{x.title}</span>
                       <span className="num">
@@ -138,7 +149,10 @@ export function AllocationUniverse({
               </Link>
             )}
 
-            <Link href={`/strategies/${s.slug}`} className="btn-fill mt-8 inline-flex h-11 items-center gap-3 border border-teal-800/40 px-5 text-[14px] font-medium text-teal-800 hover:text-white [--fill:var(--color-teal-800)]">
+            <Link
+              href={`/strategies/${s.slug}`}
+              onClick={() => track({ name: "capability_explored", capability: s.slug })}
+              className="btn-fill mt-8 inline-flex h-11 items-center gap-3 border border-teal-800/40 px-5 text-[14px] font-medium text-teal-800 hover:text-white [--fill:var(--color-teal-800)]">
               Explore capability <span aria-hidden>→</span>
             </Link>
 

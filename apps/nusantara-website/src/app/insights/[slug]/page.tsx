@@ -1,51 +1,100 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { TrackedDetails, TrackOnMount } from "@/components/analytics/Track";
 import { ArticleBody, LayerGlyph, LAYER_META } from "@/components/insights/ArticleBody";
 import { InsightVisual } from "@/components/insights/InsightVisual";
 import { ShareTools } from "@/components/insights/ShareTools";
 import { ArticleToc } from "@/components/insights/v2/ArticleToc";
 import { PrintOpen } from "@/components/insights/v2/PrintOpen";
 import { Change } from "@/components/market/Change";
+import { StaleMark } from "@/components/market/MarketStatus";
 import { Sparkline } from "@/components/market/Sparkline";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { formatInsightDate, getAllInsights, getInsight, getRelatedInsights, readingMinutes, toListing } from "@/content/insights";
-import { getInstrumentView } from "@/content/intelligence";
+import { readingMinutes, toListing } from "@/content/insights";
+import { formatInsightDate, type InsightSource } from "@/content/insights/types";
+import { getContentGraph, getInsight, getInsights } from "@/lib/content/repository";
 import { formatTimestamp, formatValue } from "@/lib/market/format";
 import { getMarketHistory, getMarketSnapshot } from "@/lib/market/service";
+import { statusTitle } from "@/lib/market/status";
 import { generalDisclaimer, site } from "@/lib/site";
 
 /** Unknown slugs render notFound() on request, so the 404 hydrates with the real path. */
 export const dynamicParams = true;
 
-export function generateStaticParams() {
-  return getAllInsights().map((i) => ({ slug: i.slug }));
+/** Market signals in the margin refresh at most every five minutes once a live or delayed provider is configured. */
+export const revalidate = 300;
+
+export async function generateStaticParams() {
+  return (await getInsights()).map((i) => ({ slug: i.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps<"/insights/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const insight = getInsight(slug);
+  const insight = await getInsight(slug);
   if (!insight) return {};
+  const title = insight.seo?.title ?? insight.title;
+  const description = insight.seo?.description ?? insight.summary;
   return {
-    title: insight.title,
-    description: insight.summary,
+    title,
+    description,
     alternates: { canonical: `/insights/${insight.slug}` },
-    openGraph: { type: "article", title: insight.title, description: insight.summary, publishedTime: insight.date, authors: [insight.author], section: insight.category, tags: insight.tags },
+    openGraph: {
+      type: "article",
+      title,
+      description,
+      publishedTime: insight.publishedAt ?? insight.date,
+      modifiedTime: insight.updatedAt,
+      authors: [insight.author],
+      section: insight.category,
+      tags: insight.tags,
+      ...(insight.seo?.image ? { images: [insight.seo.image] } : {}),
+    },
   };
+}
+
+/** Source-governance metadata, shown when present (provider, dates, licence, method, link). */
+function SourceMeta({ source }: { source: InsightSource }) {
+  const rows: [string, React.ReactNode][] = [];
+  if (source.provider) rows.push(["Provider", source.provider]);
+  if (source.publishedAt) rows.push(["Published", formatInsightDate(source.publishedAt.slice(0, 10))]);
+  if (source.retrievedAt) rows.push(["Retrieved", formatInsightDate(source.retrievedAt.slice(0, 10))]);
+  if (source.licensingNote) rows.push(["Licence", source.licensingNote]);
+  if (source.methodology) rows.push(["Method", source.methodology]);
+  if (source.url)
+    rows.push([
+      "Reference",
+      <a key="u" href={source.url} rel="noopener noreferrer" target="_blank" className="link-underline text-teal-800">
+        {source.url}
+      </a>,
+    ]);
+  if (!rows.length) return null;
+  return (
+    <dl className="mt-2 grid gap-x-4 gap-y-1 pl-7 text-[12.5px] text-stone sm:grid-cols-[90px_1fr]">
+      {rows.map(([k, v]) => (
+        <div key={k} className="contents">
+          <dt>{k}</dt>
+          <dd className="text-charcoal">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 export default async function InsightArticlePage({ params }: PageProps<"/insights/[slug]">) {
   const { slug } = await params;
-  const insight = getInsight(slug);
+  const insight = await getInsight(slug);
   if (!insight) notFound();
+  const graph = await getContentGraph();
 
   const minutes = readingMinutes(insight);
   const headings = insight.body.filter((b): b is Extract<typeof b, { type: "heading" }> => b.type === "heading");
   const toc = [{ id: "summary", text: "Executive summary" }, ...headings.map((h) => ({ id: h.id, text: h.text })), { id: "sources", text: "Sources and methodology" }];
-  const related = getRelatedInsights(insight).map(toListing);
+  const related = graph.relatedInsights(insight.slug).map(toListing);
   const path = `/insights/${insight.slug}`;
-  const signalIds = insight.relatedInstruments ?? [];
+  const signalIds = graph.marketsForInsight(insight.slug);
+  const updated = !insight.sample && insight.updatedAt.slice(0, 10) !== insight.date ? insight.updatedAt.slice(0, 10) : null;
   const [snapshot, hist] = signalIds.length ? await Promise.all([getMarketSnapshot(signalIds), getMarketHistory("1M", signalIds)]) : [null, []];
   const sparks = new Map(hist.map((h) => [h.instrumentId, h.points.map((p) => p.v)]));
 
@@ -54,7 +103,8 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
     "@type": "Article",
     headline: insight.title,
     description: insight.summary,
-    datePublished: insight.date,
+    datePublished: insight.publishedAt ?? insight.date,
+    dateModified: insight.updatedAt,
     author: { "@type": "Organization", name: insight.author },
     publisher: { "@type": "Organization", name: site.name },
     articleSection: insight.category,
@@ -69,11 +119,13 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
       </p>
       <ul className="mt-3 space-y-3">
         {snapshot.instruments.map((s) => {
-          const view = getInstrumentView(s.instrument.id, s.instrument.assetClass);
+          const view = graph.viewForMarket(s.instrument.id);
           return (
             <li key={s.instrument.id} className="border-l-2 border-teal-800 bg-white px-4 py-3">
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[13px] font-semibold text-ink">{s.instrument.shortName}</span>
+                <span className="text-[13px] font-semibold text-ink">
+                  {s.instrument.shortName} <StaleMark provenance={s.provenance} />
+                </span>
                 <span className="num text-[13px] text-ink">
                   {formatValue(s.quote.value, s.instrument.decimals)}
                   {s.instrument.unit === "%" ? "%" : ""}
@@ -83,14 +135,18 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
                 <Sparkline values={sparks.get(s.instrument.id) ?? []} width={96} height={22} label={`${s.instrument.shortName} one-month trend`} className="text-teal-800" />
                 <Change instrument={s.instrument} change={s.quote.change} changePct={s.quote.changePct} changeBp={s.quote.changeBp} showAbsolute={false} />
               </div>
-              <p className="mt-2 text-[12px] text-stone">
-                Nusantara signal: <span className="font-serif text-[13.5px] italic text-gold-700">{view.signal}</span>
-              </p>
+              {view?.signal && (
+                <p className="mt-2 text-[12px] text-stone">
+                  Nusantara signal: <span className="font-serif text-[13.5px] italic text-gold-700">{view.signal}</span>
+                </p>
+              )}
             </li>
           );
         })}
       </ul>
-      <p className="mt-2 text-[10.5px] text-stone">Illustrative · As at {formatTimestamp(snapshot.provenance.asOf)}</p>
+      <p className="mt-2 text-[10.5px] text-stone">
+        {statusTitle(snapshot.provenance)} · As at {formatTimestamp(snapshot.provenance.asOf)}
+      </p>
     </div>
   ) : null;
 
@@ -98,6 +154,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
     <article>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <PrintOpen />
+      <TrackOnMount event={{ name: "insight_opened", slug: insight.slug }} />
       <header className="bg-ivory">
         <div className="container-site pt-10 pb-12 md:pt-14 md:pb-16">
           <Breadcrumb
@@ -123,6 +180,14 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
                   <time dateTime={insight.date}>{formatInsightDate(insight.date)}</time>
                 </dd>
               </div>
+              {updated && (
+                <div className="flex gap-2">
+                  <dt className="text-stone">Last updated</dt>
+                  <dd className="text-ink">
+                    <time dateTime={updated}>{formatInsightDate(updated)}</time>
+                  </dd>
+                </div>
+              )}
               <div className="flex gap-2">
                 <dt className="text-stone">Author</dt>
                 <dd className="text-ink">{insight.author}</dd>
@@ -163,7 +228,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
           </aside>
 
           <div id="article-body" className="min-w-0 lg:col-span-9 xl:col-span-7">
-            {insight.status === "sample" && (
+            {insight.sample && (
               <p className="mb-10 border-l-2 border-gold-500 pl-4 text-[12.5px] text-stone">
                 <span className="font-semibold uppercase tracking-[0.12em] text-gold-800">Management review · Pending approval.</span> Data shown is illustrative.
               </p>
@@ -204,7 +269,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
               <ol className="mt-4 divide-y divide-rule-soft border-y border-rule-soft">
                 {insight.sources.map((s, i) => (
                   <li key={i}>
-                    <details className="group py-3">
+                    <TrackedDetails event={{ name: "insight_source_expanded", slug: insight.slug, source: i + 1 }} className="group py-3">
                       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[14px] [&::-webkit-details-marker]:hidden">
                         <span>
                           <span className="num mr-3 text-stone">{i + 1}.</span>
@@ -213,7 +278,8 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
                         <span aria-hidden className="text-teal-800 transition-transform group-open:rotate-45">+</span>
                       </summary>
                       {s.detail && <p className="mt-2 pl-7 text-[13.5px] leading-relaxed text-stone">{s.detail}</p>}
-                    </details>
+                      <SourceMeta source={s} />
+                    </TrackedDetails>
                   </li>
                 ))}
               </ol>

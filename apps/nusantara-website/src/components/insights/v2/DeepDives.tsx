@@ -2,18 +2,34 @@
 
 import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { INSIGHT_CATEGORIES, formatInsightDate, type InsightCategory, type InsightListing } from "@/content/insights/types";
+import { SEARCH_INDEX_PATH, searchIndex, type SearchIndex } from "@/lib/search";
 
 type Filter = "All" | InsightCategory;
 
 /**
  * Research index: large editorial rows rather than a card grid. Categories
- * filter in place (no reload).
+ * filter in place (no reload). Search covers title, summary, body, tags,
+ * themes, markets and asset classes via the static search index, fetched on
+ * the first search (src/lib/search.ts).
  */
 export function DeepDives({ insights }: { insights: InsightListing[] }) {
   const [cat, setCat] = useState<Filter>("All");
   const [q, setQ] = useState("");
+  const [index, setIndex] = useState<SearchIndex | null>(null);
+  const requested = useRef(false);
+
+  useEffect(() => {
+    if (!q.trim() || requested.current) return;
+    requested.current = true;
+    fetch(SEARCH_INDEX_PATH)
+      .then((r) => (r.ok ? (r.json() as Promise<SearchIndex>) : null))
+      .then((ix) => ix && setIndex(ix))
+      .catch(() => {
+        requested.current = false;
+      });
+  }, [q]);
 
   useEffect(() => {
     const c = new URLSearchParams(window.location.search).get("category");
@@ -34,9 +50,11 @@ export function DeepDives({ insights }: { insights: InsightListing[] }) {
   const counts = new Map<string, number>();
   insights.forEach((i) => counts.set(i.category, (counts.get(i.category) ?? 0) + 1));
   const needle = q.trim().toLowerCase();
-  const shown = insights.filter(
-    (i) => (cat === "All" || i.category === cat) && (!needle || [i.title, i.subtitle, i.summary, ...i.tags].join(" ").toLowerCase().includes(needle)),
-  );
+  // Full-text matches once the index has loaded; until then, listing fields.
+  const hits = needle && index ? searchIndex(index, needle) : null;
+  const matches = (i: InsightListing) =>
+    !needle || (hits ? hits.has(i.slug) : [i.title, i.subtitle, i.summary, ...i.tags].join(" ").toLowerCase().includes(needle));
+  const shown = insights.filter((i) => (cat === "All" || i.category === cat) && matches(i));
 
   return (
     <div>

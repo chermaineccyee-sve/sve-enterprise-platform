@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ENQUIRY_TOPICS, validateEnquiry, type EnquiryErrors, type EnquiryInput } from "@/lib/contact";
+import { track } from "@/lib/analytics";
+import { ENQUIRY_TOPICS, validateEnquiry, type EnquiryErrors, type EnquiryInput, type SubmissionStatus } from "@/lib/contact";
 
 const EMPTY: EnquiryInput = { topic: "", name: "", email: "", organisation: "", message: "", consent: false, website: "" };
 const FIELD_ORDER = ["topic", "name", "email", "message", "consent"] as const;
@@ -12,6 +13,8 @@ export function ContactForm() {
   const [errors, setErrors] = useState<EnquiryErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [state, setState] = useState<"idle" | "submitting" | "done" | "error">("idle");
+  const [delivery, setDelivery] = useState<SubmissionStatus>("not-configured");
+  const started = useRef(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const doneRef = useRef<HTMLDivElement>(null);
 
@@ -24,6 +27,10 @@ export function ContactForm() {
   }, []);
 
   const set = <K extends keyof EnquiryInput>(k: K, v: EnquiryInput[K]) => {
+    if (!started.current) {
+      started.current = true;
+      track({ name: "contact_started", topic: values.topic || null });
+    }
     const next = { ...values, [k]: v };
     setValues(next);
     if (touched[k as string] || Object.keys(errors).length) setErrors(validateEnquiry(next));
@@ -58,6 +65,9 @@ export function ContactForm() {
         requestAnimationFrame(() => summaryRef.current?.focus());
         return;
       }
+      const status: SubmissionStatus = data.status === "delivered" ? "delivered" : "not-configured";
+      setDelivery(status);
+      track({ name: "contact_submitted", topic: values.topic, delivery: status });
       setState("done");
       requestAnimationFrame(() => doneRef.current?.focus());
     } catch {
@@ -71,10 +81,14 @@ export function ContactForm() {
       <div ref={doneRef} tabIndex={-1} role="status" className="border border-teal-800 bg-white p-8 outline-none">
         <p className="eyebrow text-stone">Enquiry received</p>
         <h2 className="display-s mt-4 text-teal-900">Thank you, {values.name.split(" ")[0]}.</h2>
-        <p className="mt-4 text-[15px] leading-relaxed text-charcoal">
-          Your enquiry passed validation. <strong>In this management-review prototype, enquiries are not stored or sent.</strong>{" "}
-          Once a delivery channel is approved, messages will be routed to the appropriate team.
-        </p>
+        {delivery === "delivered" ? (
+          <p className="mt-4 text-[15px] leading-relaxed text-charcoal">Your enquiry has been received and will be routed to the appropriate team.</p>
+        ) : (
+          <p className="mt-4 text-[15px] leading-relaxed text-charcoal">
+            Your enquiry passed validation. <strong>In this management-review prototype, enquiries are not stored or sent.</strong>{" "}
+            Once a delivery channel is approved, messages will be routed to the appropriate team.
+          </p>
+        )}
         <button
           type="button"
           onClick={() => {

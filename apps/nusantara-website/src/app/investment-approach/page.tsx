@@ -3,7 +3,7 @@ import { ContactCTA } from "@/components/sections/ContactCTA";
 import { ProcessStory } from "@/components/home/ProcessStory";
 import { AccessToAllocation } from "@/components/sections/AccessToAllocation";
 import { INSTRUMENTS } from "@/lib/market/instruments";
-import { ILLUSTRATIVE_INDICATORS } from "@/lib/market/providers/illustrative-intelligence";
+import { getIntelligence } from "@/lib/market/service";
 import { RiskFramework } from "@/components/sections/RiskFramework";
 import { CTA } from "@/components/ui/CTA";
 import { Disclaimer } from "@/components/ui/Disclaimer";
@@ -71,7 +71,8 @@ const STAGES = [
   },
 ];
 
-export default function InvestmentApproachPage() {
+export default async function InvestmentApproachPage() {
+  const intelligence = await getIntelligence();
   return (
     <>
       <PageHero
@@ -117,7 +118,7 @@ export default function InvestmentApproachPage() {
             intro="Six stages, each designed to reduce a particular kind of error — noise at the start, poor fit in the middle, drift once capital is deployed."
           />
           <div className="mt-10 lg:-mt-10">
-            <ProcessStory counts={{ instruments: INSTRUMENTS.length, indicators: ILLUSTRATIVE_INDICATORS.length }} />
+            <ProcessStory counts={{ instruments: INSTRUMENTS.length, indicators: intelligence.indicators.length }} />
           </div>
         </div>
       </section>

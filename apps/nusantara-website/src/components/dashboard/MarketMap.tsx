@@ -4,10 +4,12 @@ import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
 import { Change } from "@/components/market/Change";
-import { MARKET_NODES } from "@/content/intelligence";
+import { StaleMark } from "@/components/market/MarketStatus";
 import type { InsightListing } from "@/content/insights/types";
+import type { MonitoredMarket } from "@/content/model/intelligence";
 import { formatValue } from "@/lib/market/format";
-import type { InstrumentSnapshot } from "@/lib/market/types";
+import { statusTitle } from "@/lib/market/status";
+import type { DataProvenance, InstrumentSnapshot } from "@/lib/market/types";
 
 /**
  * Markets we monitor — a schematic (not geographic) map used as an interface.
@@ -15,10 +17,23 @@ import type { InstrumentSnapshot } from "@/lib/market/types";
  * see its index, currency, benchmark rate and related research.
  * This describes market monitoring only — not where Nusantara operates.
  */
-export function MarketMap({ instruments, insights }: { instruments: Record<string, InstrumentSnapshot>; insights: Record<string, InsightListing> }) {
+export function MarketMap({
+  markets,
+  instruments,
+  insights,
+  provenance,
+  prototype,
+}: {
+  markets: MonitoredMarket[];
+  instruments: Record<string, InstrumentSnapshot>;
+  insights: Record<string, InsightListing>;
+  provenance: DataProvenance;
+  prototype: boolean;
+}) {
   const [active, setActive] = useState("my");
-  const node = MARKET_NODES.find((n) => n.id === active)!;
-  const insight = insights[node.insight];
+  const node = markets.find((n) => n.id === active) ?? markets[0];
+  if (!node) return null;
+  const insight = node.insight ? insights[node.insight] : undefined;
   const row = (id: string | null, label: string) => {
     const s = id ? instruments[id] : null;
     return (
@@ -26,7 +41,9 @@ export function MarketMap({ instruments, insights }: { instruments: Record<strin
         <span className="w-20 text-[11px] uppercase tracking-[0.12em] text-stone">{label}</span>
         {s ? (
           <>
-            <span className="flex-1 text-[13px] font-semibold text-ink">{s.instrument.shortName}</span>
+            <span className="flex-1 text-[13px] font-semibold text-ink">
+              {s.instrument.shortName} <StaleMark provenance={s.provenance} />
+            </span>
             <span className="num text-[13px] text-ink">
               {formatValue(s.quote.value, s.instrument.decimals)}
               {s.instrument.unit === "%" ? "%" : ""}
@@ -34,7 +51,7 @@ export function MarketMap({ instruments, insights }: { instruments: Record<strin
             <Change instrument={s.instrument} change={s.quote.change} changePct={s.quote.changePct} changeBp={s.quote.changeBp} showAbsolute={false} className="w-16 justify-end" />
           </>
         ) : (
-          <span className="flex-1 text-right text-[12px] text-mist">Not in prototype dataset</span>
+          <span className="flex-1 text-right text-[12px] text-mist">{id ? "Unavailable" : prototype ? "Not in prototype dataset" : "Not monitored"}</span>
         )}
       </div>
     );
@@ -48,13 +65,13 @@ export function MarketMap({ instruments, insights }: { instruments: Record<strin
           <g fill="none" stroke="var(--color-rule)" strokeWidth="0.35">
             <line x1="0" y1="50" x2="100" y2="50" strokeDasharray="0.6 1.4" />
             <line x1="50" y1="0" x2="50" y2="100" strokeDasharray="0.6 1.4" />
-            {MARKET_NODES.map((n) => (
+            {markets.map((n) => (
               <path key={n.id} d={`M50,50 L${n.x},50 L${n.x},${n.y}`} stroke={n.id === active ? "#b8955a" : "var(--color-rule)"} strokeWidth={n.id === active ? 0.6 : 0.35} style={{ transition: "stroke 300ms" }} />
             ))}
           </g>
           <path d="M50,46 Q50.7,49.3 54,50 Q50.7,50.7 50,54 Q49.3,50.7 46,50 Q49.3,49.3 50,46Z" fill="#b8955a" />
         </svg>
-        {MARKET_NODES.map((n) => {
+        {markets.map((n) => {
           const idx = n.index ? instruments[n.index] : null;
           const on = n.id === active;
           return (
@@ -96,7 +113,7 @@ export function MarketMap({ instruments, insights }: { instruments: Record<strin
                 <span className="mt-1 block font-serif text-[1.2rem] leading-snug text-teal-900 group-hover:text-teal-700">{insight.title} →</span>
               </Link>
             )}
-            <p className="mt-6 text-[11.5px] text-stone">Illustrative data · day change. Market monitoring only.</p>
+            <p className="mt-6 text-[11.5px] text-stone">{statusTitle(provenance)} data · day change. Market monitoring only.</p>
           </m.div>
         </AnimatePresence>
       </div>

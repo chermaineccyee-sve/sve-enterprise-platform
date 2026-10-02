@@ -8,25 +8,34 @@ import { StateGauge } from "@/components/identity/StateGauge";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { Change } from "@/components/market/Change";
 import { PRIMARY_LINE, SERIES_COLORS } from "@/components/market/chart-utils";
-import { Provenance } from "@/components/market/MarketStatus";
+import { Provenance, StaleMark, useIsStale } from "@/components/market/MarketStatus";
 import { MarketTable } from "@/components/market/MarketTable";
 import { MorphChart } from "@/components/market/MorphChart";
 import { Sparkline } from "@/components/market/Sparkline";
-import { getInstrumentView } from "@/content/intelligence";
-import type { InsightListing } from "@/content/insights/types";
+import { PublicationStamp } from "@/components/ui/PublicationStamp";
+import { SAMPLE_LABELS } from "@/content/data/sample";
+import type { NusantaraView } from "@/content/model/intelligence";
+import { isPastReview } from "@/content/model/publication";
 import { useHistories, useMarketHistory } from "@/hooks/useMarketData";
+import { useNow } from "@/hooks/useNow";
+import { track } from "@/lib/analytics";
 import { realisedVol, resample, resampleSeries, seriesChange } from "@/lib/market/analytics";
 import { changeOverPeriod, formatPct, formatTimestamp, formatValue, signed } from "@/lib/market/format";
 import { ASSET_CLASS_LABELS, OVERVIEW_INSTRUMENT_IDS } from "@/lib/market/instruments";
+import { statusPhrase, statusTitle } from "@/lib/market/status";
 import {
   CHART_PERIODS,
   type AssetClass,
   type ChartPeriod,
+  type DataProvenance,
+  type InstrumentDefinition,
   type InstrumentHistory,
   type InstrumentSnapshot,
   type IntelligenceIndicator,
   type MarketSnapshot,
+  type UnavailableInstrument,
 } from "@/lib/market/types";
+import type { MarketIntel } from "./types";
 
 type Category = "overview" | AssetClass | "macro";
 const CATEGORIES: { id: Category; label: string }[] = [
@@ -44,7 +53,20 @@ type Props = {
   snapshot: MarketSnapshot;
   initialHistory: InstrumentHistory[];
   indicators: IntelligenceIndicator[];
-  insights: Record<string, InsightListing>;
+  /** Nusantara View, related markets and research per instrument id (resolved on the server). */
+  intel: Record<string, MarketIntel>;
+  /** Nusantara reading per structural indicator id. */
+  readings: Record<string, NusantaraView>;
+};
+
+type RailRow = InstrumentSnapshot | UnavailableInstrument;
+const isAvailable = (r: RailRow): r is InstrumentSnapshot => "quote" in r;
+
+const UNAVAILABLE_REASON: Record<UnavailableInstrument["reason"], string> = {
+  "service-unavailable": "The market-data service is currently unavailable.",
+  "not-supplied": "No value is available from the current source.",
+  "not-licensed": "Not licensed for public display.",
+  invalid: "The latest value failed validation and is not shown.",
 };
 
 /**
@@ -52,7 +74,27 @@ type Props = {
  * chart that morphs between datasets, and a Nusantara View panel that
  * responds to every selection. Nothing reloads.
  */
-export function Workspace({ snapshot, initialHistory, indicators, insights }: Props) {
+export function Workspace(props: Props) {
+  if (!props.snapshot.instruments.length) return <WorkspaceUnavailable provenance={props.snapshot.provenance} />;
+  return <WorkspaceBody {...props} />;
+}
+
+/** API or provider unavailable: an explicit state, never a broken chart or invented numbers. */
+function WorkspaceUnavailable({ provenance }: { provenance: DataProvenance }) {
+  return (
+    <div className="border-y border-rule bg-white lg:border">
+      <div className="flex min-h-[420px] flex-col items-center justify-center gap-4 px-6 py-16 text-center" role="status">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">Market data unavailable</p>
+        <p className="max-w-md text-[15px] leading-relaxed text-charcoal">
+          Market data cannot be shown at the moment. No values are displayed rather than out-of-date or estimated figures.
+        </p>
+        <Provenance provenance={provenance} className="justify-center" />
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings }: Props) {
   const { focusId, setFocus } = useMarketFocus();
   const [category, setCategory] = useState<Category>("overview");
   const [period, setPeriod] = useState<ChartPeriod>("1M");
@@ -60,28 +102,45 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
   const [compare, setCompare] = useState<string[]>(["klci", "sti", "spx"]);
   const [indicatorId, setIndicatorId] = useState(indicators[0]?.id ?? "");
   const [view, setView] = useState<"chart" | "table">("chart");
-  const { byId, loading } = useMarketHistory(period, { period: "1M", data: initialHistory });
+  const { byId, loading, error: historyError } = useMarketHistory(period, { period: "1M", data: initialHistory });
+  const dataPhrase = statusPhrase(snapshot.provenance);
+  const dataTitle = statusTitle(snapshot.provenance);
+  const changePeriod = (p: ChartPeriod) => {
+    setPeriod(p);
+    track({ name: "period_changed", period: p });
+  };
 
   // Open on a market linked from elsewhere (e.g. /market-dashboard?instrument=gold).
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("instrument");
-    const inst = id ? snapshot.instruments.find((s) => s.instrument.id === id)?.instrument : undefined;
+    const inst = id
+      ? (snapshot.instruments.find((s) => s.instrument.id === id) ?? snapshot.unavailable.find((u) => u.instrument.id === id))?.instrument
+      : undefined;
     if (inst) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from URL once on mount
       setCategory(inst.assetClass);
       setFocus(inst.id);
     }
-  }, [snapshot.instruments, setFocus]);
+  }, [snapshot.instruments, snapshot.unavailable, setFocus]);
 
   const all = snapshot.instruments;
-  const rows = useMemo(() => {
-    if (category === "overview") return OVERVIEW_INSTRUMENT_IDS.map((id) => all.find((s) => s.instrument.id === id)!).filter(Boolean);
+  const unavailable = snapshot.unavailable;
+  const railRows = useMemo<RailRow[]>(() => {
+    const byId = new Map<string, RailRow>([...unavailable, ...all].map((r) => [r.instrument.id, r]));
+    if (category === "overview") return OVERVIEW_INSTRUMENT_IDS.map((id) => byId.get(id)).filter((r): r is RailRow => !!r);
     if (category === "macro") return [];
-    return all.filter((s) => s.instrument.assetClass === category);
-  }, [all, category]);
+    return [...byId.values()].filter((r) => r.instrument.assetClass === category).sort((a, b) => order(a) - order(b));
+    function order(r: RailRow) {
+      const i = all.findIndex((s) => s.instrument.id === r.instrument.id);
+      return i === -1 ? 1000 + unavailable.findIndex((u) => u.instrument.id === r.instrument.id) : i;
+    }
+  }, [all, unavailable, category]);
+  const rows = useMemo(() => railRows.filter(isAvailable), [railRows]);
 
-  const isMacro = category === "macro";
+  const isMacro = category === "macro" && indicators.length > 0;
+  const focusUnavailable = unavailable.find((u) => u.instrument.id === focusId) ?? null;
   const selected = all.find((s) => s.instrument.id === focusId) ?? all[0];
+  const focusInst: InstrumentDefinition = focusUnavailable?.instrument ?? selected.instrument;
   const indicator = indicators.find((i) => i.id === indicatorId) ?? indicators[0];
 
   const pick = (id: string) => {
@@ -89,7 +148,10 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
       const s = all.find((x) => x.instrument.id === id);
       if (s?.instrument.convention === "yield") return;
       setCompare((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length >= MAX_COMPARE ? c : [...c, id]));
-    } else setFocus(id);
+    } else {
+      setFocus(id);
+      track({ name: "market_selected", instrument: id, surface: "rail" });
+    }
   };
 
   return (
@@ -98,7 +160,7 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
         {/* RAIL */}
         <aside aria-label="Market universe" className="hidden border-rule bg-paper lg:row-span-3 lg:block lg:border-r xl:row-span-2">
           <div role="tablist" aria-label="Category" className="no-scrollbar flex overflow-x-auto lg:flex-col lg:overflow-visible">
-            {CATEGORIES.map((c) => {
+            {CATEGORIES.filter((c) => c.id !== "macro" || indicators.length > 0).map((c) => {
               const on = c.id === category;
               return (
                 <button
@@ -113,7 +175,11 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
                   {on && <m.span layoutId="rail-cat" className="absolute inset-x-0 bottom-0 h-[2px] bg-gold-500 lg:inset-y-0 lg:left-0 lg:right-auto lg:h-auto lg:w-[2px]" />}
                   <span>{c.label}</span>
                   <span className="num hidden text-[11px] text-mist lg:inline">
-                    {c.id === "macro" ? indicators.length : c.id === "overview" ? OVERVIEW_INSTRUMENT_IDS.length : all.filter((s) => s.instrument.assetClass === c.id).length}
+                    {c.id === "macro"
+                      ? indicators.length
+                      : c.id === "overview"
+                        ? OVERVIEW_INSTRUMENT_IDS.length
+                        : [...all, ...unavailable].filter((s) => s.instrument.assetClass === c.id).length}
                   </span>
                 </button>
               );
@@ -123,7 +189,7 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
           <div className="border-t border-rule">
             <p className="flex items-center justify-between px-5 pt-4 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-stone">
               <span>{isMacro ? "Indicators" : mode === "compare" ? `Compare · ${compare.length}/${MAX_COMPARE}` : "Instruments"}</span>
-              <span className="text-gold-800">Illustrative</span>
+              <span className="text-gold-800">{dataTitle}</span>
             </p>
             <ul className="no-scrollbar flex gap-1 overflow-x-auto px-3 py-3 lg:block lg:max-h-[560px] lg:space-y-0.5 lg:overflow-y-auto lg:overflow-x-hidden">
               {isMacro
@@ -144,9 +210,19 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
                       </li>
                     );
                   })
-                : rows.map((s) => {
+                : railRows.map((s) => {
                     const inst = s.instrument;
-                    const on = mode === "single" ? inst.id === selected.instrument.id : compare.includes(inst.id);
+                    if (!isAvailable(s)) {
+                      return (
+                        <li key={inst.id} className="shrink-0 lg:shrink">
+                          <div className="grid w-full grid-cols-[1fr_auto] items-center gap-x-3 px-3 py-2.5 opacity-60" title={UNAVAILABLE_REASON[s.reason]}>
+                            <span className="whitespace-nowrap text-[13px] font-semibold text-ink">{inst.shortName}</span>
+                            <span className="text-right text-[11.5px] text-stone">Unavailable</span>
+                          </div>
+                        </li>
+                      );
+                    }
+                    const on = mode === "single" ? inst.id === focusInst.id : compare.includes(inst.id);
                     const disabled = mode === "compare" && (inst.convention === "yield" || (!on && compare.length >= MAX_COMPARE));
                     return (
                       <li key={inst.id} className="shrink-0 lg:shrink">
@@ -169,6 +245,7 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
                               />
                             )}
                             {inst.shortName}
+                            <StaleMark provenance={s.provenance} />
                           </span>
                           <span className="num text-right text-[12.5px] text-charcoal">
                             {formatValue(s.quote.value, inst.decimals)}
@@ -193,7 +270,7 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
           </label>
           <select
             id="ws-instrument"
-            value={selected.instrument.id}
+            value={focusInst.id}
             onChange={(e) => {
               const id = e.target.value;
               const cls = all.find((x) => x.instrument.id === id)?.instrument.assetClass;
@@ -201,6 +278,7 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
               setMode("single");
               setView("chart");
               setFocus(id);
+              track({ name: "market_selected", instrument: id, surface: "select" });
             }}
             className="mt-2 block h-12 w-full border border-rule bg-white px-3 text-[16px] font-medium text-ink focus:border-teal-800 focus:outline-none"
           >
@@ -222,13 +300,13 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
         <section aria-label="Market data" className="min-w-0 lg:col-start-2 xl:row-start-1">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule-soft px-5 py-3 md:px-8">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">
-              Market data <span className="font-normal normal-case tracking-normal text-stone">· {isMacro ? "structural indicator" : mode === "compare" ? "comparison, rebased to 100" : "observed"} · illustrative</span>
+              Market data <span className="font-normal normal-case tracking-normal text-stone">· {isMacro ? "structural indicator" : mode === "compare" ? "comparison, rebased to 100" : "observed"} · {isMacro && indicator ? statusPhrase(indicator.provenance) : dataPhrase}</span>
             </p>
             {!isMacro && (
               <div className="hidden flex-wrap gap-2 lg:flex">
                 <Segmented label="View" value={view} options={[["chart", "Chart"], ["table", "Table"]]} onChange={(v) => setView(v as "chart" | "table")} />
                 {view === "chart" && <Segmented label="Mode" value={mode} options={[["single", "Single"], ["compare", "Compare"]]} onChange={(v) => setMode(v as "single" | "compare")} />}
-                <Segmented label="Period" value={period} options={CHART_PERIODS.map((p) => [p, p])} onChange={(v) => setPeriod(v as ChartPeriod)} />
+                <Segmented label="Period" value={period} options={CHART_PERIODS.map((p) => [p, p])} onChange={(v) => changePeriod(v as ChartPeriod)} />
               </div>
             )}
           </div>
@@ -240,22 +318,25 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
                 rows={rows}
                 histories={byId}
                 period={period}
-                selectedId={selected.instrument.id}
+                selectedId={focusInst.id}
                 onSelect={(id) => {
                   setFocus(id);
                   setView("chart");
                   setMode("single");
+                  track({ name: "market_selected", instrument: id, surface: "table" });
                 }}
-                caption={`Illustrative market data — ${CATEGORIES.find((c) => c.id === category)?.label}, ${period}`}
+                caption={`${dataTitle} market data — ${CATEGORIES.find((c) => c.id === category)?.label}, ${period}`}
               />
             ) : mode === "compare" ? (
-              <CompareCentre ids={compare} all={all} byId={byId} period={period} loading={loading} />
+              <CompareCentre ids={compare} all={all} byId={byId} period={period} loading={loading} statusLabel={dataTitle} />
+            ) : focusUnavailable ? (
+              <UnavailableCentre item={focusUnavailable} />
             ) : (
-              <InstrumentCentre snap={selected} points={byId.get(selected.instrument.id) ?? []} period={period} loading={loading} />
+              <InstrumentCentre snap={selected} points={byId.get(selected.instrument.id) ?? []} period={period} loading={loading} historyError={!!historyError} />
             )}
             {!isMacro && (
               <div className="mt-5 lg:hidden">
-                <Segmented label="Chart period" value={period} options={CHART_PERIODS.map((p) => [p, p])} onChange={(v) => setPeriod(v as ChartPeriod)} />
+                <Segmented label="Chart period" value={period} options={CHART_PERIODS.map((p) => [p, p])} onChange={(v) => changePeriod(v as ChartPeriod)} />
               </div>
             )}
           </div>
@@ -264,16 +345,25 @@ export function Workspace({ snapshot, initialHistory, indicators, insights }: Pr
         {/* INTELLIGENCE */}
         <aside aria-label="Nusantara View" className="on-dark min-w-0 bg-teal-900 text-white lg:col-start-2 xl:col-start-3 xl:row-span-2 xl:row-start-1">
           {isMacro && indicator ? (
-            <IndicatorIntel indicator={indicator} />
+            <IndicatorIntel indicator={indicator} reading={readings[indicator.id] ?? null} />
           ) : (
-            <InstrumentIntel snap={selected} insights={insights} />
+            <InstrumentIntel inst={focusInst} intel={intel[focusInst.id]} />
           )}
         </aside>
 
         {/* Statistics + related markets (single instrument) */}
-        {!isMacro && mode === "single" && view === "chart" && (
+        {!isMacro && mode === "single" && view === "chart" && !focusUnavailable && (
           <section aria-label="Market statistics" className="min-w-0 border-t border-rule lg:col-start-2 xl:row-start-2">
-            <InstrumentStats snap={selected} points={byId.get(selected.instrument.id) ?? []} period={period} all={all} onPick={(id) => setFocus(id)} />
+            <InstrumentStats
+              snap={selected}
+              points={byId.get(selected.instrument.id) ?? []}
+              period={period}
+              related={(intel[selected.instrument.id]?.relatedMarkets ?? []).map((id) => all.find((s) => s.instrument.id === id)).filter((s): s is InstrumentSnapshot => !!s)}
+              onPick={(id) => {
+                setFocus(id);
+                track({ name: "market_selected", instrument: id, surface: "related" });
+              }}
+            />
             <div className="hidden lg:block">
               <PeriodStrip snap={selected} />
             </div>
@@ -297,8 +387,36 @@ function Segmented({ label, value, options, onChange }: { label: string; value: 
   );
 }
 
-function InstrumentCentre({ snap, points, period, loading }: { snap: InstrumentSnapshot; points: InstrumentHistory["points"]; period: ChartPeriod; loading: boolean }) {
+function UnavailableCentre({ item }: { item: UnavailableInstrument }) {
+  const inst = item.instrument;
+  return (
+    <div>
+      <p className="text-[13px] text-stone">
+        {inst.name} <span className="num">· {inst.ticker}</span>
+      </p>
+      <div className="mt-6 flex h-[380px] flex-col items-center justify-center gap-2 border border-dashed border-rule px-6 text-center" role="status">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">Unavailable</p>
+        <p className="max-w-sm text-[14px] text-charcoal">{UNAVAILABLE_REASON[item.reason]} No value is shown.</p>
+      </div>
+    </div>
+  );
+}
+
+function InstrumentCentre({
+  snap,
+  points,
+  period,
+  loading,
+  historyError,
+}: {
+  snap: InstrumentSnapshot;
+  points: InstrumentHistory["points"];
+  period: ChartPeriod;
+  loading: boolean;
+  historyError: boolean;
+}) {
   const inst = snap.instrument;
+  const stale = useIsStale(snap.provenance);
   const { values, stamps } = useMemo(() => resampleSeries(points, N), [points]);
   const raw = points.map((p) => p.v);
   const pc = period === "1D" || raw.length < 2 ? snap.quote : changeOverPeriod(inst, raw[0], raw[raw.length - 1]);
@@ -318,6 +436,11 @@ function InstrumentCentre({ snap, points, period, loading }: { snap: InstrumentS
           <p className="mt-2 text-[2.6rem] font-medium leading-none tracking-tight text-ink md:text-[3rem]">
             <AnimatedNumber value={snap.quote.value} format={fmt} />
           </p>
+          {stale && (
+            <p className="mt-2 text-[12px] font-medium text-down" role="status">
+              Not current — last updated {formatTimestamp(snap.provenance.asOf)}
+            </p>
+          )}
         </div>
         <div className="sm:text-right">
           <p className="text-[11px] uppercase tracking-[0.12em] text-stone">{period === "1D" ? "Day change" : `${period} change`}</p>
@@ -332,17 +455,33 @@ function InstrumentCentre({ snap, points, period, loading }: { snap: InstrumentS
             format={fmt}
             height={340}
             reference={period === "1D" ? { value: snap.quote.previousClose, label: "Previous close" } : undefined}
-            ariaLabel={`${inst.name}, ${period}, illustrative. Latest ${fmt(snap.quote.value)}.`}
+            ariaLabel={`${inst.name}, ${period}, ${statusPhrase(snap.provenance)}. Latest ${fmt(snap.quote.value)}.`}
           />
-        ) : (
+        ) : loading && !historyError ? (
           <div className="flex h-[380px] items-center justify-center text-stone">Loading…</div>
+        ) : (
+          <div className="flex h-[380px] items-center justify-center border border-dashed border-rule px-6 text-center text-[14px] text-stone" role="status">
+            {period} history is unavailable for {inst.shortName}. No chart is drawn rather than an incomplete one.
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-function InstrumentStats({ snap, points, period, all, onPick }: { snap: InstrumentSnapshot; points: InstrumentHistory["points"]; period: ChartPeriod; all: InstrumentSnapshot[]; onPick: (id: string) => void }) {
+function InstrumentStats({
+  snap,
+  points,
+  period,
+  related,
+  onPick,
+}: {
+  snap: InstrumentSnapshot;
+  points: InstrumentHistory["points"];
+  period: ChartPeriod;
+  related: InstrumentSnapshot[];
+  onPick: (id: string) => void;
+}) {
   const inst = snap.instrument;
   const isYield = inst.convention === "yield";
   const raw = points.map((p) => p.v);
@@ -350,17 +489,17 @@ function InstrumentStats({ snap, points, period, all, onPick }: { snap: Instrume
   const fmt = (v: number) => `${formatValue(v, inst.decimals)}${unit}`;
   const hi = raw.length ? Math.max(...raw) : snap.quote.value;
   const lo = raw.length ? Math.min(...raw) : snap.quote.value;
+  const hasHistory = raw.length > 1;
   const vol = realisedVol(raw, isYield);
-  const related = all.filter((s) => s.instrument.assetClass === inst.assetClass && s.instrument.id !== inst.id).slice(0, 4);
   return (
     <div className="px-5 py-6 md:px-8">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">Market statistics</p>
       <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
         {[
           ["Previous close", <AnimatedNumber key="pc" value={snap.quote.previousClose} format={fmt} />],
-          [`${period} high`, <AnimatedNumber key="hi" value={hi} format={fmt} />],
-          [`${period} low`, <AnimatedNumber key="lo" value={lo} format={fmt} />],
-          [`Realised vol (${period}, ann.)`, <AnimatedNumber key="v" value={vol} format={(v) => (isYield ? `${v.toFixed(0)} bp` : `${v.toFixed(1)}%`)} />],
+          [`${period} high`, hasHistory ? <AnimatedNumber key="hi" value={hi} format={fmt} /> : "—"],
+          [`${period} low`, hasHistory ? <AnimatedNumber key="lo" value={lo} format={fmt} /> : "—"],
+          [`Realised vol (${period}, ann.)`, hasHistory ? <AnimatedNumber key="v" value={vol} format={(v) => (isYield ? `${v.toFixed(0)} bp` : `${v.toFixed(1)}%`)} /> : "—"],
         ].map(([k, v]) => (
           <div key={k as string}>
             <dt className="text-[11.5px] text-stone">{k}</dt>
@@ -368,12 +507,14 @@ function InstrumentStats({ snap, points, period, all, onPick }: { snap: Instrume
           </div>
         ))}
       </dl>
-      <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">Related markets</p>
-      <ul className="mt-2 divide-y divide-rule-soft border-y border-rule-soft">
+      {related.length > 0 && <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">Related markets</p>}
+      <ul className={`mt-2 divide-y divide-rule-soft border-y border-rule-soft ${related.length ? "" : "hidden"}`}>
         {related.map((r) => (
           <li key={r.instrument.id}>
             <button type="button" onClick={() => onPick(r.instrument.id)} className="flex w-full items-center justify-between gap-3 py-2.5 text-left text-[13.5px] hover:text-teal-800">
-              <span className="w-24 font-semibold text-ink">{r.instrument.shortName}</span>
+              <span className="w-24 font-semibold text-ink">
+                {r.instrument.shortName} <StaleMark provenance={r.provenance} />
+              </span>
               <span className="num flex-1 text-right text-charcoal">
                 {formatValue(r.quote.value, r.instrument.decimals)}
                 {r.instrument.unit === "%" ? "%" : ""}
@@ -390,7 +531,21 @@ function InstrumentStats({ snap, points, period, all, onPick }: { snap: Instrume
   );
 }
 
-function CompareCentre({ ids, all, byId, period, loading }: { ids: string[]; all: InstrumentSnapshot[]; byId: Map<string, InstrumentHistory["points"]>; period: ChartPeriod; loading: boolean }) {
+function CompareCentre({
+  ids,
+  all,
+  byId,
+  period,
+  loading,
+  statusLabel,
+}: {
+  ids: string[];
+  all: InstrumentSnapshot[];
+  byId: Map<string, InstrumentHistory["points"]>;
+  period: ChartPeriod;
+  loading: boolean;
+  statusLabel: string;
+}) {
   const rows = ids.map((id) => all.find((s) => s.instrument.id === id)).filter((s): s is InstrumentSnapshot => !!s);
   const series = rows
     .map((r, i) => {
@@ -423,13 +578,13 @@ function CompareCentre({ ids, all, byId, period, loading }: { ids: string[]; all
             height={380}
             area={false}
             reference={{ value: 100, label: "Start = 100" }}
-            ariaLabel={`Illustrative ${period} comparison of ${series.map((s) => s.label).join(", ")}, rebased to 100`}
+            ariaLabel={`${statusLabel} ${period} comparison of ${series.map((s) => s.label).join(", ")}, rebased to 100`}
           />
         ) : (
           <div className="flex h-[380px] items-center justify-center border border-dashed border-rule text-stone">Select up to four price instruments in the rail.</div>
         )}
       </div>
-      <p className="mt-4 text-[12px] text-stone">Yields are excluded from rebased comparison. Illustrative data.</p>
+      <p className="mt-4 text-[12px] text-stone">Yields are excluded from rebased comparison. {statusLabel} data.</p>
     </div>
   );
 }
@@ -451,7 +606,7 @@ function IndicatorCentre({ indicator }: { indicator: IntelligenceIndicator }) {
         <AnimatedNumber value={indicator.value} format={fmt} />
       </p>
       <div className="mt-6">
-        <MorphChart series={[{ id: "ind", label: indicator.title, color: PRIMARY_LINE, values }]} labels={labels} format={fmt} height={340} ariaLabel={`${indicator.title}, illustrative quarterly series`} />
+        <MorphChart series={[{ id: "ind", label: indicator.title, color: PRIMARY_LINE, values }]} labels={labels} format={fmt} height={340} ariaLabel={`${indicator.title}, ${statusPhrase(indicator.provenance)} quarterly series`} />
       </div>
       <div className="mt-5">
         <Provenance provenance={indicator.provenance} showTime={false} />
@@ -470,43 +625,73 @@ function IntelBlock({ label, children }: { label: string; children: React.ReactN
 }
 
 /** Interpretation layer. Collapsed on mobile; always visible from lg. */
-function InstrumentIntel({ snap, insights }: { snap: InstrumentSnapshot; insights: Record<string, InsightListing> }) {
+function InstrumentIntel({ inst, intel }: { inst: InstrumentDefinition; intel: MarketIntel | undefined }) {
   const [open, setOpen] = useState(false);
-  const inst = snap.instrument;
-  const view = getInstrumentView(inst.id, inst.assetClass);
-  const insight = insights[view.insight];
+  const now = useNow();
+  // A view past its review date is withdrawn in the browser too, even if the page was rendered before it expired.
+  const view = intel?.view && !(now !== null && isPastReview(intel.view, now)) ? intel.view : null;
+  const insight = intel?.insight ?? null;
+  // Sample views keep their management-review label; approved views show their publication stamp.
+  const subline = view ? (view.sample ? SAMPLE_LABELS.interpretation : null) : "Interpretation";
+  const toggle = () => {
+    setOpen((o) => !o);
+    if (!open) track({ name: "nusantara_view_expanded", instrument: inst.id });
+  };
   return (
     <div className="px-5 py-5 md:px-8 lg:py-7">
       <div className="hidden lg:block">
         <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</p>
-        <p className="mt-0.5 text-[11px] text-teal-200">Interpretation · illustrative · management review</p>
+        {subline ? <p className="mt-0.5 text-[11px] text-teal-200">{subline}</p> : view && <PublicationStamp p={view} tone="dark" className="mt-1" />}
       </div>
-      <button type="button" aria-expanded={open} aria-controls="intel-body" onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between text-left lg:hidden">
+      <button type="button" aria-expanded={open} aria-controls="intel-body" onClick={toggle} className="flex w-full items-center justify-between text-left lg:hidden">
         <span>
           <span className="block text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</span>
-          <span className="mt-0.5 block text-[11px] text-teal-200">Interpretation · illustrative · management review</span>
+          {subline ? <span className="mt-0.5 block text-[11px] text-teal-200">{subline}</span> : view && <PublicationStamp p={view} tone="dark" className="mt-1" />}
         </span>
         <span aria-hidden className={`text-xl text-gold-300 transition-transform ${open ? "rotate-45" : ""}`}>+</span>
       </button>
       <div id="intel-body" className={`${open ? "block" : "hidden"} lg:block`}>
         <AnimatePresence mode="wait" initial={false}>
           <m.div key={inst.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-            <div className="mt-6 pb-5">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">Signal</p>
-              <p className="mt-1 font-serif text-[2.1rem] leading-none text-white">{view.signal}</p>
-              <div className="mt-4">
-                <StateGauge id={`ws-${inst.id}`} scale={view.scale} position={view.position} showLabels tone="dark" />
-              </div>
-            </div>
-            <IntelBlock label="Context">
-              <p className="text-[14.5px] leading-snug text-teal-50">{view.context}</p>
-            </IntelBlock>
-            <IntelBlock label="What we are watching">
-              <p className="text-[14.5px] leading-snug text-teal-50">{view.watching}</p>
-            </IntelBlock>
-            <IntelBlock label="Key risk">
-              <p className="text-[14.5px] leading-snug text-teal-50">{view.risk}</p>
-            </IntelBlock>
+            {view ? (
+              <>
+                <div className="mt-6 pb-5">
+                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">Signal</p>
+                  <p className="mt-1 font-serif text-[2.1rem] leading-none text-white">{view.signal}</p>
+                  {view.stance && (
+                    <div className="mt-4">
+                      <StateGauge id={`ws-${inst.id}`} scale={view.stance.scale} position={view.stance.position} showLabels tone="dark" />
+                    </div>
+                  )}
+                </div>
+                <IntelBlock label="Context">
+                  <p className="text-[14.5px] leading-snug text-teal-50">{view.context}</p>
+                </IntelBlock>
+                {view.whatWeAreWatching.length > 0 && (
+                  <IntelBlock label="What we are watching">
+                    {view.whatWeAreWatching.map((w) => (
+                      <p key={w} className="text-[14.5px] leading-snug text-teal-50">
+                        {w}
+                      </p>
+                    ))}
+                  </IntelBlock>
+                )}
+                {view.keyRisk && (
+                  <IntelBlock label="Key risk">
+                    <p className="text-[14.5px] leading-snug text-teal-50">{view.keyRisk}</p>
+                  </IntelBlock>
+                )}
+                {view.whatWouldChangeOurView && (
+                  <IntelBlock label="What would change our view">
+                    <p className="text-[14.5px] leading-snug text-teal-50">{view.whatWouldChangeOurView}</p>
+                  </IntelBlock>
+                )}
+              </>
+            ) : (
+              <p className="mt-6 border-t border-white/10 pt-4 text-[14px] leading-relaxed text-teal-100" role="status">
+                There is no current Nusantara View for {inst.shortName}. Views are shown only while they are approved and within their review date.
+              </p>
+            )}
             {insight && (
               <IntelBlock label="Related insight">
                 <Link href={`/insights/${insight.slug}`} className="group block">
@@ -521,7 +706,10 @@ function InstrumentIntel({ snap, insights }: { snap: InstrumentSnapshot; insight
   );
 }
 
-function IndicatorIntel({ indicator }: { indicator: IntelligenceIndicator }) {
+function IndicatorIntel({ indicator, reading }: { indicator: IntelligenceIndicator; reading: NusantaraView | null }) {
+  const now = useNow();
+  const current = reading && !(now !== null && isPastReview(reading, now)) ? reading : null;
+  const illustrative = indicator.provenance.status === "illustrative";
   return (
     <div className="p-6 md:p-8">
       <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
@@ -530,10 +718,18 @@ function IndicatorIntel({ indicator }: { indicator: IntelligenceIndicator }) {
       <AnimatePresence mode="wait" initial={false}>
         <m.div key={indicator.id} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
           <p className="mt-6 font-serif text-[2rem] capitalize leading-none text-white">{indicator.direction}</p>
-          <p className="mt-2 text-[12px] text-teal-200">Direction of the illustrative series · {indicator.period}</p>
-          <p className="mt-6 text-[15px] leading-relaxed text-teal-50">{indicator.reading}</p>
+          <p className="mt-2 text-[12px] text-teal-200">
+            Direction of the {statusPhrase(indicator.provenance)} series · {indicator.period}
+          </p>
+          {current ? (
+            <p className="mt-6 text-[15px] leading-relaxed text-teal-50">{current.context}</p>
+          ) : (
+            <p className="mt-6 text-[14px] leading-relaxed text-teal-100" role="status">
+              There is no current Nusantara reading for this indicator.
+            </p>
+          )}
           <p className="mt-6 border-t border-white/10 pt-4 text-[12px] leading-relaxed text-teal-200">
-            Source: {indicator.provenance.source}. Values and directions are placeholders until an approved, attributed source is in place.
+            Source: {indicator.provenance.source}.{illustrative ? " Values and directions are placeholders until an approved, attributed source is in place." : ""}
           </p>
         </m.div>
       </AnimatePresence>
@@ -558,7 +754,9 @@ function PeriodStrip({ snap }: { snap: InstrumentSnapshot }) {
     <div ref={ref} className="border-t border-rule px-5 py-6 md:px-8">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-stone">Historical comparison · {inst.shortName}</p>
-        <p className="text-[11.5px] text-stone">Change over each period · {isYield ? "basis points" : "percent"} · illustrative</p>
+        <p className="text-[11.5px] text-stone">
+          Change over each period · {isYield ? "basis points" : "percent"} · {statusPhrase(snap.provenance)}
+        </p>
       </div>
       <ul className="mt-5 grid grid-cols-3 gap-4 sm:grid-cols-6">
         {CHART_PERIODS.map((p, i) => {

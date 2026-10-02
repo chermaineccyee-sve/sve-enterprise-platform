@@ -6,8 +6,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ARM_TIPS, Lattice } from "@/components/identity/Lattice";
 import { NStar } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
+import { StaleMark } from "@/components/market/MarketStatus";
 import { Sparkline } from "@/components/market/Sparkline";
 import { formatTimestamp, formatValue } from "@/lib/market/format";
+import { statusTitle } from "@/lib/market/status";
 import type { AssetClass, InstrumentSnapshot } from "@/lib/market/types";
 
 const MLink = m.create(Link);
@@ -35,8 +37,9 @@ function makeWalk(seed: number, points = 120) {
 
 /**
  * Atmospheric market canvas for the hero. The line is abstract (no values);
- * the monitor cycles through *fixed* illustrative read-outs and highlights the
- * lattice arm of each asset class. Nothing here implies live data.
+ * the monitor cycles through the latest read-outs (labelled with their data
+ * status) and highlights the lattice arm of each asset class. With no
+ * displayable data the monitor is simply not shown.
  */
 export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSnapshot[]; sparks: Record<string, number[]> }) {
   const reduce = useReducedMotion();
@@ -47,8 +50,8 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
   const wrapRef = useRef<HTMLDivElement>(null);
   const walk = useMemo(() => makeWalk(7), []);
   const walk2 = useMemo(() => makeWalk(29), []);
-  const current = instruments[idx];
-  const arm = ARM_OF[current.instrument.assetClass];
+  const current: InstrumentSnapshot | undefined = instruments[idx];
+  const arm = current ? ARM_OF[current.instrument.assetClass] : -1;
 
   const pathFor = (vals: number[], offset = 0) =>
     vals
@@ -58,7 +61,7 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
 
   // Cycle the monitor (pauses on hover/focus; stops under reduced motion).
   useEffect(() => {
-    if (paused || reduce) return;
+    if (paused || reduce || instruments.length < 2) return;
     const t = window.setInterval(() => setIdx((i) => (i + 1) % instruments.length), 4200);
     return () => window.clearInterval(t);
   }, [paused, reduce, instruments.length]);
@@ -91,8 +94,8 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
     };
   }, [reduce, walk]);
 
-  const inst = current.instrument;
-  const unit = inst.unit === "%" ? "%" : "";
+  const inst = current?.instrument;
+  const unit = inst?.unit === "%" ? "%" : "";
 
   return (
     <div ref={wrapRef} className="pointer-events-none absolute inset-0" aria-hidden={false}>
@@ -153,6 +156,7 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
       </div>
 
       {/* Monitor */}
+      {current && inst && (
       <div
         className="pointer-events-auto absolute bottom-8 right-5 hidden w-[300px] md:block border border-teal-800/15 bg-paper/85 p-5 shadow-[0_20px_60px_-30px_rgba(14,45,59,0.45)] backdrop-blur-md md:right-10 lg:bottom-14"
         onMouseEnter={() => setPaused(true)}
@@ -165,7 +169,7 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
             <NStar className="star-breathe h-2.5 w-2.5 text-gold-500" />
             Market monitor
           </p>
-          <span className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gold-800">Illustrative</span>
+          <span className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gold-800">{statusTitle(current.provenance)}</span>
         </div>
         <div className="relative mt-4 h-[92px]" aria-live="polite">
           <AnimatePresence mode="wait" initial={false}>
@@ -181,7 +185,7 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
             >
               <span>
                 <span className="block text-[12px] text-stone">
-                  {inst.shortName} · {ARM_LABEL[arm]}
+                  {inst.shortName} · {ARM_LABEL[arm]} <StaleMark provenance={current.provenance} />
                 </span>
                 <span className="num mt-1 block text-[1.9rem] font-medium leading-none tracking-tight text-ink">
                   {formatValue(current.quote.value, inst.decimals)}
@@ -216,6 +220,7 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
           <span className="num text-[10.5px] text-stone">{formatTimestamp(current.provenance.asOf)}</span>
         </div>
       </div>
+      )}
     </div>
   );
 }

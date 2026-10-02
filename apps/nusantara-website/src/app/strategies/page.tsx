@@ -4,9 +4,12 @@ import { AllocationUniverse } from "@/components/sections/AllocationUniverse";
 import { StatusLabel } from "@/components/sections/StrategyCard";
 import { PageHero } from "@/components/ui/PageHero";
 import { ReviewPlaceholder } from "@/components/ui/ReviewPlaceholder";
-import { getAllListings } from "@/content/insights";
-import { STATUS_INFO, STRATEGIES, type StrategyStatus } from "@/content/strategies";
+import { STATUS_INFO, type StrategyStage } from "@/content/strategies";
+import { getCapabilities, getContentGraph, getInsightListings } from "@/lib/content/repository";
 import { getIntelligence, getMarketSnapshot } from "@/lib/market/service";
+
+/** Market relationships refresh at most every five minutes once a live or delayed provider is configured. */
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Strategies",
@@ -16,10 +19,17 @@ export const metadata: Metadata = {
 };
 
 export default async function StrategiesPage() {
-  const [snapshot, intelligence] = await Promise.all([getMarketSnapshot(), getIntelligence()]);
+  const [snapshot, intelligence, STRATEGIES, graph, listings] = await Promise.all([
+    getMarketSnapshot(),
+    getIntelligence(),
+    getCapabilities(),
+    getContentGraph(),
+    getInsightListings(),
+  ]);
   const instruments = Object.fromEntries(snapshot.instruments.map((s) => [s.instrument.id, s]));
   const indicators = Object.fromEntries(intelligence.indicators.map((i) => [i.id, i]));
-  const insights = Object.fromEntries(getAllListings().map((l) => [l.slug, l]));
+  const listingMap = Object.fromEntries(listings.map((l) => [l.slug, l]));
+  const insights = Object.fromEntries(STRATEGIES.map((s) => [s.slug, listingMap[graph.insightsForCapability(s.slug)[0] ?? ""] ?? null]));
   return (
     <>
       <PageHero
@@ -53,7 +63,11 @@ export default async function StrategiesPage() {
               markets and research connected to it. These are capability areas — none is presented as an active product.
             </p>
           </div>
-          <AllocationUniverse strategies={STRATEGIES} instruments={instruments} indicators={indicators} insights={insights} />
+          {STRATEGIES.length ? (
+            <AllocationUniverse strategies={STRATEGIES} instruments={instruments} indicators={indicators} insights={insights} provenance={snapshot.provenance} />
+          ) : (
+            <ReviewPlaceholder>Capabilities will be described here once management has approved them for publication.</ReviewPlaceholder>
+          )}
         </div>
       </section>
 
@@ -70,8 +84,8 @@ export default async function StrategiesPage() {
             </p>
           </div>
           <dl className="divide-y divide-rule border-y border-rule lg:col-span-7 lg:col-start-6">
-            {(Object.keys(STATUS_INFO) as StrategyStatus[]).map((k) => {
-              const n = STRATEGIES.filter((s) => s.status === k).length;
+            {(Object.keys(STATUS_INFO) as StrategyStage[]).map((k) => {
+              const n = STRATEGIES.filter((s) => s.stage === k).length;
               return (
                 <div key={k} className="grid gap-2 py-5 sm:grid-cols-[200px_1fr_auto] sm:items-baseline sm:gap-6">
                   <dt>

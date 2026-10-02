@@ -4,7 +4,7 @@ import Link from "next/link";
 import { MorphChart } from "@/components/market/MorphChart";
 import { formatInsightDate, type InsightListing } from "@/content/insights/types";
 
-type Chart = { caption: string; xLabels: string[]; series: { id: string; label: string; values: number[] }[]; decimals: number; unit?: string };
+type Chart = { caption: string; xLabels: string[]; series: { id: string; label: string; values: number[] }[]; decimals: number; unit?: string; illustrative: boolean };
 
 /** Flagship research with its own explorable chart and its key takeaways. */
 export function FeaturedResearch({ insight, chart, takeaways }: { insight: InsightListing; chart: Chart | null; takeaways: string[] }) {
@@ -44,9 +44,11 @@ export function FeaturedResearch({ insight, chart, takeaways }: { insight: Insig
           <>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <p className="max-w-md text-[13px] text-teal-100">{chart.caption}</p>
-              <span className="inline-flex items-center gap-1.5 border border-gold-300/50 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gold-200">
-                Illustrative
-              </span>
+              {chart.illustrative && (
+                <span className="inline-flex items-center gap-1.5 border border-gold-300/50 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gold-200">
+                  Illustrative
+                </span>
+              )}
             </div>
             {chart.series.length > 1 && (
               <ul className="mt-4 flex gap-5" aria-label="Legend">
@@ -66,7 +68,7 @@ export function FeaturedResearch({ insight, chart, takeaways }: { insight: Insig
                 height={260}
                 tone="dark"
                 area={chart.series.length === 1}
-                ariaLabel={`${chart.caption}. Illustrative.`}
+                ariaLabel={`${chart.caption}.${chart.illustrative ? " Illustrative." : ""}`}
               />
             </div>
           </>

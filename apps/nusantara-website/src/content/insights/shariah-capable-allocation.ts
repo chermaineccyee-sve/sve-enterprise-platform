@@ -1,3 +1,4 @@
+import { researchSample } from "./sample";
 import type { Insight } from "./types";
 
 export const shariahCapable: Insight = {
@@ -21,7 +22,8 @@ export const shariahCapable: Insight = {
   ],
   tags: ["Shariah-capable", "Governance", "Portfolio construction"],
   hero: { motif: "rings" },
-  status: "sample",
+  ...researchSample("2026-07-16"),
+  assetClasses: ["Multi-asset"],
   sources: [{ label: "Nusantara Research", detail: "Framework developed for this note." }],
   body: [
     { type: "heading", id: "dual-track", text: "A dual-track architecture" },

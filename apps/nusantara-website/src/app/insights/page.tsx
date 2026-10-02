@@ -6,9 +6,11 @@ import { LatestSignals } from "@/components/insights/v2/LatestSignals";
 import { Themes } from "@/components/insights/v2/Themes";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { CTA } from "@/components/ui/CTA";
-import { getAllInsights, getAllListings } from "@/content/insights";
-import { INTELLIGENCE_STATUS, LATEST_SIGNALS } from "@/content/intelligence";
+import { SAMPLE_LABELS } from "@/content/data/sample";
+import { getContentGraph, getFeaturedInsight, getInsightListings, getSignals, getThemes } from "@/lib/content/repository";
 import { getIntelligence, getMarketSnapshot } from "@/lib/market/service";
+
+const COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
 
 export const metadata: Metadata = {
   title: "Insights",
@@ -18,17 +20,28 @@ export const metadata: Metadata = {
 };
 
 export default async function InsightsPage() {
-  const [snapshot, intelligence] = await Promise.all([getMarketSnapshot(), getIntelligence()]);
+  const [snapshot, intelligence, listings, featuredFull, signals, themeList, graph] = await Promise.all([
+    getMarketSnapshot(),
+    getIntelligence(),
+    getInsightListings(),
+    getFeaturedInsight(),
+    getSignals(),
+    getThemes(),
+    getContentGraph(),
+  ]);
   const instruments = Object.fromEntries(snapshot.instruments.map((s) => [s.instrument.id, s]));
   const indicators = Object.fromEntries(intelligence.indicators.map((i) => [i.id, i]));
-  const listings = getAllListings();
   const listingMap = Object.fromEntries(listings.map((l) => [l.slug, l]));
-  const featuredFull = getAllInsights().find((i) => i.featured) ?? getAllInsights()[0];
-  const chartBlock = featuredFull.body.find((b) => b.type === "chart");
+  const chartBlock = featuredFull?.body.find((b) => b.type === "chart");
   const chart =
     chartBlock && chartBlock.type === "chart"
-      ? { caption: chartBlock.caption, xLabels: chartBlock.xLabels, series: chartBlock.series, decimals: chartBlock.decimals, unit: chartBlock.unit }
+      ? { caption: chartBlock.caption, xLabels: chartBlock.xLabels, series: chartBlock.series, decimals: chartBlock.decimals, unit: chartBlock.unit, illustrative: chartBlock.illustrative }
       : null;
+  // Curated research first, then anything else the relationship engine links to the theme.
+  const themes = themeList
+    .map((t) => ({ ...t, insights: [...new Set([...t.insights, ...graph.insightsForTheme(t.id)])].filter((s) => listingMap[s]) }))
+    .filter((t) => t.insights.length > 0);
+  const signalsLabel = signals.some((s) => s.sample) ? SAMPLE_LABELS.label : null;
 
   return (
     <>
@@ -58,13 +71,16 @@ export default async function InsightsPage() {
       </section>
 
       {/* Featured */}
-      <section aria-label="Featured research" className="on-dark bg-teal-900 text-white">
-        <div className="container-site">
-          <FeaturedResearch insight={listingMap[featuredFull.slug]} chart={chart} takeaways={featuredFull.keyTakeaways} />
-        </div>
-      </section>
+      {featuredFull && (
+        <section aria-label="Featured research" className="on-dark bg-teal-900 text-white">
+          <div className="container-site">
+            <FeaturedResearch insight={listingMap[featuredFull.slug]} chart={chart} takeaways={featuredFull.keyTakeaways} />
+          </div>
+        </section>
+      )}
 
       {/* Latest signals */}
+      {signals.length > 0 && (
       <section aria-labelledby="signals" className="bg-paper">
         <div className="container-site py-16 md:py-24">
           <div className="flex flex-wrap items-end justify-between gap-6">
@@ -76,13 +92,14 @@ export default async function InsightsPage() {
                 What we are watching, briefly.
               </h2>
             </div>
-            <p className="text-[12px] text-stone">{INTELLIGENCE_STATUS.label}</p>
+            {signalsLabel && <p className="text-[12px] text-stone">{signalsLabel}</p>}
           </div>
           <div className="mt-10 border-y border-rule">
-            <LatestSignals signals={LATEST_SIGNALS} instruments={instruments} />
+            <LatestSignals signals={signals} instruments={instruments} />
           </div>
         </div>
       </section>
+      )}
 
       {/* Deep dives */}
       <section aria-labelledby="deep-dives" className="border-t border-rule bg-white">
@@ -94,25 +111,31 @@ export default async function InsightsPage() {
             The research library.
           </h2>
           <div className="mt-10">
-            <DeepDives insights={listings} />
+            {listings.length ? (
+              <DeepDives insights={listings} />
+            ) : (
+              <p className="border-y border-rule py-10 text-[15px] text-stone">Research will appear here once it has been approved for publication.</p>
+            )}
           </div>
         </div>
       </section>
 
       {/* Themes */}
+      {themes.length > 0 && (
       <section aria-labelledby="themes" className="on-dark overflow-hidden bg-teal-950 text-white">
         <div className="container-site py-16 md:py-24">
           <p className="eyebrow text-teal-200">
             Themes we are watching
           </p>
           <h2 id="themes" className="display-m mt-4 max-w-2xl">
-            Six threads that run through our research.
+            {COUNT_WORDS[themes.length] ?? themes.length} {themes.length === 1 ? "thread that runs" : "threads that run"} through our research.
           </h2>
           <div className="mt-12">
-            <Themes insights={listingMap} instruments={instruments} indicators={indicators} />
+            <Themes themes={themes} insights={listingMap} instruments={instruments} indicators={indicators} provenance={snapshot.provenance} />
           </div>
         </div>
       </section>
+      )}
 
       <section className="border-t border-rule bg-ivory">
         <div className="container-site flex flex-col gap-6 py-14 md:flex-row md:items-center md:justify-between">

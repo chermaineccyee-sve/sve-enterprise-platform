@@ -1,7 +1,7 @@
 import { changeOverPeriod, formatChange, formatPct, formatValue } from "@/lib/market/format";
 import type { ChartPeriod, InstrumentSnapshot, PricePoint } from "@/lib/market/types";
 import { Change } from "./Change";
-import { MarketStatus } from "./MarketStatus";
+import { MarketStatus, StaleMark } from "./MarketStatus";
 import { Sparkline } from "./Sparkline";
 
 type MarketTableProps = {
@@ -56,12 +56,16 @@ export function MarketTable({ rows, histories, period, selectedId, onSelect, cap
                         className="text-left"
                       >
                         <span className="block font-semibold text-ink hover:text-teal-800">{inst.shortName}</span>
-                        <span className="num block text-[11.5px] text-stone">{inst.ticker}</span>
+                        <span className="num block text-[11.5px] text-stone">
+                          {inst.ticker} <StaleMark provenance={provenance} />
+                        </span>
                       </button>
                     ) : (
                       <>
                         <span className="block font-semibold text-ink">{inst.shortName}</span>
-                        <span className="num block text-[11.5px] text-stone">{inst.ticker}</span>
+                        <span className="num block text-[11.5px] text-stone">
+                          {inst.ticker} <StaleMark provenance={provenance} />
+                        </span>
                       </>
                     )}
                   </th>
@@ -91,14 +95,16 @@ export function MarketTable({ rows, histories, period, selectedId, onSelect, cap
 
       {/* Mobile: readable rows */}
       <ul className="divide-y divide-rule-soft border border-rule-soft bg-white md:hidden" aria-label={caption}>
-        {rows.map(({ instrument: inst, quote }) => {
+        {rows.map(({ instrument: inst, quote, provenance }) => {
           const vals = (histories.get(inst.id) ?? []).map((p) => p.v);
           const pc = period === "1D" || vals.length < 2 ? quote : changeOverPeriod(inst, vals[0], vals[vals.length - 1]);
           const content = (
             <>
               <span className="min-w-0 flex-1">
                 <span className="block text-[14px] font-semibold text-ink">{inst.shortName}</span>
-                <span className="num block text-[11.5px] text-stone">{inst.ticker}</span>
+                <span className="num block text-[11.5px] text-stone">
+                  {inst.ticker} <StaleMark provenance={provenance} />
+                </span>
               </span>
               {vals.length > 1 && (
                 <Sparkline values={vals} width={64} height={26} label={`${inst.shortName} ${period} trend`} className="shrink-0 text-teal-800" />

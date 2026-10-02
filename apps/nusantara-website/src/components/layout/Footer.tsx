@@ -2,7 +2,9 @@ import Link from "next/link";
 import { generalDisclaimer, legalNav, site } from "@/lib/site";
 import { Logo } from "./Logo";
 
-const columns: { title: string; links: { label: string; href: string }[] }[] = [
+type FooterColumn = { title: string; links: { label: string; href: string }[] };
+
+const columns = (scenarioHref: string | null): FooterColumn[] => [
   {
     title: "Firm",
     links: [
@@ -17,8 +19,9 @@ const columns: { title: string; links: { label: string; href: string }[] }[] = [
     links: [
       { label: "Market Dashboard", href: "/market-dashboard" },
       { label: "Insights", href: "/insights" },
-      { label: "Nusantara View", href: "/#nusantara-view" },
-      { label: "Scenario Analysis", href: "/insights/from-access-to-governed-allocation#scenario" },
+      { label: "Nusantara View", href: "/market-dashboard#workspace" },
+      // Resolved from content: the latest visible research containing a scenario analysis.
+      ...(scenarioHref ? [{ label: "Scenario Analysis", href: scenarioHref }] : []),
     ],
   },
   {
@@ -32,7 +35,7 @@ const columns: { title: string; links: { label: string; href: string }[] }[] = [
   },
 ];
 
-export function Footer() {
+export function Footer({ prototype, scenarioHref }: { prototype: boolean; scenarioHref: string | null }) {
   return (
     <footer className="on-dark bg-teal-950 text-teal-100" data-print="hide">
       <div className="container-site pt-16 pb-10 md:pt-24">
@@ -47,7 +50,7 @@ export function Footer() {
             </p>
           </div>
           <div className="grid gap-10 sm:grid-cols-3 lg:col-span-8 lg:pl-8">
-            {columns.map((col) => (
+            {columns(scenarioHref).map((col) => (
               <nav key={col.title} aria-label={col.title}>
                 <h2 className="eyebrow text-teal-200">{col.title}</h2>
                 <ul className="mt-5 space-y-3">
@@ -67,7 +70,7 @@ export function Footer() {
         <div className="mt-16 border-t border-white/10 pt-8">
           <h2 className="eyebrow text-teal-200">Important information</h2>
           <p className="mt-4 max-w-5xl text-[13px] leading-relaxed text-teal-200">{generalDisclaimer}</p>
-          {site.isPrototype && (
+          {prototype && (
             <p className="mt-3 max-w-5xl text-[13px] leading-relaxed text-teal-200">
               Market information displayed in this prototype is illustrative and is provided for demonstration
               purposes only.

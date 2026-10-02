@@ -1,3 +1,4 @@
+import { researchSample } from "./sample";
 import type { Insight } from "./types";
 
 export const q4MarketOutlook: Insight = {
@@ -23,7 +24,8 @@ export const q4MarketOutlook: Insight = {
   tags: ["Outlook", "Growth", "Rates", "Currencies", "Commodities"],
   hero: { motif: "lines" },
   featured: true,
-  status: "sample",
+  ...researchSample("2026-10-01"),
+  assetClasses: ["Equities", "Fixed income", "Currencies", "Commodities"],
   sources: [
     { label: "Nusantara Investment Team", detail: "Framework and interpretation." },
     { label: "Nusantara Market Dashboard", detail: "Illustrative prototype dataset. To be replaced with attributed data before publication." },
@@ -149,5 +151,5 @@ export const q4MarketOutlook: Insight = {
     },
   ],
   related: ["rates-currencies-and-the-regional-allocator", "precious-metals-and-portfolio-resilience", "the-resilience-lens"],
-  relatedInstruments: ["klci", "us10y", "brent"],
+  markets: ["klci", "us10y", "brent"],
 };

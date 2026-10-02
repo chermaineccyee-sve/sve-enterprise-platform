@@ -9,8 +9,8 @@ import { ResearchRail } from "@/components/home/ResearchRail";
 import { Statement } from "@/components/home/Statement";
 import { ContactCTA } from "@/components/sections/ContactCTA";
 import { CTA } from "@/components/ui/CTA";
-import { getAllInsights, getAllListings } from "@/content/insights";
-import { INTELLIGENCE_STATUS } from "@/content/intelligence";
+import { PublicationStamp } from "@/components/ui/PublicationStamp";
+import { getFeaturedInsight, getInsightListings, getMarketState } from "@/lib/content/repository";
 import { INSTRUMENTS } from "@/lib/market/instruments";
 import { getIntelligence, getMarketHistory, getMarketSnapshot } from "@/lib/market/service";
 import { site } from "@/lib/site";
@@ -20,21 +20,29 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
+/** Market-bearing pages refresh at most every five minutes once a live or delayed provider is configured. */
+export const revalidate = 300;
+
 const RIBBON_IDS = ["klci", "sti", "jci", "nikkei", "hsi", "spx", "nasdaq", "usdmyr", "usdsgd", "usdidr", "gold", "silver", "brent", "cpo", "us10y", "mgs10y"];
 const MONITOR_IDS = ["klci", "usdmyr", "gold", "us10y", "sti", "brent"];
 
 export default async function HomePage() {
-  const [snapshot, history, intelligence] = await Promise.all([getMarketSnapshot(), getMarketHistory("1M"), getIntelligence()]);
+  const [snapshot, history, intelligence, listings, featuredFull, marketState] = await Promise.all([
+    getMarketSnapshot(),
+    getMarketHistory("1M"),
+    getIntelligence(),
+    getInsightListings(),
+    getFeaturedInsight(),
+    getMarketState(),
+  ]);
   const byId = Object.fromEntries(snapshot.instruments.map((s) => [s.instrument.id, s]));
   const sparks = Object.fromEntries(history.map((h) => [h.instrumentId, h.points.map((p) => p.v)]));
-  const listings = getAllListings();
   const listingMap = Object.fromEntries(listings.map((l) => [l.slug, l]));
-  const featuredFull = getAllInsights().find((i) => i.featured) ?? getAllInsights()[0];
-  const featured = listingMap[featuredFull.slug];
-  const chartBlock = featuredFull.body.find((b) => b.type === "chart");
+  const featured = featuredFull ? listingMap[featuredFull.slug] : null;
+  const chartBlock = featuredFull?.body.find((b) => b.type === "chart");
   const chart =
     chartBlock && chartBlock.type === "chart"
-      ? { caption: chartBlock.caption, xLabels: chartBlock.xLabels, series: chartBlock.series, decimals: chartBlock.decimals, unit: chartBlock.unit }
+      ? { caption: chartBlock.caption, xLabels: chartBlock.xLabels, series: chartBlock.series, decimals: chartBlock.decimals, unit: chartBlock.unit, illustrative: chartBlock.illustrative }
       : null;
   const pick = (ids: string[]) => ids.map((id) => byId[id]).filter(Boolean);
 
@@ -75,7 +83,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <MarketRibbon instruments={pick(RIBBON_IDS)} />
+      <MarketRibbon instruments={pick(RIBBON_IDS)} provenance={snapshot.provenance} />
 
       {/* Who we are */}
       <section aria-labelledby="who-title" className="overflow-hidden border-t border-rule bg-paper">
@@ -101,7 +109,8 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Nusantara Market State */}
+      {/* Nusantara Market State — rendered only while an edition may be shown */}
+      {marketState && (
       <section id="market-state" aria-labelledby="state-title" className="scroll-mt-20 bg-paper">
         <div className="container-site py-20 md:py-28">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
@@ -111,15 +120,25 @@ export default async function HomePage() {
               </h2>
             </div>
             <div className="lg:col-span-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-800">{INTELLIGENCE_STATUS.framework}</p>
-              <p className="mt-2 text-[15px] leading-relaxed text-stone">{INTELLIGENCE_STATUS.note}</p>
+              {marketState.framing ? (
+                <>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-800">{marketState.framing.title}</p>
+                  <p className="mt-2 text-[15px] leading-relaxed text-stone">{marketState.framing.note}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-800">{marketState.edition}</p>
+                  <PublicationStamp p={marketState} className="mt-2" />
+                </>
+              )}
             </div>
           </div>
           <div className="mt-14">
-            <MarketState instruments={byId} sparks={sparks} insights={listingMap} />
+            <MarketState edition={marketState} instruments={byId} sparks={sparks} insights={listingMap} provenance={snapshot.provenance} />
           </div>
         </div>
       </section>
+      )}
 
       {/* Investment process story */}
       <section id="process" aria-labelledby="process-title" className="on-dark scroll-mt-20 bg-teal-900 text-white">
@@ -146,10 +165,12 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Research rail */}
-      <section id="research" aria-label="Nusantara Insights" className="scroll-mt-20 bg-paper py-20 md:py-28">
-        <ResearchRail featured={featured} chart={chart} items={listings.filter((l) => l.slug !== featured.slug).slice(0, 6)} />
-      </section>
+      {/* Research rail — rendered only while research may be shown */}
+      {featured && (
+        <section id="research" aria-label="Nusantara Insights" className="scroll-mt-20 bg-paper py-20 md:py-28">
+          <ResearchRail featured={featured} chart={chart} items={listings.filter((l) => l.slug !== featured.slug).slice(0, 6)} />
+        </section>
+      )}
 
       {/* Governance signal */}
       <section id="governance" aria-labelledby="gov-title" className="on-dark scroll-mt-20 bg-teal-950 text-white">

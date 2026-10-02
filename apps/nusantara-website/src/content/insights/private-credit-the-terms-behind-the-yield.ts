@@ -1,3 +1,4 @@
+import { researchSample } from "./sample";
 import type { Insight } from "./types";
 
 export const privateCreditTerms: Insight = {
@@ -21,7 +22,8 @@ export const privateCreditTerms: Insight = {
   ],
   tags: ["Private credit", "Income", "Due diligence"],
   hero: { motif: "bars" },
-  status: "sample",
+  ...researchSample("2026-09-10"),
+  assetClasses: ["Private credit"],
   sources: [{ label: "Nusantara Research", detail: "Assessment framework developed for this note." }],
   body: [
     { type: "heading", id: "why-terms", text: "Why the terms matter more than the rate" },
@@ -67,5 +69,5 @@ export const privateCreditTerms: Insight = {
     },
   ],
   related: ["alternatives-require-more-discipline", "from-access-to-governed-allocation", "q4-2026-market-outlook"],
-  relatedInstruments: ["us10y"],
+  markets: ["us10y"],
 };

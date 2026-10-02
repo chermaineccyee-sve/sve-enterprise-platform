@@ -1,3 +1,4 @@
+import { researchSample } from "./sample";
 import type { Insight } from "./types";
 
 export const ratesCurrencies: Insight = {
@@ -21,7 +22,8 @@ export const ratesCurrencies: Insight = {
   ],
   tags: ["Rates", "Currencies", "Macro"],
   hero: { motif: "lines" },
-  status: "sample",
+  ...researchSample("2026-08-14"),
+  assetClasses: ["Fixed income", "Currencies"],
   sources: [
     { label: "Nusantara Investment Team", detail: "Framework and interpretation." },
     { label: "Nusantara Market Dashboard", detail: "Illustrative prototype dataset used for the chart in this note." },
@@ -78,5 +80,5 @@ export const ratesCurrencies: Insight = {
     },
   ],
   related: ["q4-2026-market-outlook", "the-resilience-lens", "from-access-to-governed-allocation"],
-  relatedInstruments: ["usdmyr", "usdsgd", "us10y"],
+  markets: ["usdmyr", "usdsgd", "us10y"],
 };

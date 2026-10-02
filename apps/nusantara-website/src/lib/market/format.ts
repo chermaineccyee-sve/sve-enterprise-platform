@@ -1,4 +1,6 @@
-import type { DataStatus, InstrumentDefinition, Quote } from "./types";
+import type { InstrumentDefinition, Quote } from "./types";
+
+export { STATUS_LABEL } from "./status";
 
 const nf = (min: number, max = min) =>
   new Intl.NumberFormat("en-GB", { minimumFractionDigits: min, maximumFractionDigits: max });
@@ -56,14 +58,6 @@ export function formatAxisTime(iso: string, mode: "time" | "day" | "month") {
   if (mode === "day") return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
   return `${MONTHS[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}`;
 }
-
-export const STATUS_LABEL: Record<DataStatus, string> = {
-  live: "Live",
-  delayed: "Delayed",
-  "end-of-day": "End of day",
-  illustrative: "Illustrative",
-  placeholder: "Placeholder",
-};
 
 export function formatDate(iso: string) {
   return formatTimestamp(iso, { time: false });

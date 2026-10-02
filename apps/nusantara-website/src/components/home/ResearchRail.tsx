@@ -7,7 +7,7 @@ import { MorphChart } from "@/components/market/MorphChart";
 import { SERIES_COLORS, PRIMARY_LINE } from "@/components/market/chart-utils";
 import { formatInsightDate, type InsightListing } from "@/content/insights/types";
 
-type FeaturedChart = { caption: string; xLabels: string[]; series: { id: string; label: string; values: number[] }[]; decimals: number; unit?: string };
+type FeaturedChart = { caption: string; xLabels: string[]; series: { id: string; label: string; values: number[] }[]; decimals: number; unit?: string; illustrative: boolean };
 
 /**
  * Full-bleed horizontal research rail: the featured piece carries a live,
@@ -81,9 +81,9 @@ export function ResearchRail({ featured, chart, items }: { featured: InsightList
                     labels={chart.xLabels}
                     format={fmt}
                     height={240}
-                    ariaLabel={`${chart.caption}. Illustrative.`}
+                    ariaLabel={`${chart.caption}.${chart.illustrative ? " Illustrative." : ""}`}
                   />
-                  <p className="mt-1 text-[11px] text-stone">Illustrative · hover or use arrow keys to read values</p>
+                  <p className="mt-1 text-[11px] text-stone">{chart.illustrative ? "Illustrative · " : ""}hover or use arrow keys to read values</p>
                 </>
               ) : (
                 <div className="aspect-[16/10]">

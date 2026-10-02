@@ -8,8 +8,12 @@ import { INTELLIGENCE_CATEGORIES, type IntelligenceCategory, type IntelligenceIn
 
 const DIR = { rising: "↗ Rising", stable: "→ Stable", easing: "↘ Easing" } as const;
 
-/** Level B as an editorial index: one line per indicator, reading on demand. */
-export function StructuralIndicators({ indicators }: { indicators: IntelligenceIndicator[] }) {
+/**
+ * Level B as an editorial index: one line per indicator, reading on demand.
+ * Values come from the market-data service; each Nusantara reading is content,
+ * passed in separately (and absent when no current reading may be shown).
+ */
+export function StructuralIndicators({ indicators, readings }: { indicators: IntelligenceIndicator[]; readings: Record<string, string> }) {
   const [cat, setCat] = useState<IntelligenceCategory | "All">("All");
   const [open, setOpen] = useState<string | null>(indicators[0]?.id ?? null);
   const shown = cat === "All" ? indicators : indicators.filter((i) => i.category === cat);
@@ -48,10 +52,14 @@ export function StructuralIndicators({ indicators }: { indicators: IntelligenceI
                       <div className="grid gap-4 pb-6 md:grid-cols-[200px_minmax(0,1fr)_340px] md:gap-x-6">
                         <span className="hidden md:block" />
                         <p className="flex gap-3 text-[15px] leading-relaxed text-charcoal">
-                          <span>
-                            <span className="font-semibold text-teal-900">Nusantara reading. </span>
-                            {ind.reading}
-                          </span>
+                          {readings[ind.id] ? (
+                            <span>
+                              <span className="font-semibold text-teal-900">Nusantara reading. </span>
+                              {readings[ind.id]}
+                            </span>
+                          ) : (
+                            <span className="text-stone">No current Nusantara reading for this indicator.</span>
+                          )}
                         </p>
                         <p className="text-[12px] leading-relaxed text-stone">
                           {ind.measure} · {ind.period} · Source: {ind.provenance.source}

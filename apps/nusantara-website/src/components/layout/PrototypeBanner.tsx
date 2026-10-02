@@ -1,9 +1,10 @@
 import { NStar } from "@/components/identity/NStar";
 import Link from "next/link";
-import { site } from "@/lib/site";
+import { config } from "@/lib/config";
 
+/** Master disclosure for the management-review prototype. Not rendered in staging or production. */
 export function PrototypeBanner() {
-  if (!site.isPrototype) return null;
+  if (!config.isPrototype) return null;
   return (
     <div className="bg-teal-950 text-teal-100" data-print="hide">
       <div className="container-site flex min-h-8 flex-wrap items-center justify-between gap-x-6 gap-y-1 py-1.5 text-[11.5px] tracking-wide">

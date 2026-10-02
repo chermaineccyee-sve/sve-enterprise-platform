@@ -2,14 +2,25 @@
  * Market data contracts.
  *
  * Every UI component consumes these types only — never a provider directly.
- * Replacing the illustrative provider with an authorised feed (exchange
- * feeds, statistical APIs, or a licensed vendor) means implementing
+ * Replacing the illustrative provider with an authorised feed (an approved
+ * API or a licensed enterprise vendor) means implementing
  * `MarketDataProvider` and registering it in `service.ts`. No component
  * changes are required.
  */
 
-/** How a value should be represented to the public. Always displayed. */
-export type DataStatus = "live" | "delayed" | "end-of-day" | "illustrative" | "placeholder";
+/**
+ * How a value may be represented to the public. Always displayed.
+ *
+ *  - illustrative: generated for demonstration; never market data
+ *  - delayed:      from an authorised source with a stated delay (incl. end-of-day closes)
+ *  - live:         streamed from an authorised source
+ *  - unavailable:  no value may be shown (feed down, not licensed for display, or not supplied)
+ */
+export const DATA_STATUSES = ["illustrative", "delayed", "live", "unavailable"] as const;
+export type DataStatus = (typeof DATA_STATUSES)[number];
+
+/** Whether the licence permits public display of a value. */
+export type DisplayLicence = "public" | "restricted";
 
 export type AssetClass = "equities" | "fx" | "rates" | "commodities";
 
@@ -30,6 +41,10 @@ export interface InstrumentDefinition {
   ticker: string;
   assetClass: AssetClass;
   region: "Asia" | "Americas" | "Europe" | "Global";
+  /** Market the instrument belongs to, e.g. "Malaysia", "United States", "Global". */
+  market: string;
+  /** Currency the value is quoted in (ISO 4217), or the quote currency of an FX pair. */
+  currency: string;
   /** Unit shown beside the value, e.g. "USD/oz", "%". */
   unit?: string;
   decimals: number;
@@ -43,16 +58,32 @@ export interface PricePoint {
   v: number;
 }
 
-/** Where a number came from and how current it is. */
+/** Where a number came from, how current it is, and whether it may be shown. */
 export interface DataProvenance {
+  /** Display name of the source, shown on every data surface. */
   source: string;
+  /** Provider id, e.g. "illustrative", "http". */
+  provider?: string;
   status: DataStatus;
   /** ISO 8601 timestamp of the observation. */
   asOf: string;
+  /** ISO 8601 timestamp at which Nusantara retrieved it. */
+  retrievedAt?: string;
   /** For delayed data: delay in minutes, displayed alongside the status. */
   delayMinutes?: number;
+  /**
+   * Age (minutes) after which a delayed or live value is stale. Stale values
+   * are labelled as such and never presented as current.
+   */
+  staleAfterMinutes?: number;
   /** Optional attribution / licence wording required by a vendor. */
   attribution?: string;
+  /** Licensing / display status. Defaults to "public" when omitted. */
+  licence?: DisplayLicence;
+  /** Licensing note for compliance review (not displayed unless required). */
+  licensingNote?: string;
+  /** How the value is produced, where relevant. */
+  methodology?: string;
 }
 
 export interface Quote {
@@ -78,11 +109,20 @@ export interface InstrumentHistory {
   points: PricePoint[];
 }
 
+/** An instrument in the catalogue for which no value may be shown. */
+export interface UnavailableInstrument {
+  instrument: InstrumentDefinition;
+  reason: "service-unavailable" | "not-supplied" | "not-licensed" | "invalid";
+}
+
 export interface MarketSnapshot {
   provenance: DataProvenance;
   /** Disclaimer wording supplied by the provider configuration. */
   disclaimer: string;
+  /** Instruments with a displayable value. */
   instruments: InstrumentSnapshot[];
+  /** Catalogue instruments with no displayable value. Never given invented numbers. */
+  unavailable: UnavailableInstrument[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -116,8 +156,6 @@ export interface IntelligenceIndicator {
   direction: Direction;
   /** Short series for a trend line (oldest → newest). */
   series: { label: string; v: number }[];
-  /** Nusantara's interpretation layer — what it may mean. */
-  reading: string;
   provenance: DataProvenance;
 }
 
@@ -131,6 +169,8 @@ export interface IntelligenceSnapshot {
 
 export interface MarketDataProvider {
   id: string;
+  /** Human-readable name used in source lines, e.g. "Illustrative dataset (prototype)". */
+  label: string;
   getSnapshot(): Promise<MarketSnapshot>;
   getHistory(period: ChartPeriod, instrumentIds?: string[]): Promise<InstrumentHistory[]>;
   getIntelligence(): Promise<IntelligenceSnapshot>;

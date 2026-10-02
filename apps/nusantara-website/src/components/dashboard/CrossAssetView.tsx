@@ -2,11 +2,12 @@
 
 import { AnimatePresence, m } from "motion/react";
 import { useState } from "react";
-import { CROSS_ASSET_VIEW } from "@/content/intelligence";
+import type { NusantaraView } from "@/content/model/intelligence";
 import type { CrossAssetMeasure } from "@/lib/market/analytics";
 import { signed } from "@/lib/market/format";
 import { ASSET_CLASS_LABELS } from "@/lib/market/instruments";
-import type { AssetClass } from "@/lib/market/types";
+import { statusPhrase } from "@/lib/market/status";
+import type { AssetClass, DataProvenance } from "@/lib/market/types";
 
 const CLASSES: AssetClass[] = ["equities", "fx", "rates", "commodities"];
 const ROWS = ["Momentum", "Volatility", "Direction", "Nusantara view"] as const;
@@ -27,9 +28,19 @@ const TONE: Record<string, string> = {
 
 /**
  * CROSS-ASSET VIEW. Momentum, volatility and direction are *derived* from the
- * dataset (illustrative here); the Nusantara row is a sample reading.
+ * market data; the Nusantara row is each asset class's Nusantara View.
  */
-export function CrossAssetView({ measures }: { measures: Record<AssetClass, CrossAssetMeasure> }) {
+export function CrossAssetView({
+  measures,
+  views,
+  provenance,
+}: {
+  measures: Record<AssetClass, CrossAssetMeasure>;
+  views: Record<AssetClass, NusantaraView | null>;
+  provenance: DataProvenance;
+}) {
+  const sample = CLASSES.some((c) => views[c]?.sample);
+  const illustrative = provenance.status === "illustrative";
   const [cell, setCell] = useState<{ row: Row; c: AssetClass }>({ row: "Momentum", c: "equities" });
 
   const label = (row: Row, c: AssetClass) => {
@@ -37,7 +48,7 @@ export function CrossAssetView({ measures }: { measures: Record<AssetClass, Cros
     if (row === "Momentum") return ms.momentum.label;
     if (row === "Volatility") return ms.volatility.label;
     if (row === "Direction") return ms.direction.label;
-    return CROSS_ASSET_VIEW[c].view;
+    return views[c]?.signal ?? "—";
   };
   const detail = (row: Row, c: AssetClass) => {
     const ms = measures[c];
@@ -45,14 +56,14 @@ export function CrossAssetView({ measures }: { measures: Record<AssetClass, Cros
     if (row === "Momentum") return `Average one-month change across ${n} ${ASSET_CLASS_LABELS[c]} instruments: ${signed(ms.momentum.value, ms.unit === "bp" ? 1 : 2, ms.unit === "bp" ? " bp" : "%")}.`;
     if (row === "Volatility") return `Average three-month realised volatility, annualised: ${ms.volatility.value.toFixed(ms.unit === "bp" ? 0 : 1)}${ms.unit === "bp" ? " bp" : "%"}, compared with a reference band for the asset class.`;
     if (row === "Direction") return `${ms.direction.up} of ${n} instruments higher and ${ms.direction.down} lower over one month (as quoted; for USD pairs, lower means regional currency strength).`;
-    return CROSS_ASSET_VIEW[c].note;
+    return views[c]?.summary ?? views[c]?.context ?? "There is no current Nusantara View for this asset class.";
   };
 
   return (
     <div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] border-collapse text-left">
-          <caption className="sr-only">Cross-asset view: derived measures and illustrative Nusantara view by asset class</caption>
+          <caption className="sr-only">Cross-asset view: derived measures and {sample ? "illustrative " : ""}Nusantara view by asset class</caption>
           <thead>
             <tr>
               <th scope="col" className="w-[150px]" />
@@ -106,7 +117,10 @@ export function CrossAssetView({ measures }: { measures: Record<AssetClass, Cros
         </AnimatePresence>
       </div>
       <p className="mt-4 text-[11.5px] leading-relaxed text-stone">
-        Momentum, volatility and direction are calculated from the illustrative dataset using documented thresholds, so they are illustrative too. The Nusantara row is an illustrative view for management review.
+        {illustrative
+          ? "Momentum, volatility and direction are calculated from the illustrative dataset using documented thresholds, so they are illustrative too."
+          : `Momentum, volatility and direction are calculated from ${statusPhrase(provenance)} market data using documented thresholds.`}{" "}
+        {sample ? "The Nusantara row is an illustrative view for management review." : "The Nusantara row is Nusantara’s current view of each asset class."}
       </p>
     </div>
   );

@@ -4,23 +4,32 @@ import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
 import { Change } from "@/components/market/Change";
-import { THEMES } from "@/content/intelligence";
+import { StaleMark } from "@/components/market/MarketStatus";
 import type { InsightListing } from "@/content/insights/types";
+import type { Theme } from "@/content/model/intelligence";
 import { formatValue } from "@/lib/market/format";
-import type { InstrumentSnapshot, IntelligenceIndicator } from "@/lib/market/types";
+import { statusPhrase } from "@/lib/market/status";
+import type { DataProvenance, InstrumentSnapshot, IntelligenceIndicator } from "@/lib/market/types";
 
 /** Themes we are watching — each joins research to the markets and indicators behind it. */
 export function Themes({
+  themes,
   insights,
   instruments,
   indicators,
+  provenance,
 }: {
+  /** Themes with their research already resolved by the relationship engine. */
+  themes: Theme[];
   insights: Record<string, InsightListing>;
   instruments: Record<string, InstrumentSnapshot>;
   indicators: Record<string, IntelligenceIndicator>;
+  provenance: DataProvenance;
 }) {
+  const THEMES = themes;
   const [active, setActive] = useState(0);
   const t = THEMES[active];
+  if (!t) return null;
   return (
     <div className="grid gap-10 lg:grid-cols-12">
       <ol className="lg:col-span-5" role="tablist" aria-orientation="vertical" aria-label="Themes">
@@ -60,11 +69,13 @@ export function Themes({
             </ul>
             {(t.instruments.length > 0 || t.indicators.length > 0) && (
               <>
-                <p className="eyebrow mt-8 text-teal-200">Signals behind it · illustrative</p>
+                <p className="eyebrow mt-8 text-teal-200">Signals behind it · {statusPhrase(provenance)}</p>
                 <ul className="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
                   {t.instruments.map((id) => instruments[id]).filter(Boolean).map((s) => (
                     <li key={s.instrument.id} className="flex items-center justify-between gap-3 border-b border-white/10 py-2 text-[13px]">
-                      <span className="font-semibold text-white">{s.instrument.shortName}</span>
+                      <span className="font-semibold text-white">
+                        {s.instrument.shortName} <StaleMark provenance={s.provenance} tone="dark" />
+                      </span>
                       <span className="num text-teal-100">
                         {formatValue(s.quote.value, s.instrument.decimals)}
                         {s.instrument.unit === "%" ? "%" : ""}

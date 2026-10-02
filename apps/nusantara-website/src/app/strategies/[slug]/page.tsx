@@ -6,19 +6,20 @@ import { StatusLabel } from "@/components/sections/StrategyCard";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { ReviewPlaceholder } from "@/components/ui/ReviewPlaceholder";
-import { getStrategy, STATUS_INFO, STRATEGIES } from "@/content/strategies";
+import { STATUS_INFO } from "@/content/strategies";
+import { getCapabilities, getCapability } from "@/lib/content/repository";
 import { generalDisclaimer } from "@/lib/site";
 
 /** Unknown slugs render notFound() on request, so the 404 hydrates with the real path. */
 export const dynamicParams = true;
 
-export function generateStaticParams() {
-  return STRATEGIES.map((s) => ({ slug: s.slug }));
+export async function generateStaticParams() {
+  return (await getCapabilities()).map((s) => ({ slug: s.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps<"/strategies/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const s = getStrategy(slug);
+  const s = await getCapability(slug);
   if (!s) return {};
   return { title: s.name, description: s.summary, alternates: { canonical: `/strategies/${s.slug}` } };
 }
@@ -48,10 +49,13 @@ function Row({ id, title, children }: { id: string; title: string; children: Rea
 
 export default async function StrategyPage({ params }: PageProps<"/strategies/[slug]">) {
   const { slug } = await params;
-  const s = getStrategy(slug);
+  const s = await getCapability(slug);
   if (!s) notFound();
+  const STRATEGIES = await getCapabilities();
   const idx = STRATEGIES.findIndex((x) => x.slug === s.slug);
   const next = STRATEGIES[(idx + 1) % STRATEGIES.length];
+  // Product fields are shown only for an approved, active product — never for a capability.
+  const product = s.status === "active-product" ? s.product : null;
 
 
   return (
@@ -60,11 +64,11 @@ export default async function StrategyPage({ params }: PageProps<"/strategies/[s
         <div className="container-site relative pt-10 pb-16 md:pt-14 md:pb-20">
           <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Strategies", href: "/strategies" }, { label: s.name }]} />
           <div className="mt-14 md:mt-20">
-            <StatusLabel status={s.status} />
+            <StatusLabel status={s.stage} />
             <h1 className="display-xl mt-6 max-w-4xl text-teal-900">{s.name}</h1>
             <p className="lede mt-8 max-w-2xl text-stone">{s.summary}</p>
             <p className="mt-6 max-w-2xl border-l-2 border-gold-500 pl-4 text-[13.5px] text-charcoal">
-              Status: <strong className="font-semibold">{STATUS_INFO[s.status].label}</strong> — {STATUS_INFO[s.status].description}
+              Status: <strong className="font-semibold">{STATUS_INFO[s.stage].label}</strong> — {STATUS_INFO[s.stage].description}
             </p>
           </div>
         </div>
@@ -88,8 +92,8 @@ export default async function StrategyPage({ params }: PageProps<"/strategies/[s
               <p className="font-serif text-[1.3rem] leading-relaxed text-charcoal">{s.overview}</p>
             </Row>
             <Row id="objective" title="Objective">
-              {s.objective ? (
-                <p className="text-[16px] leading-relaxed text-charcoal">{s.objective}</p>
+              {product?.objective ? (
+                <p className="text-[16px] leading-relaxed text-charcoal">{product.objective}</p>
               ) : (
                 <ReviewPlaceholder>An approved objective will be published if and when this capability becomes a defined strategy.</ReviewPlaceholder>
               )}
@@ -137,9 +141,9 @@ export default async function StrategyPage({ params }: PageProps<"/strategies/[s
               <p className="mt-4 text-[13px] text-stone">Qualitative characteristics only. No performance, return or fee figures are shown.</p>
             </Row>
             <Row id="documents" title="Documents">
-              {s.documents.length ? (
+              {product?.documents.length ? (
                 <ul>
-                  {s.documents.map((d) => (
+                  {product.documents.map((d) => (
                     <li key={d.href}>
                       <a href={d.href}>{d.title}</a>
                     </li>

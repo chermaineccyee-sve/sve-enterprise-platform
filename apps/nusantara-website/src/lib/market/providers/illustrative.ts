@@ -25,9 +25,13 @@ export const ILLUSTRATIVE_DISCLAIMER =
 
 const PROVENANCE: DataProvenance = {
   source: "Illustrative dataset (prototype)",
+  provider: "illustrative",
   status: "illustrative",
   asOf: ILLUSTRATIVE_AS_OF,
   attribution: "Generated for demonstration. Not sourced from any exchange or data vendor.",
+  licence: "public",
+  licensingNote: "Generated for demonstration; no third-party licence applies.",
+  methodology: "Deterministic seeded series around rounded reference levels. Not market data.",
 };
 
 /** Illustrative closing level and annualised volatility per instrument. */
@@ -201,6 +205,7 @@ function historyFor(inst: InstrumentDefinition, period: ChartPeriod): PricePoint
 
 export const illustrativeProvider: MarketDataProvider = {
   id: "illustrative",
+  label: "Illustrative dataset (prototype)",
   refreshIntervalMs: null, // Static dataset — never polled, never presented as live.
 
   async getSnapshot() {
@@ -225,6 +230,7 @@ export const illustrativeProvider: MarketDataProvider = {
           provenance: PROVENANCE,
         };
       }),
+      unavailable: [],
     };
   },
 

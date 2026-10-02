@@ -2,7 +2,8 @@ import Link from "next/link";
 import { STATUS_INFO, type Strategy } from "@/content/strategies";
 import { Arrow } from "@/components/ui/CTA";
 
-export function StatusLabel({ status, tone = "light" }: { status: Strategy["status"]; tone?: "light" | "dark" }) {
+/** Public stage label (Capability, Future development …). */
+export function StatusLabel({ status, tone = "light" }: { status: Strategy["stage"]; tone?: "light" | "dark" }) {
   const dark = tone === "dark";
   return (
     <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${dark ? "text-teal-200" : "text-stone"}`}>
@@ -21,7 +22,7 @@ export function StrategyCard({ strategy, index, variant = "row" }: { strategy: S
       >
         <div className="flex items-center justify-between">
           <span className="num text-[12px] text-stone">{String(index + 1).padStart(2, "0")}</span>
-          <StatusLabel status={strategy.status} />
+          <StatusLabel status={strategy.stage} />
         </div>
         <h3 className="mt-8 font-serif text-[1.55rem] leading-tight text-teal-900">{strategy.name}</h3>
         <p className="mt-3 text-[14.5px] leading-relaxed text-stone">{strategy.summary}</p>
@@ -42,7 +43,7 @@ export function StrategyCard({ strategy, index, variant = "row" }: { strategy: S
       </h3>
       <p className="text-[14.5px] leading-relaxed text-stone md:col-span-5">{strategy.summary}</p>
       <span className="flex items-center justify-between gap-4 md:col-span-2 md:justify-end">
-        <StatusLabel status={strategy.status} />
+        <StatusLabel status={strategy.stage} />
         <span className="text-teal-800">
           <Arrow />
         </span>

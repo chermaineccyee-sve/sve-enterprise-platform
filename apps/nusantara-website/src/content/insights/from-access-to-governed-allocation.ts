@@ -1,3 +1,4 @@
+import { researchSample } from "./sample";
 import type { Insight } from "./types";
 
 export const fromAccessToGovernedAllocation: Insight = {
@@ -23,7 +24,8 @@ export const fromAccessToGovernedAllocation: Insight = {
   tags: ["Governed allocation", "Private wealth", "Governance", "Portfolio construction"],
   hero: { motif: "arcs" },
   featured: false,
-  status: "sample",
+  ...researchSample("2026-09-29"),
+  assetClasses: ["Multi-asset"],
   sources: [
     { label: "Nusantara Research", detail: "Framework and interpretation developed by Nusantara for this note." },
   ],
@@ -150,5 +152,5 @@ export const fromAccessToGovernedAllocation: Insight = {
     },
   ],
   related: ["the-resilience-lens", "alternatives-require-more-discipline", "q4-2026-market-outlook"],
-  relatedInstruments: [],
+  markets: [],
 };

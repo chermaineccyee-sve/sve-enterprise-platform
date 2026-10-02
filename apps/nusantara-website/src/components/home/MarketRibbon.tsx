@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { NStar } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
+import { StaleMark } from "@/components/market/MarketStatus";
+import { track } from "@/lib/analytics";
 import { formatTimestamp, formatValue } from "@/lib/market/format";
-import type { InstrumentSnapshot } from "@/lib/market/types";
+import { statusPhrase, statusTitle } from "@/lib/market/status";
+import type { DataProvenance, InstrumentSnapshot } from "@/lib/market/types";
 import { useOptionalMarketFocus } from "./MarketFocus";
 
 function Item({ s, hidden, on, onSelect }: { s: InstrumentSnapshot; hidden?: boolean; on: boolean; onSelect: ((id: string) => void) | null }) {
@@ -21,16 +24,32 @@ function Item({ s, hidden, on, onSelect }: { s: InstrumentSnapshot; hidden?: boo
           {inst.unit === "%" ? "%" : ""}
         </span>
         <Change instrument={inst} change={s.quote.change} changePct={s.quote.changePct} changeBp={s.quote.changeBp} showAbsolute={false} tone="dark" />
+        <StaleMark provenance={s.provenance} tone="dark" />
     </>
   );
   return (
     <li className="relative shrink-0 snap-start" aria-hidden={hidden || undefined}>
       {onSelect ? (
-        <button type="button" tabIndex={hidden ? -1 : 0} onClick={() => onSelect(inst.id)} aria-label={label} className={cls}>
+        <button
+          type="button"
+          tabIndex={hidden ? -1 : 0}
+          onClick={() => {
+            onSelect(inst.id);
+            track({ name: "market_selected", instrument: inst.id, surface: "ribbon" });
+          }}
+          aria-label={label}
+          className={cls}
+        >
           {body}
         </button>
       ) : (
-        <Link href={`/market-dashboard?instrument=${inst.id}`} tabIndex={hidden ? -1 : 0} aria-label={label} className={cls}>
+        <Link
+          href={`/market-dashboard?instrument=${inst.id}`}
+          tabIndex={hidden ? -1 : 0}
+          aria-label={label}
+          className={cls}
+          onClick={() => track({ name: "market_selected", instrument: inst.id, surface: "link" })}
+        >
           {body}
         </Link>
       )}
@@ -44,20 +63,21 @@ function Item({ s, hidden, on, onSelect }: { s: InstrumentSnapshot; hidden?: boo
  * swipeable, snap-scrolling carousel. On the dashboard, selecting a market
  * selects it in the workspace; elsewhere it opens the dashboard on that market.
  */
-export function MarketRibbon({ instruments }: { instruments: InstrumentSnapshot[] }) {
+export function MarketRibbon({ instruments, provenance }: { instruments: InstrumentSnapshot[]; provenance: DataProvenance }) {
   const focus = useOptionalMarketFocus();
   const focusId = focus?.focusId ?? "";
   const [paused, setPaused] = useState(false);
   const asOf = instruments[0]?.provenance.asOf;
   const select = focus ? (id: string) => focus.setFocus(id, { scroll: true }) : null;
+  if (!instruments.length) return null;
 
   return (
-    <section aria-label="Market ribbon (illustrative data)" className="on-dark relative z-10 border-y border-white/10 bg-teal-950 text-white">
+    <section aria-label={`Market ribbon (${statusPhrase(provenance)} data)`} className="on-dark relative z-10 border-y border-white/10 bg-teal-950 text-white">
       <div className="flex items-stretch">
         <div className="flex shrink-0 items-center gap-3 border-r border-white/10 bg-teal-950 px-4 md:px-6">
           <NStar className="star-breathe h-2.5 w-2.5 text-gold-400" />
           <span className="leading-tight">
-            <span className="block text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">Illustrative</span>
+            <span className="block text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">{statusTitle(provenance)}</span>
             <span className="num hidden text-[10.5px] text-teal-200 sm:block">{asOf ? formatTimestamp(asOf) : ""}</span>
           </span>
           <button
