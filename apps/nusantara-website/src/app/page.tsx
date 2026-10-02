@@ -94,8 +94,8 @@ export default async function HomePage() {
 
       {/* Market intelligence — selecting a market anywhere above updates it */}
       {ribbon.length > 0 && (
-        <section id="market-intelligence" aria-labelledby="mi-title" className="scroll-mt-16 bg-paper">
-          <div className="container-site pt-16 pb-16 md:pt-20 md:pb-24">
+        <section id="market-intelligence" aria-labelledby="mi-title" className="bg-paper">
+          <div className="container-site pt-16 pb-16 md:pt-20 md:pb-24 lg:pt-14 lg:pb-16">
             <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
               <div className="lg:col-span-7">
                 <p className="eyebrow text-stone">Market intelligence</p>
@@ -107,7 +107,7 @@ export default async function HomePage() {
                 Select a market. What happened sits on the left; what we are watching, and what it may mean, on the right.
               </p>
             </div>
-            <div className="mt-10">
+            <div className="mt-10 lg:mt-7">
               <MarketIntelligence instruments={ribbon} histories={histories} intel={intel} provenance={snapshot.provenance} />
             </div>
           </div>
@@ -140,7 +140,7 @@ export default async function HomePage() {
 
       {/* Nusantara Market State — rendered only while an edition may be shown */}
       {marketState && (
-      <section id="market-state" aria-labelledby="state-title" className="scroll-mt-20 bg-paper">
+      <section id="market-state" aria-labelledby="state-title" className="bg-paper">
         <div className="container-site py-20 md:py-28">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-7">
@@ -170,7 +170,7 @@ export default async function HomePage() {
       )}
 
       {/* Investment process story */}
-      <section id="process" aria-labelledby="process-title" className="on-dark scroll-mt-20 bg-teal-900 text-white">
+      <section id="process" aria-labelledby="process-title" className="on-dark bg-teal-900 text-white">
         <div className="container-site pt-20 md:pt-28">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-7">
@@ -196,13 +196,13 @@ export default async function HomePage() {
 
       {/* Research rail — rendered only while research may be shown */}
       {featured && (
-        <section id="research" aria-label="Nusantara Insights" className="scroll-mt-20 bg-paper py-20 md:py-28">
+        <section id="research" aria-label="Nusantara Insights" className="bg-paper py-20 md:py-28">
           <ResearchRail featured={featured} chart={chart} items={listings.filter((l) => l.slug !== featured.slug).slice(0, 6)} />
         </section>
       )}
 
       {/* Governance signal */}
-      <section id="governance" aria-labelledby="gov-title" className="on-dark scroll-mt-20 bg-teal-950 text-white">
+      <section id="governance" aria-labelledby="gov-title" className="on-dark bg-teal-950 text-white">
         <div className="container-site py-20 md:py-28">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-7">

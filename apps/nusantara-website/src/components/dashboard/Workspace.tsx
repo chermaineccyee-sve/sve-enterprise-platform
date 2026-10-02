@@ -665,12 +665,12 @@ function InstrumentIntel({ inst, intel }: { inst: InstrumentDefinition; intel: M
     <div className="px-5 py-5 md:px-8 lg:py-7">
       <div className="hidden lg:block">
         <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</p>
-        {subline ? <p className="mt-0.5 text-[11px] text-teal-200">{subline}</p> : view && <PublicationStamp p={view} tone="dark" className="mt-1" />}
+        {subline ? <p className="mt-1 text-[11px] font-medium tracking-[0.04em] text-gold-200">{subline}</p> : view && <PublicationStamp p={view} tone="dark" className="mt-1" />}
       </div>
       <button type="button" aria-expanded={open} aria-controls="intel-body" onClick={toggle} className="flex w-full items-center justify-between text-left lg:hidden">
         <span>
           <span className="block text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</span>
-          {subline ? <span className="mt-0.5 block text-[11px] text-teal-200">{subline}</span> : view && <PublicationStamp p={view} tone="dark" className="mt-1" />}
+          {subline ? <span className="block mt-1 text-[11px] font-medium tracking-[0.04em] text-gold-200">{subline}</span> : view && <PublicationStamp p={view} tone="dark" className="mt-1" />}
         </span>
         <span aria-hidden className={`text-xl text-gold-300 transition-transform ${open ? "rotate-45" : ""}`}>+</span>
       </button>
@@ -740,6 +740,7 @@ function IndicatorIntel({ indicator, reading }: { indicator: IntelligenceIndicat
       <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
         Nusantara reading
       </p>
+      {current?.sample && <p className="mt-1 text-[11px] font-medium tracking-[0.04em] text-gold-200">{SAMPLE_LABELS.interpretation}</p>}
       <AnimatePresence mode="wait" initial={false}>
         <m.div key={indicator.id} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
           <p className="mt-6 font-serif text-[2rem] capitalize leading-none text-white">{indicator.direction}</p>

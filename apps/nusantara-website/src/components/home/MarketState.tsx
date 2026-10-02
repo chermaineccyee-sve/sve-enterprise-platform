@@ -12,6 +12,7 @@ import type { MarketStateEdition } from "@/content/model/intelligence";
 import { formatValue } from "@/lib/market/format";
 import { statusTitle } from "@/lib/market/status";
 import type { DataProvenance, InstrumentSnapshot } from "@/lib/market/types";
+import { useHoverIntent } from "@/hooks/useHoverIntent";
 import { getUrlParam, routes, setUrlParam } from "@/lib/routes";
 
 /**
@@ -50,6 +51,7 @@ export function MarketState({
     setActiveIndex(i);
     if (fromUser) setUrlParam("dimension", MARKET_STATE[i].id);
   };
+  const hoverReady = useHoverIntent();
   const d = MARKET_STATE[active];
   const insight = d.relatedInsight ? insights[d.relatedInsight] : undefined;
 
@@ -103,7 +105,7 @@ export function MarketState({
                 aria-controls="state-panel"
                 tabIndex={on ? 0 : -1}
                 onClick={() => setActive(i)}
-                onMouseEnter={() => setActive(i, false)}
+                onMouseEnter={() => hoverReady() && setActive(i, false)}
                 onKeyDown={(e) => onKey(e, i)}
                 className="group relative grid w-full grid-cols-[1fr_auto] items-center gap-x-6 gap-y-3 border-b border-rule py-5 text-left md:grid-cols-[150px_minmax(0,1fr)_200px]"
               >

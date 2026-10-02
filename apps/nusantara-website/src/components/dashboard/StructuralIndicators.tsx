@@ -13,7 +13,16 @@ const DIR = { rising: "↗ Rising", stable: "→ Stable", easing: "↘ Easing" }
  * Values come from the market-data service; each Nusantara reading is content,
  * passed in separately (and absent when no current reading may be shown).
  */
-export function StructuralIndicators({ indicators, readings }: { indicators: IntelligenceIndicator[]; readings: Record<string, string> }) {
+export function StructuralIndicators({
+  indicators,
+  readings,
+  qualification,
+}: {
+  indicators: IntelligenceIndicator[];
+  readings: Record<string, string>;
+  /** Shown with every reading while readings are sample interpretation. */
+  qualification: string | null;
+}) {
   const [cat, setCat] = useState<IntelligenceCategory | "All">("All");
   const [open, setOpen] = useState<string | null>(indicators[0]?.id ?? null);
   const shown = cat === "All" ? indicators : indicators.filter((i) => i.category === cat);
@@ -56,6 +65,7 @@ export function StructuralIndicators({ indicators, readings }: { indicators: Int
                             <span>
                               <span className="font-semibold text-teal-900">Nusantara reading. </span>
                               {readings[ind.id]}
+                              {qualification && <span className="mt-1 block text-[11px] font-medium tracking-[0.04em] text-gold-800">{qualification}</span>}
                             </span>
                           ) : (
                             <span className="text-stone">No current Nusantara reading for this indicator.</span>

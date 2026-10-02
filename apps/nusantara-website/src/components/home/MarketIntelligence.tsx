@@ -58,7 +58,7 @@ export function MarketIntelligence({
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] border-t border-teal-800 lg:grid-cols-12">
       {/* SELECT MARKET */}
-      <div className="border-b border-rule py-5 lg:col-span-3 lg:border-b-0 lg:border-r lg:py-8 lg:pr-6">
+      <div className="border-b border-rule py-5 lg:col-span-3 lg:border-b-0 lg:border-r lg:py-6 lg:pr-6">
         <label htmlFor="mi-select" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone lg:hidden">
           Select market
         </label>
@@ -99,7 +99,7 @@ export function MarketIntelligence({
               );
             })}
           </div>
-          <ul role="group" aria-label="Markets" className="mt-5 border-t border-rule-soft">
+          <ul role="group" aria-label="Markets" className="mt-4 border-t border-rule-soft">
             {instruments
               .filter((s) => s.instrument.assetClass === inst.assetClass)
               .map((s) => {
@@ -110,7 +110,7 @@ export function MarketIntelligence({
                       type="button"
                       aria-pressed={on}
                       onClick={() => pick(s.instrument.id)}
-                      className={`relative grid w-full grid-cols-[1fr_auto] items-center gap-x-3 border-b border-rule-soft px-3 py-3 text-left transition-colors duration-300 ${on ? "bg-white" : "hover:bg-white/60"}`}
+                      className={`relative grid w-full grid-cols-[1fr_auto] items-center gap-x-3 border-b border-rule-soft px-3 py-3 text-left lg:py-2.5 transition-colors duration-300 ${on ? "bg-white" : "hover:bg-white/60"}`}
                     >
                       {on && <m.span layoutId="mi-row" className="absolute inset-y-0 left-0 w-[2px] bg-teal-800" />}
                       <span className="text-[13.5px] font-semibold text-ink">
@@ -140,15 +140,15 @@ function Observed({ snap, points, provenance }: { snap: InstrumentSnapshot; poin
   const fmt = (v: number) => `${formatValue(v, inst.decimals)}${unit}`;
   const { values, stamps } = useMemo(() => resampleSeries(points, N), [points]);
   return (
-    <section aria-label="Market data" className="min-w-0 py-6 lg:col-span-5 lg:px-8 lg:py-8">
+    <section aria-label="Market data" className="min-w-0 py-6 lg:col-span-5 lg:px-8 lg:py-6">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">
         Market data <span className="font-normal normal-case tracking-normal text-stone">· observed · {statusPhrase(provenance)}</span>
       </p>
-      <p className="mt-4 text-[13px] text-stone">
+      <p className="mt-4 text-[13px] text-stone lg:mt-3">
         {inst.name} <span className="num">· {inst.ticker}</span>
       </p>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-        <p className="text-[2.4rem] font-medium leading-none tracking-tight text-ink md:text-[2.8rem]">
+        <p className="text-[2.4rem] font-medium leading-none tracking-tight text-ink md:text-[2.8rem] lg:text-[2.5rem]">
           <AnimatedNumber value={snap.quote.value} format={fmt} />
         </p>
         <div className="sm:text-right">
@@ -156,20 +156,20 @@ function Observed({ snap, points, provenance }: { snap: InstrumentSnapshot; poin
           <Change instrument={inst} change={snap.quote.change} changePct={snap.quote.changePct} changeBp={snap.quote.changeBp} size="md" className="mt-1 sm:justify-end" />
         </div>
       </div>
-      <div className="mt-5">
+      <div className="mt-5 lg:mt-4">
         {values.length > 1 ? (
           <MorphChart
             series={[{ id: "mi", label: inst.shortName, color: PRIMARY_LINE, values }]}
             labels={stamps.map((t) => formatTimestamp(t, { time: false }))}
             format={fmt}
-            height={190}
+            height={170}
             ariaLabel={`${inst.name}, one month, ${statusPhrase(snap.provenance)}. Hover or use arrow keys to read values.`}
           />
         ) : (
-          <div className="flex h-[190px] items-center justify-center border border-dashed border-rule text-[13px] text-stone">One-month history is unavailable.</div>
+          <div className="flex h-[170px] items-center justify-center border border-dashed border-rule text-[13px] text-stone">One-month history is unavailable.</div>
         )}
       </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 lg:mt-3">
         <Provenance provenance={snap.provenance} />
         <Link href={routes.market(inst.id)} className="link-underline text-[13.5px] font-medium text-teal-800" onClick={() => track({ name: "market_selected", instrument: inst.id, surface: "link" })}>
           Open market view →
@@ -183,19 +183,19 @@ function Interpretation({ id, name, intel }: { id: string; name: string; intel: 
   const now = useNow();
   const view = intel?.view && !(now !== null && isPastReview(intel.view, now)) ? intel.view : null;
   return (
-    <section aria-label="Nusantara View" className="on-dark min-w-0 bg-teal-900 px-5 py-6 text-white md:px-8 lg:col-span-4 lg:py-8">
+    <section aria-label="Nusantara View" className="on-dark min-w-0 bg-teal-900 px-5 py-6 text-white md:px-8 lg:col-span-4 lg:py-6">
       <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</p>
-      {view && !view.sample ? <PublicationStamp p={view} tone="dark" className="mt-1" /> : <p className="mt-0.5 text-[11px] text-teal-200">{SAMPLE_LABELS.interpretation}</p>}
+      {view && !view.sample ? <PublicationStamp p={view} tone="dark" className="mt-1" /> : <p className="mt-1 text-[11px] font-medium tracking-[0.04em] text-gold-200">{SAMPLE_LABELS.interpretation}</p>}
       <AnimatePresence mode="wait" initial={false}>
         <m.div key={id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
           {view ? (
             <>
               {view.signal && (
-                <div className="mt-6">
+                <div className="mt-6 lg:mt-4">
                   <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">Signal</p>
-                  <p className="mt-1 font-serif text-[2rem] leading-none text-white">{view.signal}</p>
+                  <p className="mt-1 font-serif text-[2rem] leading-none text-white lg:text-[1.8rem]">{view.signal}</p>
                   {view.stance && (
-                    <div className="mt-4">
+                    <div className="mt-4 lg:mt-3">
                       <StateGauge id={`mi-${id}`} scale={view.stance.scale} position={view.stance.position} showLabels tone="dark" />
                     </div>
                   )}
@@ -210,7 +210,7 @@ function Interpretation({ id, name, intel }: { id: string; name: string; intel: 
             </p>
           )}
           {intel?.insight && (
-            <div className="mt-5 border-t border-white/10 pt-4">
+            <div className="mt-5 border-t border-white/10 pt-4 lg:mt-3.5 lg:pt-3">
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-teal-200">Related insight</p>
               <Link href={`/insights/${intel.insight.slug}`} className="group mt-1.5 block font-serif text-[1.12rem] leading-snug text-white hover:text-gold-200">
                 {intel.insight.title} →
@@ -226,7 +226,7 @@ function Interpretation({ id, name, intel }: { id: string; name: string; intel: 
 
 function Block({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="mt-5 border-t border-white/10 pt-4">
+    <div className="mt-5 border-t border-white/10 pt-4 lg:mt-3.5 lg:pt-3">
       <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-teal-200">{label}</p>
       <p className="mt-1.5 text-[14.5px] leading-snug text-teal-50">{children}</p>
     </div>
@@ -237,7 +237,7 @@ function Block({ label, children }: { label: string; children: React.ReactNode }
 export function Connected({ intel, className = "" }: { intel: MarketIntel | undefined; className?: string }) {
   if (!intel || (!intel.dimensions.length && !intel.capabilities.length)) return null;
   return (
-    <dl className={`mt-5 grid gap-2 border-t border-white/10 pt-4 text-[12.5px] ${className}`}>
+    <dl className={`mt-5 grid gap-2 border-t border-white/10 pt-4 text-[12.5px] lg:mt-3.5 lg:gap-1.5 lg:pt-3 ${className}`}>
       {intel.dimensions.length > 0 && (
         <div className="flex flex-wrap items-baseline gap-x-2">
           <dt className="text-teal-200">Market State</dt>

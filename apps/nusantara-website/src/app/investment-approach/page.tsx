@@ -128,7 +128,7 @@ export default async function InvestmentApproachPage() {
           <SectionHeader eyebrow="In detail" title={<span id="stages">How each stage works.</span>} />
           <div className="mt-14 border-t border-teal-800">
             {STAGES.map((s, i) => (
-              <Reveal key={s.id} id={s.id} className="grid scroll-mt-32 gap-6 border-b border-rule py-12 lg:grid-cols-12 lg:gap-10">
+              <Reveal key={s.id} id={s.id} className="grid gap-6 border-b border-rule py-12 lg:grid-cols-12 lg:gap-10">
                 <div className="lg:col-span-4">
                   <span className="num text-[12px] text-gold-700">{String(i + 1).padStart(2, "0")}</span>
                   <h3 className="display-s mt-3 text-teal-900">{s.title}</h3>
@@ -148,7 +148,7 @@ export default async function InvestmentApproachPage() {
         </div>
       </section>
 
-      <section id="risk" aria-labelledby="risk-title" className="scroll-mt-24 bg-ivory">
+      <section id="risk" aria-labelledby="risk-title" className="bg-ivory">
         <div className="container-site py-20 md:py-28">
           <SectionHeader
             eyebrow="Risk & resilience"

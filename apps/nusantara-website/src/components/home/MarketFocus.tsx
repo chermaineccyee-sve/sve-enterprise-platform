@@ -19,7 +19,7 @@ export function MarketFocusProvider({ initial, children, targetId = "market-inte
       const el = document.getElementById(targetId);
       const r = el?.getBoundingClientRect();
       // Only move the page when the panel that responds is out of view.
-      if (el && r && (r.top < 0 || r.top > window.innerHeight * 0.55)) {
+      if (el && r && (r.top < 72 || r.top > window.innerHeight * 0.55)) {
         el.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
       }
     }

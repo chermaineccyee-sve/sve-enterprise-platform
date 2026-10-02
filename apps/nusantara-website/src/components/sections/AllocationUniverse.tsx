@@ -12,6 +12,7 @@ import { track } from "@/lib/analytics";
 import { formatValue } from "@/lib/market/format";
 import { statusPhrase } from "@/lib/market/status";
 import type { DataProvenance, InstrumentSnapshot, IntelligenceIndicator } from "@/lib/market/types";
+import { useHoverIntent } from "@/hooks/useHoverIntent";
 import { getUrlParam, routes, setUrlParam } from "@/lib/routes";
 
 const LEVEL = ["Lower", "Moderate", "Higher"];
@@ -48,6 +49,8 @@ export function AllocationUniverse({
     setActiveIndex(i);
     if (fromUser) setUrlParam("capability", strategies[i].slug);
   };
+  const hoverReady = useHoverIntent();
+  const hover = (i: number) => hoverReady() && setActive(i, false);
   const s = strategies[active];
   const n = strategies.length;
   const nodes = strategies.map((st, i) => {
@@ -70,7 +73,7 @@ export function AllocationUniverse({
                 aria-selected={on}
                 aria-controls="universe-panel"
                 onClick={() => setActive(i)}
-                onMouseEnter={() => setActive(i, false)}
+                onMouseEnter={() => hover(i)}
                 className={`relative flex w-full items-baseline gap-3 border px-3 py-2 text-left lg:border-0 lg:border-b lg:border-rule lg:px-0 lg:py-3.5 ${on ? "border-teal-800" : "border-rule"}`}
               >
                 <span className={`num text-[11px] ${on ? "text-gold-700" : "text-mist"}`}>{String(i + 1).padStart(2, "0")}</span>
@@ -94,7 +97,7 @@ export function AllocationUniverse({
             const on = i === active;
             const future = st.stage === "future-development";
             return (
-              <g key={st.slug} transform={`translate(${x} ${y})`} onClick={() => setActive(i)} onMouseEnter={() => setActive(i, false)} className="cursor-pointer" aria-hidden>
+              <g key={st.slug} transform={`translate(${x} ${y})`} onClick={() => setActive(i)} onMouseEnter={() => hover(i)} className="cursor-pointer" aria-hidden>
                 <circle r={on ? 20 : 15} fill={on ? "var(--color-teal-800)" : "var(--color-paper)"} stroke={future ? "var(--color-mist)" : "var(--color-teal-800)"} strokeDasharray={future ? "3 3" : undefined} style={{ transition: "r 300ms, fill 300ms" }} />
                 <text dy="0.35em" textAnchor="middle" fontSize="11" fontWeight="600" fill={on ? "#fff" : "var(--color-teal-800)"} className="num">
                   {String(i + 1).padStart(2, "0")}

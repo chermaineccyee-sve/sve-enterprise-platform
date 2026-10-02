@@ -38,7 +38,7 @@ const SECTIONS = [
 
 function Row({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-h`} className="grid scroll-mt-32 gap-4 border-b border-rule py-10 md:grid-cols-12 md:gap-10">
+    <section id={id} aria-labelledby={`${id}-h`} className="grid gap-4 border-b border-rule py-10 md:grid-cols-12 md:gap-10">
       <h2 id={`${id}-h`} className="eyebrow pt-1 text-stone md:col-span-3">
         {title}
       </h2>

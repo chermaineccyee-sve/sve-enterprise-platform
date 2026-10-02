@@ -64,7 +64,7 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
         switch (b.type) {
           case "heading":
             return (
-              <h2 key={i} id={b.id} className="display-s mt-16 scroll-mt-32 text-teal-900 first:mt-0">
+              <h2 key={i} id={b.id} className="display-s mt-16 text-teal-900 first:mt-0">
                 {b.text}
               </h2>
             );
@@ -197,7 +197,7 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
             return <ArticleChart key={i} block={b} index={numbering[i]} />;
           case "scenario":
             return (
-              <div key={i} id="scenario" className="scroll-mt-32">
+              <div key={i} id="scenario">
                 <ScenarioAnalysis spec={b.scenario} />
               </div>
             );

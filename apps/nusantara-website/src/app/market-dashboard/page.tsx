@@ -7,6 +7,7 @@ import { MarketFocusProvider } from "@/components/home/MarketFocus";
 import { MarketRibbon } from "@/components/home/MarketRibbon";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { CTA } from "@/components/ui/CTA";
+import { SAMPLE_LABELS } from "@/content/data/sample";
 import type { NusantaraView } from "@/content/model/intelligence";
 import { config } from "@/lib/config";
 import { getMarketIntel } from "@/lib/content/market-intel";
@@ -85,7 +86,7 @@ export default async function MarketDashboardPage() {
       </div>
 
       {/* Workspace */}
-      <section id="workspace" aria-label="Market workspace" className="scroll-mt-16 bg-paper">
+      <section id="workspace" aria-label="Market workspace" className="bg-paper">
         <div className="mx-auto max-w-[1720px] py-8 lg:px-8 lg:py-10">
           <Workspace snapshot={snapshot} initialHistory={h1m} indicators={intelligence.indicators} intel={intel} readings={readings} />
         </div>
@@ -133,7 +134,11 @@ export default async function MarketDashboardPage() {
             <p className="text-[15px] leading-relaxed text-stone lg:col-span-5">{intelligence.disclaimer}</p>
           </div>
           <div className="mt-12">
-            <StructuralIndicators indicators={intelligence.indicators} readings={Object.fromEntries(Object.entries(readings).map(([k, v]) => [k, v.context]))} />
+            <StructuralIndicators
+              indicators={intelligence.indicators}
+              readings={Object.fromEntries(Object.entries(readings).map(([k, v]) => [k, v.context]))}
+              qualification={Object.values(readings).some((v) => v.sample) ? SAMPLE_LABELS.interpretation : null}
+            />
           </div>
         </div>
       </section>

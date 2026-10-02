@@ -18,5 +18,6 @@ export const SAMPLE: Publication = {
 /** Labels shown with sample content. Kept visually secondary to the banner. */
 export const SAMPLE_LABELS = {
   label: "Management review · Illustrative",
-  interpretation: "Interpretation · illustrative · management review",
+  /** Carried by every sample Nusantara View, wherever it appears. */
+  interpretation: "Illustrative interpretation · Management review",
 } as const;

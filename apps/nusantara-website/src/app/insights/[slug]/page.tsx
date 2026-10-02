@@ -14,6 +14,7 @@ import { Sparkline } from "@/components/market/Sparkline";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { readingMinutes, toListing } from "@/content/insights";
+import { SAMPLE_LABELS } from "@/content/data/sample";
 import { formatInsightDate, type InsightSource } from "@/content/insights/types";
 import { getCapabilities, getContentGraph, getInsight, getInsights, getMarketState } from "@/lib/content/repository";
 import { routes } from "@/lib/routes";
@@ -167,6 +168,9 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
       <p className="mt-2 text-[10.5px] text-stone">
         {statusTitle(snapshot.provenance)} · As at {formatTimestamp(snapshot.provenance.asOf)}
       </p>
+      {snapshot.instruments.some((s) => graph.viewForMarket(s.instrument.id)?.sample) && (
+        <p className="mt-1 text-[10.5px] font-medium tracking-[0.04em] text-gold-800">Nusantara signals: {SAMPLE_LABELS.interpretation}</p>
+      )}
     </div>
   ) : null;
 
@@ -278,7 +282,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
               </p>
             )}
 
-            <section id="summary" aria-labelledby="summary-heading" className="scroll-mt-32 border-t-2 border-teal-800 bg-white p-6 md:p-8">
+            <section id="summary" aria-labelledby="summary-heading" className="border-t-2 border-teal-800 bg-white p-6 md:p-8">
               <h2 id="summary-heading" className="eyebrow text-stone">
                 Executive summary
               </h2>
@@ -307,7 +311,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
               <ArticleBody blocks={insight.body} />
             </div>
 
-            <section id="sources" aria-labelledby="sources-heading" className="mt-16 scroll-mt-32 border-t border-rule pt-8">
+            <section id="sources" aria-labelledby="sources-heading" className="mt-16 border-t border-rule pt-8">
               <h2 id="sources-heading" className="eyebrow text-stone">
                 Sources
               </h2>

@@ -251,6 +251,17 @@
   animation: lattice-draw 2.4s var(--ease-out-soft) both;
 }
 
+/* Sticky navigation offset — one rule for every anchor, deep link and scrollIntoView.
+   Header is 65px (mobile) / 71px (md+); the extra space keeps headings clear of it. */
+html {
+  scroll-padding-top: 5.5rem;
+}
+@media (min-width: 768px) {
+  html {
+    scroll-padding-top: 6rem;
+  }
+}
+
 /* Article reading layers: following one layer lets the others recede */
 #article-body [data-layer] {
   transition: opacity 300ms var(--ease-out-soft, ease);

@@ -22,6 +22,16 @@ configuration and content, not a rebuild:
 - [`docs/MANAGEMENT_DECISIONS.md`](./docs/MANAGEMENT_DECISIONS.md) — decisions still
   required (none filled by guesswork)
 
+## Eric Review Build (frozen)
+
+The management-review interface is **frozen pending management feedback**.
+Build with `npm run build:review` / `npm run start:review`. Final refinements:
+one site-wide sticky-navigation scroll offset for every anchor, deep link and
+in-page scroll; a 15% shorter desktop Market Intelligence module (same
+content and interactions); every sample Nusantara View carries
+"Illustrative interpretation · Management review"; hover-to-select lists no
+longer override a selection restored from the URL.
+
 ## V2.3 interactive investment platform
 
 Behaviour, not decoration — the V2.1 visual identity is unchanged. The site
