@@ -1,0 +1,18 @@
+# Netlify deployment — Management-review (Eric Review Build).
+# Deployment configuration only: the website itself is unchanged.
+#
+# In the Netlify UI set Base directory = apps/nusantara-website; Netlify then
+# reads this file. Next.js is served by Netlify's Next.js runtime, which is
+# detected and installed automatically (no plugin entry needed here).
+
+[build]
+  command = "npm run build:review"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Review build: illustrative demonstration data, prototype banner, no indexing.
+  # No live market-data provider is configured.
+  NUSANTARA_ENV = "review"
+  MARKET_DATA_PROVIDER = "illustrative"
+  NEXT_TELEMETRY_DISABLED = "1"
