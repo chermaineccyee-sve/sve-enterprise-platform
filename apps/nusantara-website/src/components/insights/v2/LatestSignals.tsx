@@ -5,6 +5,7 @@ import type { Signal } from "@/content/model/intelligence";
 import { formatInsightDate } from "@/content/insights/types";
 import { formatValue } from "@/lib/market/format";
 import type { InstrumentSnapshot } from "@/lib/market/types";
+import { routes } from "@/lib/routes";
 
 /** Short, rapidly consumable intelligence items — a rail on mobile, a ruled grid on desktop. */
 export function LatestSignals({ signals, instruments }: { signals: Signal[]; instruments: Record<string, InstrumentSnapshot> }) {
@@ -26,15 +27,15 @@ export function LatestSignals({ signals, instruments }: { signals: Signal[]; ins
             <p className="mt-2 text-[14px] leading-relaxed text-stone">{s.reading}</p>
             <div className="mt-4 flex items-center justify-between gap-3">
               {inst ? (
-                <span className="flex items-center gap-2 text-[12px]">
-                  <span className="font-semibold text-ink">{inst.instrument.shortName}</span>
+                <Link href={routes.market(inst.instrument.id)} aria-label={`${inst.instrument.shortName}: open market view`} className="group flex items-center gap-2 text-[12px]">
+                  <span className="font-semibold text-ink group-hover:text-teal-700">{inst.instrument.shortName}</span>
                   <StaleMark provenance={inst.provenance} />
                   <span className="num text-charcoal">
                     {formatValue(inst.quote.value, inst.instrument.decimals)}
                     {inst.instrument.unit === "%" ? "%" : ""}
                   </span>
                   <Change instrument={inst.instrument} change={inst.quote.change} changePct={inst.quote.changePct} changeBp={inst.quote.changeBp} showAbsolute={false} />
-                </span>
+                </Link>
               ) : (
                 <span />
               )}

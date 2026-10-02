@@ -98,7 +98,7 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
           case "layer": {
             const dark = b.layer === "implication";
             return (
-              <aside key={i} aria-label={`${LAYER_META[b.layer].label}: ${b.title}`} className={`my-8 p-6 font-sans md:p-7 ${LAYER_STYLE[b.layer]}`}>
+              <aside key={i} data-layer={b.layer} aria-label={`${LAYER_META[b.layer].label}: ${b.title}`} className={`my-8 p-6 font-sans md:p-7 ${LAYER_STYLE[b.layer]}`}>
                 <LayerTag layer={b.layer} dark={dark} />
                 <h3 className={`mt-3 font-serif text-[1.25rem] leading-snug ${dark ? "text-white" : "text-teal-900"}`}>{b.title}</h3>
                 {b.body.map((t, k) => (
@@ -111,7 +111,7 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
           }
           case "table":
             return (
-              <figure key={i} className="my-12 font-sans">
+              <figure key={i} data-layer={b.layer} className="my-12 font-sans">
                 <figcaption className="flex flex-wrap items-center justify-between gap-2">
                   <span>
                     <span className="eyebrow text-stone">Table {numbering[i]}</span>

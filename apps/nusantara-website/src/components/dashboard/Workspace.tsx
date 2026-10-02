@@ -18,7 +18,9 @@ import type { NusantaraView } from "@/content/model/intelligence";
 import { isPastReview } from "@/content/model/publication";
 import { useHistories, useMarketHistory } from "@/hooks/useMarketData";
 import { useNow } from "@/hooks/useNow";
+import { Connected } from "@/components/home/MarketIntelligence";
 import { track } from "@/lib/analytics";
+import { getUrlParam, setUrlParam } from "@/lib/routes";
 import { realisedVol, resample, resampleSeries, seriesChange } from "@/lib/market/analytics";
 import { changeOverPeriod, formatPct, formatTimestamp, formatValue, signed } from "@/lib/market/format";
 import { ASSET_CLASS_LABELS, OVERVIEW_INSTRUMENT_IDS } from "@/lib/market/instruments";
@@ -112,7 +114,7 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings }
 
   // Open on a market linked from elsewhere (e.g. /market-dashboard?instrument=gold).
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("instrument");
+    const id = getUrlParam("instrument");
     const inst = id
       ? (snapshot.instruments.find((s) => s.instrument.id === id) ?? snapshot.unavailable.find((u) => u.instrument.id === id))?.instrument
       : undefined;
@@ -138,6 +140,28 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings }
   const rows = useMemo(() => railRows.filter(isAvailable), [railRows]);
 
   const isMacro = category === "macro" && indicators.length > 0;
+
+  // When a market is chosen elsewhere (ribbon, map, related markets), the rail follows it.
+  // Not on first render: the initial category is the visitor's (or the URL's) choice.
+  const lastFocus = useRef(focusId);
+  useEffect(() => {
+    if (lastFocus.current === focusId) return;
+    lastFocus.current = focusId;
+    const cls = all.find((x) => x.instrument.id === focusId)?.instrument.assetClass;
+    if (!cls) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- follow an external selection
+    setCategory((c) => (c === "overview" && OVERVIEW_INSTRUMENT_IDS.includes(focusId)) || c === cls ? c : cls);
+  }, [focusId, all]);
+
+  // The selected instrument persists in the URL, so a market view can be shared, bookmarked or reloaded.
+  const urlSynced = useRef(false);
+  useEffect(() => {
+    if (!urlSynced.current) {
+      urlSynced.current = true;
+      if (!getUrlParam("instrument")) return; // leave a clean URL until the visitor chooses
+    }
+    setUrlParam("instrument", focusId);
+  }, [focusId]);
   const focusUnavailable = unavailable.find((u) => u.instrument.id === focusId) ?? null;
   const selected = all.find((s) => s.instrument.id === focusId) ?? all[0];
   const focusInst: InstrumentDefinition = focusUnavailable?.instrument ?? selected.instrument;
@@ -699,6 +723,7 @@ function InstrumentIntel({ inst, intel }: { inst: InstrumentDefinition; intel: M
                 </Link>
               </IntelBlock>
             )}
+            <Connected intel={intel} className="mt-0 pb-1" />
           </m.div>
         </AnimatePresence>
       </div>

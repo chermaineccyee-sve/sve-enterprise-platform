@@ -69,6 +69,7 @@ export function contentProblems(): string[] {
     if (v.subject.kind === "instrument") ref(`view ${v.id}`, "instrument", instruments, [v.subject.id]);
     ref(`view ${v.id}`, "instrument", instruments, v.relatedMarkets);
     ref(`view ${v.id}`, "insight", slugs, [v.relatedInsight]);
+    ref(`view ${v.id}`, "dimension", dims, v.marketStateDimensions ?? []);
   }
   for (const e of MARKET_STATE_EDITIONS) {
     out.push(...publicationProblems(`market state ${e.id}`, e, { timeSensitive: true }));

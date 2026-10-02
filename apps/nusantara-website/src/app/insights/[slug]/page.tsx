@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TrackedDetails, TrackOnMount } from "@/components/analytics/Track";
-import { ArticleBody, LayerGlyph, LAYER_META } from "@/components/insights/ArticleBody";
+import { ArticleBody } from "@/components/insights/ArticleBody";
 import { InsightVisual } from "@/components/insights/InsightVisual";
 import { ShareTools } from "@/components/insights/ShareTools";
 import { ArticleToc } from "@/components/insights/v2/ArticleToc";
+import { LayerFocus } from "@/components/insights/v2/LayerFocus";
 import { PrintOpen } from "@/components/insights/v2/PrintOpen";
 import { Change } from "@/components/market/Change";
 import { StaleMark } from "@/components/market/MarketStatus";
@@ -14,7 +15,8 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { readingMinutes, toListing } from "@/content/insights";
 import { formatInsightDate, type InsightSource } from "@/content/insights/types";
-import { getContentGraph, getInsight, getInsights } from "@/lib/content/repository";
+import { getCapabilities, getContentGraph, getInsight, getInsights, getMarketState } from "@/lib/content/repository";
+import { routes } from "@/lib/routes";
 import { formatTimestamp, formatValue } from "@/lib/market/format";
 import { getMarketHistory, getMarketSnapshot } from "@/lib/market/service";
 import { statusTitle } from "@/lib/market/status";
@@ -86,7 +88,18 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
   const { slug } = await params;
   const insight = await getInsight(slug);
   if (!insight) notFound();
-  const graph = await getContentGraph();
+  const [graph, marketState, capabilities] = await Promise.all([getContentGraph(), getMarketState(), getCapabilities()]);
+  // Where this research connects in the analytical system (resolved by the relationship engine).
+  const dims = graph
+    .dimensionsForInsight(insight.slug)
+    .map((id) => marketState?.dimensions.find((d) => d.id === id))
+    .filter((d) => !!d)
+    .slice(0, 3);
+  const caps = graph
+    .capabilitiesForInsight(insight.slug)
+    .map((slug) => capabilities.find((c) => c.slug === slug))
+    .filter((c) => !!c)
+    .slice(0, 3);
 
   const minutes = readingMinutes(insight);
   const headings = insight.body.filter((b): b is Extract<typeof b, { type: "heading" }> => b.type === "heading");
@@ -121,7 +134,12 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
         {snapshot.instruments.map((s) => {
           const view = graph.viewForMarket(s.instrument.id);
           return (
-            <li key={s.instrument.id} className="border-l-2 border-teal-800 bg-white px-4 py-3">
+            <li key={s.instrument.id}>
+              <Link
+                href={routes.market(s.instrument.id)}
+                aria-label={`${s.instrument.shortName}: open market view`}
+                className="group block border-l-2 border-teal-800 bg-white px-4 py-3 transition-colors hover:border-gold-500"
+              >
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-[13px] font-semibold text-ink">
                   {s.instrument.shortName} <StaleMark provenance={s.provenance} />
@@ -140,6 +158,8 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
                   Nusantara signal: <span className="font-serif text-[13.5px] italic text-gold-700">{view.signal}</span>
                 </p>
               )}
+              <p className="mt-2 text-[11.5px] font-medium text-teal-800 group-hover:text-teal-700">Open market view →</p>
+              </Link>
             </li>
           );
         })}
@@ -149,6 +169,39 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
       </p>
     </div>
   ) : null;
+
+  const connected =
+    dims.length || caps.length ? (
+      <div>
+        <p className="eyebrow text-stone">Connected</p>
+        <dl className="mt-3 space-y-3 text-[13px]">
+          {dims.length > 0 && (
+            <div>
+              <dt className="text-stone">Market State</dt>
+              <dd className="mt-1 flex flex-col gap-1">
+                {dims.map((d) => (
+                  <Link key={d!.id} href={routes.dimension(d!.id)} className="link-underline self-start text-teal-800">
+                    {d!.label}: {d!.state.toLowerCase()}
+                  </Link>
+                ))}
+              </dd>
+            </div>
+          )}
+          {caps.length > 0 && (
+            <div>
+              <dt className="text-stone">Capabilities</dt>
+              <dd className="mt-1 flex flex-col gap-1">
+                {caps.map((c) => (
+                  <Link key={c!.slug} href={routes.capability(c!.slug)} className="link-underline self-start text-teal-800">
+                    {c!.name}
+                  </Link>
+                ))}
+              </dd>
+            </div>
+          )}
+        </dl>
+      </div>
+    ) : null;
 
   return (
     <article>
@@ -213,16 +266,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
               <ArticleToc items={toc} targetId="article-body" />
               <div className="mt-10 hidden border-t border-rule pt-6 lg:block">
                 <p className="eyebrow text-stone">Reading layers</p>
-                <ul className="mt-4 space-y-3">
-                  {(["data", "interpretation", "implication"] as const).map((l) => (
-                    <li key={l} className="flex items-center gap-3 text-[13px] text-charcoal">
-                      <span className={l === "data" ? "text-teal-700" : l === "interpretation" ? "text-gold-700" : "text-teal-900"}>
-                        <LayerGlyph layer={l} />
-                      </span>
-                      <strong className="font-semibold">{LAYER_META[l].label}</strong>
-                    </li>
-                  ))}
-                </ul>
+                <LayerFocus targetId="article-body" />
               </div>
             </div>
           </aside>
@@ -255,6 +299,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
                   ))}
                 </ul>
                 {marketSignals && <div className="mt-8 border-t border-rule-soft pt-6">{marketSignals}</div>}
+                {connected && <div className="mt-8 border-t border-rule-soft pt-6">{connected}</div>}
               </div>
             </section>
 
@@ -318,6 +363,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
                 </ol>
               </div>
               {marketSignals}
+              {connected}
             </div>
           </aside>
         </div>

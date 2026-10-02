@@ -10,6 +10,8 @@ import type { MonitoredMarket } from "@/content/model/intelligence";
 import { formatValue } from "@/lib/market/format";
 import { statusTitle } from "@/lib/market/status";
 import type { DataProvenance, InstrumentSnapshot } from "@/lib/market/types";
+import { useOptionalMarketFocus } from "@/components/home/MarketFocus";
+import { track } from "@/lib/analytics";
 
 /**
  * Markets we monitor — a schematic (not geographic) map used as an interface.
@@ -31,6 +33,7 @@ export function MarketMap({
   prototype: boolean;
 }) {
   const [active, setActive] = useState("my");
+  const focus = useOptionalMarketFocus();
   const node = markets.find((n) => n.id === active) ?? markets[0];
   if (!node) return null;
   const insight = node.insight ? insights[node.insight] : undefined;
@@ -42,7 +45,22 @@ export function MarketMap({
         {s ? (
           <>
             <span className="flex-1 text-[13px] font-semibold text-ink">
-              {s.instrument.shortName} <StaleMark provenance={s.provenance} />
+              {focus ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    focus.setFocus(s.instrument.id, { scroll: true });
+                    track({ name: "market_selected", instrument: s.instrument.id, surface: "related" });
+                  }}
+                  className="link-underline text-left hover:text-teal-700"
+                  aria-label={`${s.instrument.shortName}: show in the workspace`}
+                >
+                  {s.instrument.shortName}
+                </button>
+              ) : (
+                s.instrument.shortName
+              )}{" "}
+              <StaleMark provenance={s.provenance} />
             </span>
             <span className="num text-[13px] text-ink">
               {formatValue(s.quote.value, s.instrument.decimals)}

@@ -2,7 +2,7 @@
 
 import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { STAR_PATH } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
 import { StaleMark } from "@/components/market/MarketStatus";
@@ -12,6 +12,7 @@ import { track } from "@/lib/analytics";
 import { formatValue } from "@/lib/market/format";
 import { statusPhrase } from "@/lib/market/status";
 import type { DataProvenance, InstrumentSnapshot, IntelligenceIndicator } from "@/lib/market/types";
+import { getUrlParam, routes, setUrlParam } from "@/lib/routes";
 
 const LEVEL = ["Lower", "Moderate", "Higher"];
 
@@ -35,7 +36,18 @@ export function AllocationUniverse({
   insights: Record<string, InsightListing | null>;
   provenance: DataProvenance;
 }) {
-  const [active, setActive] = useState(0);
+  const [active, setActiveIndex] = useState(0);
+  // Deep links (/strategies?capability=precious-metals) open on that capability; choices are kept in the URL.
+  useEffect(() => {
+    const slug = getUrlParam("capability");
+    const i = slug ? strategies.findIndex((x) => x.slug === slug) : -1;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from URL once on mount
+    if (i >= 0) setActiveIndex(i);
+  }, [strategies]);
+  const setActive = (i: number, fromUser = true) => {
+    setActiveIndex(i);
+    if (fromUser) setUrlParam("capability", strategies[i].slug);
+  };
   const s = strategies[active];
   const n = strategies.length;
   const nodes = strategies.map((st, i) => {
@@ -58,7 +70,7 @@ export function AllocationUniverse({
                 aria-selected={on}
                 aria-controls="universe-panel"
                 onClick={() => setActive(i)}
-                onMouseEnter={() => setActive(i)}
+                onMouseEnter={() => setActive(i, false)}
                 className={`relative flex w-full items-baseline gap-3 border px-3 py-2 text-left lg:border-0 lg:border-b lg:border-rule lg:px-0 lg:py-3.5 ${on ? "border-teal-800" : "border-rule"}`}
               >
                 <span className={`num text-[11px] ${on ? "text-gold-700" : "text-mist"}`}>{String(i + 1).padStart(2, "0")}</span>
@@ -82,7 +94,7 @@ export function AllocationUniverse({
             const on = i === active;
             const future = st.stage === "future-development";
             return (
-              <g key={st.slug} transform={`translate(${x} ${y})`} onClick={() => setActive(i)} onMouseEnter={() => setActive(i)} className="cursor-pointer" aria-hidden>
+              <g key={st.slug} transform={`translate(${x} ${y})`} onClick={() => setActive(i)} onMouseEnter={() => setActive(i, false)} className="cursor-pointer" aria-hidden>
                 <circle r={on ? 20 : 15} fill={on ? "var(--color-teal-800)" : "var(--color-paper)"} stroke={future ? "var(--color-mist)" : "var(--color-teal-800)"} strokeDasharray={future ? "3 3" : undefined} style={{ transition: "r 300ms, fill 300ms" }} />
                 <text dy="0.35em" textAnchor="middle" fontSize="11" fontWeight="600" fill={on ? "#fff" : "var(--color-teal-800)"} className="num">
                   {String(i + 1).padStart(2, "0")}
@@ -118,15 +130,21 @@ export function AllocationUniverse({
                 <p className="eyebrow mt-8 text-stone">Market relationships · {statusPhrase(provenance)}</p>
                 <ul className="mt-2">
                   {s.markets.map((id) => instruments[id]).filter(Boolean).map((x) => (
-                    <li key={x.instrument.id} className="flex items-center justify-between gap-2 border-b border-rule-soft py-1.5 text-[13px]">
-                      <span className="font-semibold">
-                        {x.instrument.shortName} <StaleMark provenance={x.provenance} />
-                      </span>
-                      <span className="num">
-                        {formatValue(x.quote.value, x.instrument.decimals)}
-                        {x.instrument.unit === "%" ? "%" : ""}
-                      </span>
-                      <Change instrument={x.instrument} change={x.quote.change} changePct={x.quote.changePct} changeBp={x.quote.changeBp} showAbsolute={false} />
+                    <li key={x.instrument.id} className="border-b border-rule-soft text-[13px]">
+                      <Link
+                        href={routes.market(x.instrument.id)}
+                        aria-label={`${x.instrument.shortName}: open market view`}
+                        className="group flex items-center justify-between gap-2 py-1.5 transition-colors hover:bg-white/70"
+                      >
+                        <span className="font-semibold group-hover:text-teal-700">
+                          {x.instrument.shortName} <StaleMark provenance={x.provenance} />
+                        </span>
+                        <span className="num">
+                          {formatValue(x.quote.value, x.instrument.decimals)}
+                          {x.instrument.unit === "%" ? "%" : ""}
+                        </span>
+                        <Change instrument={x.instrument} change={x.quote.change} changePct={x.quote.changePct} changeBp={x.quote.changeBp} showAbsolute={false} />
+                      </Link>
                     </li>
                   ))}
                   {s.indicators.map((id) => indicators[id]).filter(Boolean).map((x) => (

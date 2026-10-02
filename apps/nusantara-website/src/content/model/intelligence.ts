@@ -47,6 +47,8 @@ export type NusantaraView = Publication & {
   relatedInsight: string | null;
   /** Theme id. */
   theme: string | null;
+  /** Market State dimensions this view reads into (ids), most relevant first. */
+  marketStateDimensions?: string[];
 };
 
 /** One dimension of the Market State. */

@@ -251,18 +251,14 @@
   animation: lattice-draw 2.4s var(--ease-out-soft) both;
 }
 
-/* Continuous market ribbon */
-@keyframes ribbon {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(-50%, 0, 0); }
+/* Article reading layers: following one layer lets the others recede */
+#article-body [data-layer] {
+  transition: opacity 300ms var(--ease-out-soft, ease);
 }
-.ribbon-track {
-  animation: ribbon var(--ribbon-duration, 70s) linear infinite;
-}
-.ribbon:hover .ribbon-track,
-.ribbon:focus-within .ribbon-track,
-.ribbon[data-paused="true"] .ribbon-track {
-  animation-play-state: paused;
+#article-body[data-focus-layer="data"] [data-layer]:not([data-layer="data"]),
+#article-body[data-focus-layer="interpretation"] [data-layer]:not([data-layer="interpretation"]),
+#article-body[data-focus-layer="implication"] [data-layer]:not([data-layer="implication"]) {
+  opacity: 0.3;
 }
 
 /* The watching star: a slow, quiet breath — signals monitoring, not live data */
@@ -321,7 +317,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ribbon-track,
   .star-breathe,
   .slow-spin,
   .drift,

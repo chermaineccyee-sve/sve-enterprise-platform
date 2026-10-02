@@ -10,6 +10,7 @@ import { StaleMark } from "@/components/market/MarketStatus";
 import { Sparkline } from "@/components/market/Sparkline";
 import { formatTimestamp, formatValue } from "@/lib/market/format";
 import { statusTitle } from "@/lib/market/status";
+import { useOptionalMarketFocus } from "./MarketFocus";
 import type { AssetClass, InstrumentSnapshot } from "@/lib/market/types";
 
 const MLink = m.create(Link);
@@ -37,20 +38,34 @@ function makeWalk(seed: number, points = 120) {
 
 /**
  * Atmospheric market canvas for the hero. The line is abstract (no values);
- * the monitor cycles through the latest read-outs (labelled with their data
- * status) and highlights the lattice arm of each asset class. With no
- * displayable data the monitor is simply not shown.
+ * the monitor shows the market the visitor has selected (ribbon, Market
+ * Intelligence panel or its own controls) — it never cycles on its own — and
+ * highlights the lattice arm of that asset class. With no displayable data
+ * the monitor is simply not shown.
  */
-export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSnapshot[]; sparks: Record<string, number[]> }) {
+export function HeroCanvas({
+  instruments,
+  monitorIds,
+  sparks,
+}: {
+  /** Every market the homepage can select. */
+  instruments: InstrumentSnapshot[];
+  /** Representative markets offered by the monitor's own controls. */
+  monitorIds: string[];
+  sparks: Record<string, number[]>;
+}) {
   const reduce = useReducedMotion();
-  const [idx, setIdx] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const focus = useOptionalMarketFocus();
+  const [localId, setLocalId] = useState(monitorIds[0] ?? "");
+  const selectedId = focus?.focusId ?? localId;
+  const select = (id: string) => (focus ? focus.setFocus(id) : setLocalId(id));
+  const monitor = monitorIds.map((id) => instruments.find((s) => s.instrument.id === id)).filter((s): s is InstrumentSnapshot => !!s);
   const lineRef = useRef<SVGGElement>(null);
   const dotRef = useRef<SVGCircleElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const walk = useMemo(() => makeWalk(7), []);
   const walk2 = useMemo(() => makeWalk(29), []);
-  const current: InstrumentSnapshot | undefined = instruments[idx];
+  const current: InstrumentSnapshot | undefined = instruments.find((s) => s.instrument.id === selectedId) ?? monitor[0] ?? instruments[0];
   const arm = current ? ARM_OF[current.instrument.assetClass] : -1;
 
   const pathFor = (vals: number[], offset = 0) =>
@@ -58,13 +73,6 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
       .concat(vals[0])
       .map((v, i) => `${i ? "L" : "M"}${(offset + (i / vals.length) * W).toFixed(1)},${(v * H).toFixed(1)}`)
       .join("");
-
-  // Cycle the monitor (pauses on hover/focus; stops under reduced motion).
-  useEffect(() => {
-    if (paused || reduce || instruments.length < 2) return;
-    const t = window.setInterval(() => setIdx((i) => (i + 1) % instruments.length), 4200);
-    return () => window.clearInterval(t);
-  }, [paused, reduce, instruments.length]);
 
   // Drift the abstract line and ride the reading-head dot along it.
   useEffect(() => {
@@ -159,10 +167,6 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
       {current && inst && (
       <div
         className="pointer-events-auto absolute bottom-8 right-5 hidden w-[300px] md:block border border-teal-800/15 bg-paper/85 p-5 shadow-[0_20px_60px_-30px_rgba(14,45,59,0.45)] backdrop-blur-md md:right-10 lg:bottom-14"
-        onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
-        onFocus={() => setPaused(true)}
-        onBlur={() => setPaused(false)}
       >
         <div className="flex items-center justify-between gap-3">
           <p className="flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.18em] text-teal-800">
@@ -206,14 +210,14 @@ export function HeroCanvas({ instruments, sparks }: { instruments: InstrumentSna
         </div>
         <div className="mt-4 flex items-center justify-between border-t border-rule-soft pt-3">
           <div className="flex gap-1.5" role="group" aria-label="Choose market">
-            {instruments.map((s, i) => (
+            {monitor.map((s) => (
               <button
                 key={s.instrument.id}
                 type="button"
-                onClick={() => setIdx(i)}
+                onClick={() => select(s.instrument.id)}
                 aria-label={s.instrument.shortName}
-                aria-pressed={i === idx}
-                className={`h-1.5 transition-all duration-300 ${i === idx ? "w-5 bg-gold-500" : "w-1.5 bg-teal-800/25 hover:bg-teal-800/50"}`}
+                aria-pressed={s.instrument.id === current?.instrument.id}
+                className={`h-1.5 transition-all duration-300 ${s.instrument.id === current?.instrument.id ? "w-5 bg-gold-500" : "w-1.5 bg-teal-800/25 hover:bg-teal-800/50"}`}
               />
             ))}
           </div>

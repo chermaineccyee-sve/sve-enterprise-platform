@@ -2,7 +2,7 @@
 
 import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { StateGauge } from "@/components/identity/StateGauge";
 import { Change } from "@/components/market/Change";
 import { StaleMark } from "@/components/market/MarketStatus";
@@ -12,6 +12,7 @@ import type { MarketStateEdition } from "@/content/model/intelligence";
 import { formatValue } from "@/lib/market/format";
 import { statusTitle } from "@/lib/market/status";
 import type { DataProvenance, InstrumentSnapshot } from "@/lib/market/types";
+import { getUrlParam, routes, setUrlParam } from "@/lib/routes";
 
 /**
  * NUSANTARA MARKET STATE — a visual interpretation layer over market data.
@@ -34,8 +35,21 @@ export function MarketState({
   provenance: DataProvenance;
 }) {
   const MARKET_STATE = edition.dimensions;
-  const [active, setActive] = useState(0);
+  const [active, setActiveIndex] = useState(0);
+  const [more, setMore] = useState(false);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Deep links (/?dimension=risk#market-state) open on that dimension; choices are kept in the URL.
+  useEffect(() => {
+    const id = getUrlParam("dimension");
+    const i = id ? MARKET_STATE.findIndex((d) => d.id === id) : -1;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from URL once on mount
+    if (i >= 0) setActiveIndex(i);
+  }, [MARKET_STATE]);
+  const setActive = (i: number, fromUser = true) => {
+    setActiveIndex(i);
+    if (fromUser) setUrlParam("dimension", MARKET_STATE[i].id);
+  };
   const d = MARKET_STATE[active];
   const insight = d.relatedInsight ? insights[d.relatedInsight] : undefined;
 
@@ -89,7 +103,7 @@ export function MarketState({
                 aria-controls="state-panel"
                 tabIndex={on ? 0 : -1}
                 onClick={() => setActive(i)}
-                onMouseEnter={() => setActive(i)}
+                onMouseEnter={() => setActive(i, false)}
                 onKeyDown={(e) => onKey(e, i)}
                 className="group relative grid w-full grid-cols-[1fr_auto] items-center gap-x-6 gap-y-3 border-b border-rule py-5 text-left md:grid-cols-[150px_minmax(0,1fr)_200px]"
               >
@@ -149,7 +163,17 @@ export function MarketState({
                 ))}
               </ul>
 
-              <div className="hidden md:block">
+              <button
+                type="button"
+                aria-expanded={more}
+                aria-controls="state-more"
+                onClick={() => setMore((o) => !o)}
+                className="mt-6 flex w-full items-center justify-between border-y border-rule py-3 text-left text-[13px] font-medium text-teal-800 md:hidden"
+              >
+                Supporting data
+                <span aria-hidden className={`transition-transform ${more ? "rotate-45" : ""}`}>+</span>
+              </button>
+              <div id="state-more" className={`${more ? "block" : "hidden"} md:block`}>
               <p className="eyebrow mt-8 text-stone">What would change our reading</p>
               <p className="mt-2 text-[14.5px] leading-relaxed text-charcoal">{d.changeConditions}</p>
 
@@ -159,8 +183,13 @@ export function MarketState({
                   const s = instruments[id];
                   if (!s) return null;
                   return (
-                    <li key={id} className="flex items-center justify-between gap-3 py-2.5">
-                      <span className="w-20 text-[13px] font-semibold text-ink">
+                    <li key={id}>
+                      <Link
+                        href={routes.market(id)}
+                        aria-label={`${s.instrument.shortName}: open market view`}
+                        className="group flex items-center justify-between gap-3 py-2.5 transition-colors hover:bg-white/70"
+                      >
+                      <span className="w-20 text-[13px] font-semibold text-ink group-hover:text-teal-700">
                         {s.instrument.shortName} <StaleMark provenance={s.provenance} />
                       </span>
                       <Sparkline values={sparks[id] ?? []} width={72} height={22} label={`${s.instrument.shortName} trend`} className="text-teal-800" />
@@ -169,11 +198,12 @@ export function MarketState({
                         {s.instrument.unit === "%" ? "%" : ""}
                       </span>
                       <Change instrument={s.instrument} change={s.quote.change} changePct={s.quote.changePct} changeBp={s.quote.changeBp} showAbsolute={false} className="w-20 justify-end" />
+                      </Link>
                     </li>
                   );
                 })}
               </ul>
-              <p className="mt-2 text-[11px] text-stone">{statusTitle(provenance)} data · day change</p>
+              <p className="mt-2 text-[11px] text-stone">{statusTitle(provenance)} data · day change · select a market to open its view</p>
               </div>
 
               {insight && (

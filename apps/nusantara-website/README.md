@@ -22,6 +22,28 @@ configuration and content, not a rebuild:
 - [`docs/MANAGEMENT_DECISIONS.md`](./docs/MANAGEMENT_DECISIONS.md) — decisions still
   required (none filled by guesswork)
 
+## V2.3 interactive investment platform
+
+Behaviour, not decoration — the V2.1 visual identity is unchanged. The site
+lets a visitor explore MARKET → SIGNAL → NUSANTARA VIEW → INSIGHT →
+CAPABILITY instead of reading about it:
+
+- **Homepage market intelligence**: one selection drives the (now still,
+  selectable) market ribbon, the hero monitor and a Market Intelligence panel —
+  observed data beside Nusantara's interpretation, with routes to the
+  dashboard, Market State and capabilities.
+- **Deep links that restore state**: `/market-dashboard?instrument=gold`,
+  `/?dimension=risk#market-state`, `/strategies?capability=precious-metals`
+  (`src/lib/routes.ts`). Selections are kept in the URL.
+- **Open market view →** from every market surface: Market State supporting
+  data, capability market relationships, signals, themes, article margins.
+- **Connected context** per market (`src/lib/content/market-intel.ts`): view,
+  related markets, insight, Market State dimensions and capabilities, all
+  resolved by the relationship engine from data.
+- **Articles**: margin markets open their dashboard view; a Connected panel
+  links Market State dimensions and capabilities; the Data / Interpretation /
+  Implication legend lets a reader follow one layer through the article.
+
 ## V2.1 design maturity pass (current)
 
 A subtraction and refinement pass on V2 — no new pages, features or motion.

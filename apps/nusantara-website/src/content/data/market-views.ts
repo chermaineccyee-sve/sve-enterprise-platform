@@ -99,6 +99,7 @@ export const MARKET_VIEWS: NusantaraView[] = [
     "relatedMarkets": ["sti", "jci", "nikkei", "hsi"],
     "relatedInsight": "q4-2026-market-outlook",
     "theme": "Regional markets",
+    "marketStateDimensions": ["growth", "currencies"],
     ...SAMPLE
   },
   {
@@ -135,6 +136,7 @@ export const MARKET_VIEWS: NusantaraView[] = [
     "relatedMarkets": ["klci", "sti", "nikkei", "hsi"],
     "relatedInsight": "q4-2026-market-outlook",
     "theme": "Regional markets",
+    "marketStateDimensions": ["growth", "liquidity"],
     ...SAMPLE
   },
   {
@@ -153,6 +155,7 @@ export const MARKET_VIEWS: NusantaraView[] = [
     "relatedMarkets": ["klci", "sti", "jci", "nikkei"],
     "relatedInsight": "the-resilience-lens",
     "theme": "Regional markets",
+    "marketStateDimensions": ["risk", "growth"],
     ...SAMPLE
   },
   {
@@ -189,6 +192,7 @@ export const MARKET_VIEWS: NusantaraView[] = [
     "relatedMarkets": ["usdsgd", "usdidr", "sgdmyr", "eurusd"],
     "relatedInsight": "rates-currencies-and-the-regional-allocator",
     "theme": "Rates & currencies",
+    "marketStateDimensions": ["currencies", "rates"],
     ...SAMPLE
   },
   {
@@ -243,6 +247,7 @@ export const MARKET_VIEWS: NusantaraView[] = [
     "relatedMarkets": ["silver", "brent", "cpo", "copper"],
     "relatedInsight": "precious-metals-and-portfolio-resilience",
     "theme": "Resilience",
+    "marketStateDimensions": ["risk", "rates"],
     ...SAMPLE
   },
   {
@@ -279,6 +284,7 @@ export const MARKET_VIEWS: NusantaraView[] = [
     "relatedMarkets": ["gold", "silver", "cpo", "copper"],
     "relatedInsight": "q4-2026-market-outlook",
     "theme": "Resilience",
+    "marketStateDimensions": ["commodities", "growth"],
     ...SAMPLE
   },
   {
@@ -315,6 +321,7 @@ export const MARKET_VIEWS: NusantaraView[] = [
     "relatedMarkets": ["us2y", "mgs10y", "jgb10y", "sgs10y"],
     "relatedInsight": "rates-currencies-and-the-regional-allocator",
     "theme": "Rates & currencies",
+    "marketStateDimensions": ["rates", "liquidity"],
     ...SAMPLE
   },
   {
@@ -351,6 +358,7 @@ export const MARKET_VIEWS: NusantaraView[] = [
     "relatedMarkets": ["us10y", "us2y", "jgb10y", "sgs10y"],
     "relatedInsight": "rates-currencies-and-the-regional-allocator",
     "theme": "Rates & currencies",
+    "marketStateDimensions": ["rates", "currencies"],
     ...SAMPLE
   },
   {

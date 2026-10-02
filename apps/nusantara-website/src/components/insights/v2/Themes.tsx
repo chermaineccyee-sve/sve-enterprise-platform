@@ -10,6 +10,7 @@ import type { Theme } from "@/content/model/intelligence";
 import { formatValue } from "@/lib/market/format";
 import { statusPhrase } from "@/lib/market/status";
 import type { DataProvenance, InstrumentSnapshot, IntelligenceIndicator } from "@/lib/market/types";
+import { routes } from "@/lib/routes";
 
 /** Themes we are watching — each joins research to the markets and indicators behind it. */
 export function Themes({
@@ -72,15 +73,17 @@ export function Themes({
                 <p className="eyebrow mt-8 text-teal-200">Signals behind it · {statusPhrase(provenance)}</p>
                 <ul className="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
                   {t.instruments.map((id) => instruments[id]).filter(Boolean).map((s) => (
-                    <li key={s.instrument.id} className="flex items-center justify-between gap-3 border-b border-white/10 py-2 text-[13px]">
-                      <span className="font-semibold text-white">
-                        {s.instrument.shortName} <StaleMark provenance={s.provenance} tone="dark" />
-                      </span>
-                      <span className="num text-teal-100">
-                        {formatValue(s.quote.value, s.instrument.decimals)}
-                        {s.instrument.unit === "%" ? "%" : ""}
-                      </span>
-                      <Change instrument={s.instrument} change={s.quote.change} changePct={s.quote.changePct} changeBp={s.quote.changeBp} showAbsolute={false} tone="dark" />
+                    <li key={s.instrument.id} className="border-b border-white/10 text-[13px]">
+                      <Link href={routes.market(s.instrument.id)} aria-label={`${s.instrument.shortName}: open market view`} className="group flex items-center justify-between gap-3 py-2">
+                        <span className="font-semibold text-white group-hover:text-gold-200">
+                          {s.instrument.shortName} <StaleMark provenance={s.provenance} tone="dark" />
+                        </span>
+                        <span className="num text-teal-100">
+                          {formatValue(s.quote.value, s.instrument.decimals)}
+                          {s.instrument.unit === "%" ? "%" : ""}
+                        </span>
+                        <Change instrument={s.instrument} change={s.quote.change} changePct={s.quote.changePct} changeBp={s.quote.changeBp} showAbsolute={false} tone="dark" />
+                      </Link>
                     </li>
                   ))}
                   {t.indicators.map((id) => indicators[id]).filter(Boolean).map((ind) => (

@@ -7,9 +7,9 @@ import { MarketFocusProvider } from "@/components/home/MarketFocus";
 import { MarketRibbon } from "@/components/home/MarketRibbon";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { CTA } from "@/components/ui/CTA";
-import type { MarketIntel } from "@/components/dashboard/types";
 import type { NusantaraView } from "@/content/model/intelligence";
 import { config } from "@/lib/config";
+import { getMarketIntel } from "@/lib/content/market-intel";
 import { getContentGraph, getInsightListings, getMarketState, getMonitoredMarkets } from "@/lib/content/repository";
 import { crossAsset } from "@/lib/market/analytics";
 import { formatTimestamp } from "@/lib/market/format";
@@ -32,7 +32,7 @@ const CLASSES: AssetClass[] = ["equities", "fx", "rates", "commodities"];
 const STATUS_ORDER: DataStatus[] = ["live", "delayed", "illustrative", "unavailable"];
 
 export default async function MarketDashboardPage() {
-  const [snapshot, h1m, h3m, intelligence, graph, listingList, markets, marketState] = await Promise.all([
+  const [snapshot, h1m, h3m, intelligence, graph, listingList, markets, marketState, intel] = await Promise.all([
     getMarketSnapshot(),
     getMarketHistory("1M"),
     getMarketHistory("3M"),
@@ -41,6 +41,7 @@ export default async function MarketDashboardPage() {
     getInsightListings(),
     getMonitoredMarkets(),
     getMarketState(),
+    getMarketIntel(INSTRUMENTS.map((i) => i.id)),
   ]);
   const byId = Object.fromEntries(snapshot.instruments.map((s) => [s.instrument.id, s]));
   const listings = Object.fromEntries(listingList.map((l) => [l.slug, l]));
@@ -49,13 +50,7 @@ export default async function MarketDashboardPage() {
     ? crossAsset(snapshot.instruments, new Map(h1m.map((h) => [h.instrumentId, h.points])), new Map(h3m.map((h) => [h.instrumentId, h.points])))
     : null;
 
-  // Interpretation and relationships, resolved here — never inside components.
-  const intel: Record<string, MarketIntel> = Object.fromEntries(
-    INSTRUMENTS.map((i) => {
-      const slug = graph.insightForMarket(i.id);
-      return [i.id, { view: graph.viewForMarket(i.id), relatedMarkets: graph.relatedMarkets(i.id), insight: slug ? (listings[slug] ?? null) : null }];
-    }),
-  );
+  // Interpretation and relationships are resolved on the server (getMarketIntel) — never inside components.
   const readings = Object.fromEntries(
     intelligence.indicators.map((ind) => [ind.id, graph.viewForIndicator(ind.id)]).filter((e): e is [string, NusantaraView] => !!e[1]),
   );

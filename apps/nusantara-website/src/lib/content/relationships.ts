@@ -85,7 +85,10 @@ export function buildContentGraph(input: GraphInput) {
     for (const d of i.marketStateDimensions ?? []) link(insightDims, dimInsights, i.slug, d);
   }
   for (const v of views) {
-    if (v.subject.kind === "instrument" && keepInsight(v.relatedInsight)) add(marketInsights, v.subject.id, v.relatedInsight);
+    if (v.subject.kind !== "instrument") continue;
+    if (keepInsight(v.relatedInsight)) add(marketInsights, v.subject.id, v.relatedInsight);
+    // Dimensions a view reads into come first; supporting-market links follow.
+    for (const d of v.marketStateDimensions ?? []) add(marketDims, v.subject.id, d);
   }
   for (const d of marketState?.dimensions ?? []) {
     for (const m of d.supportingMarkets) add(marketDims, m, d.id);
