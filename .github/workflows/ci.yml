@@ -9,6 +9,35 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  validate-nusantara-website:
+    name: Validate apps/nusantara-website
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/nusantara-website
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/nusantara-website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      # Static production build of every route (fonts are fetched at build
+      # time; no secrets or live market data are required).
+      - name: Build
+        run: npm run build
+
   validate-svegip:
     name: Validate apps/svegip
     runs-on: ubuntu-latest

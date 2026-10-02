@@ -1,0 +1,240 @@
+@import "tailwindcss";
+
+/*
+ * Nusantara Fund Management — design tokens.
+ * Derived from the existing Nusantara materials: Nusantara Gold, Deep Teal,
+ * Warm Ivory, White, Charcoal and muted neutral grey. Gold is an accent,
+ * teal carries authority, ivory/white give editorial breathing space.
+ */
+@theme {
+  --color-teal-950: #0a2330;
+  --color-teal-900: #0e2d3b;
+  --color-teal-800: #12384a;
+  --color-teal-700: #1b4a5e;
+  --color-teal-600: #2a6176;
+  --color-teal-500: #3f7a8f;
+  --color-teal-300: #9db6c0;
+  --color-teal-200: #c4d5db;
+  --color-teal-100: #e3ecef;
+  --color-teal-50: #f1f6f7;
+
+  --color-gold-800: #6b5122;
+  --color-gold-700: #7f6129;
+  --color-gold-600: #9a7838;
+  --color-gold-500: #b8955a;
+  --color-gold-400: #cdae73;
+  --color-gold-300: #dfc898;
+  --color-gold-200: #ebdcbb;
+  --color-gold-100: #f4ecdb;
+
+  --color-ivory: #f7f3ea;
+  --color-ivory-deep: #efe8da;
+  --color-paper: #fbf9f4;
+  --color-ink: #16191b;
+  --color-charcoal: #2a2f33;
+  --color-stone: #575f64;
+  --color-mist: #8e979b;
+  --color-rule: #d8d1c2;
+  --color-rule-soft: #e7e1d4;
+
+  --color-up: #2b7353;
+  --color-down: #a3433a;
+  --color-up-soft: #e3efe8;
+  --color-down-soft: #f5e4e1;
+
+  --font-serif: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
+  --font-sans: var(--font-plex), "Helvetica Neue", Arial, sans-serif;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "kern", "liga";
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--color-gold-200);
+    color: var(--color-teal-950);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-gold-500);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+  .on-dark :focus-visible {
+    outline-color: var(--color-gold-300);
+  }
+}
+
+@layer components {
+  .container-site {
+    width: 100%;
+    max-width: 1320px;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+  @media (min-width: 768px) {
+    .container-site {
+      padding-inline: 2.5rem;
+    }
+  }
+
+  /* Type scale */
+  .display-xl {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    font-size: clamp(2.75rem, 7vw, 6.25rem);
+    line-height: 0.98;
+    letter-spacing: -0.025em;
+  }
+  .display-l {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    font-size: clamp(2.25rem, 4.6vw, 4rem);
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+  }
+  .display-m {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    font-size: clamp(1.875rem, 3.2vw, 2.75rem);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+  }
+  .display-s {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    font-size: clamp(1.375rem, 2vw, 1.75rem);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .eyebrow {
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .lede {
+    font-size: clamp(1.0625rem, 1.4vw, 1.25rem);
+    line-height: 1.6;
+  }
+  .num {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum", "lnum";
+  }
+  .rule-gold {
+    height: 1px;
+    background: linear-gradient(90deg, var(--color-gold-500), var(--color-gold-500) 64px, var(--color-rule) 64px);
+  }
+
+  /* Editorial prose for research articles */
+  .prose-nt {
+    font-family: var(--font-serif);
+    font-size: 1.1875rem;
+    line-height: 1.7;
+    color: var(--color-charcoal);
+  }
+  .prose-nt p + p {
+    margin-top: 1.25em;
+  }
+
+  .link-underline {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 300ms var(--ease-out-soft);
+  }
+  .link-underline:hover,
+  .link-underline:focus-visible {
+    background-size: 100% 1px;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-rule) transparent;
+  }
+}
+
+/* Restrained entrance motion. Content is only hidden once JS has marked the
+   document, so nothing disappears if scripts fail. */
+.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 700ms var(--ease-out-soft),
+    transform 700ms var(--ease-out-soft);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.js [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes nt-draw {
+  from {
+    stroke-dashoffset: var(--path-length, 1000);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.chart-draw {
+  stroke-dasharray: var(--path-length, 1000);
+  animation: nt-draw 1100ms var(--ease-out-soft) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  .js [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Print-friendly research */
+@media print {
+  @page {
+    margin: 18mm 16mm;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  [data-print="hide"] {
+    display: none !important;
+  }
+  .js [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .prose-nt {
+    font-size: 11pt;
+    line-height: 1.55;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  figure,
+  table,
+  blockquote {
+    break-inside: avoid;
+  }
+}
