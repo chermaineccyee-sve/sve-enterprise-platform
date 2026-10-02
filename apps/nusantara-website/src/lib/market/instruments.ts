@@ -20,12 +20,14 @@ export const INSTRUMENTS: InstrumentDefinition[] = [
   { id: "usdidr", name: "US Dollar / Indonesian Rupiah", shortName: "USD/IDR", ticker: "USDIDR", assetClass: "fx", region: "Asia", decimals: 0, convention: "price", description: "Rupiah per US dollar." },
   { id: "sgdmyr", name: "Singapore Dollar / Malaysian Ringgit", shortName: "SGD/MYR", ticker: "SGDMYR", assetClass: "fx", region: "Asia", decimals: 4, convention: "price", description: "Ringgit per Singapore dollar." },
   { id: "eurusd", name: "Euro / US Dollar", shortName: "EUR/USD", ticker: "EURUSD", assetClass: "fx", region: "Europe", decimals: 4, convention: "price", description: "US dollars per euro." },
+  { id: "usdcnh", name: "US Dollar / Chinese Yuan (CNH)", shortName: "USD/CNH", ticker: "USDCNH", assetClass: "fx", region: "Asia", decimals: 4, convention: "price", description: "Yuan (CNH) per US dollar." },
   { id: "usdjpy", name: "US Dollar / Japanese Yen", shortName: "USD/JPY", ticker: "USDJPY", assetClass: "fx", region: "Asia", decimals: 2, convention: "price", description: "Yen per US dollar." },
 
   // Rates
   { id: "us10y", name: "US Treasury 10-Year Yield", shortName: "US 10Y", ticker: "UST10Y", assetClass: "rates", region: "Americas", unit: "%", decimals: 3, convention: "yield", description: "Yield on the benchmark 10-year US Treasury note." },
   { id: "us2y", name: "US Treasury 2-Year Yield", shortName: "US 2Y", ticker: "UST2Y", assetClass: "rates", region: "Americas", unit: "%", decimals: 3, convention: "yield", description: "Yield on the 2-year US Treasury note." },
   { id: "mgs10y", name: "Malaysian Government Securities 10-Year", shortName: "MGS 10Y", ticker: "MGS10Y", assetClass: "rates", region: "Asia", unit: "%", decimals: 3, convention: "yield", description: "Benchmark 10-year Malaysian government bond yield." },
+  { id: "jgb10y", name: "Japanese Government Bond 10-Year", shortName: "JGB 10Y", ticker: "JGB10Y", assetClass: "rates", region: "Asia", unit: "%", decimals: 3, convention: "yield", description: "Benchmark 10-year Japanese government bond yield." },
   { id: "sgs10y", name: "Singapore Government Securities 10-Year", shortName: "SGS 10Y", ticker: "SGS10Y", assetClass: "rates", region: "Asia", unit: "%", decimals: 3, convention: "yield", description: "Benchmark 10-year Singapore government bond yield." },
 
   // Commodities

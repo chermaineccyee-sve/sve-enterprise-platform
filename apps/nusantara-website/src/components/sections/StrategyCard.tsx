@@ -1,3 +1,4 @@
+import { NStar } from "@/components/identity/NStar";
 import Link from "next/link";
 import { STATUS_INFO, type Strategy } from "@/content/strategies";
 import { Arrow } from "@/components/ui/CTA";
@@ -6,7 +7,7 @@ export function StatusLabel({ status, tone = "light" }: { status: Strategy["stat
   const dark = tone === "dark";
   return (
     <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${dark ? "text-gold-300" : "text-gold-700"}`}>
-      <span aria-hidden className="block h-1.5 w-1.5 rotate-45 border border-current" />
+      <NStar className="h-2 w-2" />
       {STATUS_INFO[status].label}
     </span>
   );

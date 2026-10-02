@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Statement } from "@/components/home/Statement";
+import { NStar } from "@/components/identity/NStar";
 import { ContactCTA } from "@/components/sections/ContactCTA";
 import { CTA } from "@/components/ui/CTA";
 import { PageHero } from "@/components/ui/PageHero";
@@ -52,12 +54,14 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section aria-labelledby="purpose" className="on-dark bg-teal-900 text-white">
-        <div className="container-site py-20 md:py-28">
-          <p className="eyebrow text-gold-300">Our purpose</p>
-          <h2 id="purpose" className="display-l mt-8 max-w-5xl">
-            To make investment opportunity understandable, governed and accountable — for the long term.
+      <section aria-labelledby="purpose" className="overflow-hidden border-y border-rule bg-paper">
+        <div className="container-site py-24 md:py-32">
+          <h2 id="purpose" className="eyebrow flex items-center gap-3 text-gold-700">
+            <NStar className="h-2.5 w-2.5" /> Our purpose
           </h2>
+          <div className="mt-10">
+            <Statement phrases={["To make investment", "opportunity understandable,", "governed and accountable —", "for the long term."]} />
+          </div>
         </div>
       </section>
 
@@ -87,15 +91,15 @@ export default function AboutPage() {
       <section aria-labelledby="principles" className="bg-paper">
         <div className="container-site py-20 md:py-28">
           <SectionHeader eyebrow="Our principles" title={<span id="principles">Four commitments.</span>} />
-          <ul className="mt-14 grid gap-px bg-rule md:grid-cols-2">
+          <ol className="mt-14 border-t border-teal-800">
             {PRINCIPLES.map((p, i) => (
-              <li key={p.title} className="bg-paper p-8 md:p-10">
-                <span className="num font-serif text-[3.5rem] leading-none text-gold-500">{i + 1}</span>
-                <h3 className="display-s mt-6 text-teal-900">{p.title}</h3>
-                <p className="mt-3 max-w-md text-[15.5px] leading-relaxed text-stone">{p.text}</p>
+              <li key={p.title} className="group grid gap-3 border-b border-rule py-8 md:grid-cols-[80px_minmax(0,1fr)_minmax(0,1fr)] md:items-baseline md:gap-8">
+                <span className="num font-serif text-[2.6rem] leading-none text-gold-500">{i + 1}</span>
+                <h3 className="font-serif text-[clamp(1.6rem,3vw,2.4rem)] leading-tight text-teal-900 transition-transform duration-500 group-hover:translate-x-2">{p.title}</h3>
+                <p className="max-w-md text-[15.5px] leading-relaxed text-stone">{p.text}</p>
               </li>
             ))}
-          </ul>
+          </ol>
         </div>
       </section>
 
@@ -106,12 +110,12 @@ export default function AboutPage() {
             title={<span id="how-we-think">Curation. Governance. Execution. Communication.</span>}
             intro="Four pillars that, together, turn opportunity into a structured and accountable investment experience."
           />
-          <ol className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <ol className="mt-14 grid sm:grid-cols-2 lg:grid-cols-4">
             {PILLARS.map((p, i) => (
-              <li key={p.title} className={`flex min-h-[220px] flex-col p-7 ${i === 1 ? "bg-teal-800 text-white" : "border border-rule"}`}>
-                <span className={`num text-[12px] ${i === 1 ? "text-gold-300" : "text-gold-700"}`}>{p.n}</span>
-                <h3 className={`mt-auto font-serif text-[1.65rem] ${i === 1 ? "text-white" : "text-teal-900"}`}>{p.title}</h3>
-                <p className={`mt-2 text-[14.5px] ${i === 1 ? "text-teal-100" : "text-stone"}`}>{p.text}</p>
+              <li key={p.title} className={`border-t-2 pb-6 pt-6 sm:pr-8 ${i === 1 ? "border-gold-500" : "border-teal-800"}`}>
+                <span className="num text-[12px] text-gold-700">{p.n}</span>
+                <h3 className="mt-3 font-serif text-[2rem] leading-none text-teal-900">{p.title}</h3>
+                <p className="mt-3 text-[14.5px] text-stone">{p.text}</p>
               </li>
             ))}
           </ol>

@@ -1,3 +1,4 @@
+import { NStar } from "@/components/identity/NStar";
 import { formatTimestamp, STATUS_LABEL } from "@/lib/market/format";
 import type { DataProvenance, DataStatus } from "@/lib/market/types";
 
@@ -56,7 +57,7 @@ function StatusIcon({ status }: { status: DataStatus }) {
         <path d="M5 2.6V5l1.6 1" />
       </svg>
     );
-  return <span aria-hidden className="block h-1.5 w-1.5 rotate-45 border border-current" />;
+  return <NStar className="h-2 w-2" />;
 }
 
 export function DataTimestamp({ asOf, label = "As at", className = "" }: { asOf: string; label?: string; className?: string }) {

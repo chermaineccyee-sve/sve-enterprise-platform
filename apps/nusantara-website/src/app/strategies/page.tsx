@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { ContactCTA } from "@/components/sections/ContactCTA";
-import { StatusLabel, StrategyCard } from "@/components/sections/StrategyCard";
+import { AllocationUniverse } from "@/components/sections/AllocationUniverse";
+import { StatusLabel } from "@/components/sections/StrategyCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { PageHero } from "@/components/ui/PageHero";
 import { ReviewPlaceholder } from "@/components/ui/ReviewPlaceholder";
-import { SectionHeader } from "@/components/ui/SectionHeader";
+import { getAllListings } from "@/content/insights";
 import { STATUS_INFO, STRATEGIES, type StrategyStatus } from "@/content/strategies";
+import { getIntelligence, getMarketSnapshot } from "@/lib/market/service";
 
 export const metadata: Metadata = {
   title: "Strategies",
@@ -14,9 +16,11 @@ export const metadata: Metadata = {
   alternates: { canonical: "/strategies" },
 };
 
-export default function StrategiesPage() {
-  const current = STRATEGIES.filter((s) => s.status !== "future-development");
-  const future = STRATEGIES.filter((s) => s.status === "future-development");
+export default async function StrategiesPage() {
+  const [snapshot, intelligence] = await Promise.all([getMarketSnapshot(), getIntelligence()]);
+  const instruments = Object.fromEntries(snapshot.instruments.map((s) => [s.instrument.id, s]));
+  const indicators = Object.fromEntries(intelligence.indicators.map((i) => [i.id, i]));
+  const insights = Object.fromEntries(getAllListings().map((l) => [l.slug, l]));
   return (
     <>
       <PageHero
@@ -40,29 +44,17 @@ export default function StrategiesPage() {
       </section>
 
       <section aria-labelledby="capabilities" className="bg-paper">
-        <div className="container-site py-20 md:py-28">
-          <SectionHeader
-            eyebrow="Capabilities"
-            title={<span id="capabilities">Where we apply our thinking.</span>}
-            intro="These are capability areas, not products. No capability on this page is offered to investors, and no capability is described as active."
-          />
-          <ul className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {current.map((s, i) => (
-              <li key={s.slug}>
-                <StrategyCard strategy={s} index={i} variant="tile" />
-              </li>
-            ))}
-          </ul>
-          {future.length > 0 && (
-            <div className="mt-14 border-t border-rule pt-8">
-              <p className="eyebrow text-gold-700">Future development</p>
-              <div className="mt-2">
-                {future.map((s, i) => (
-                  <StrategyCard key={s.slug} strategy={s} index={current.length + i} />
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="mx-auto max-w-[1560px] px-5 py-16 md:px-10 md:py-24">
+          <div className="mb-12 grid gap-6 lg:grid-cols-12 lg:items-end">
+            <h2 id="capabilities" className="display-m text-teal-900 lg:col-span-6">
+              The allocation universe.
+            </h2>
+            <p className="text-[15px] leading-relaxed text-stone lg:col-span-6">
+              Select a capability. The canvas shows its role, an indicative asset-class profile, the risks we would assess, and the
+              markets and research connected to it. These are capability areas — none is presented as an active product.
+            </p>
+          </div>
+          <AllocationUniverse strategies={STRATEGIES} instruments={instruments} indicators={indicators} insights={insights} />
         </div>
       </section>
 

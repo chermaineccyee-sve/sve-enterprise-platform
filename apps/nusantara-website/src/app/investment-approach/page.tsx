@@ -1,6 +1,11 @@
+import { NStar } from "@/components/identity/NStar";
 import type { Metadata } from "next";
 import { ContactCTA } from "@/components/sections/ContactCTA";
-import { InvestmentProcess } from "@/components/sections/InvestmentProcess";
+import { ProcessStory } from "@/components/home/ProcessStory";
+import { AccessToAllocation } from "@/components/sections/AccessToAllocation";
+import { GOVERNANCE_LAYERS } from "@/content/governance";
+import { INSTRUMENTS } from "@/lib/market/instruments";
+import { ILLUSTRATIVE_INDICATORS } from "@/lib/market/providers/illustrative-intelligence";
 import { RiskFramework } from "@/components/sections/RiskFramework";
 import { CTA } from "@/components/ui/CTA";
 import { Disclaimer } from "@/components/ui/Disclaimer";
@@ -99,6 +104,12 @@ export default function InvestmentApproachPage() {
         </div>
       </section>
 
+      <section aria-label="From access to governed allocation" className="border-t border-rule bg-ivory">
+        <div className="container-site py-16 md:py-20">
+          <AccessToAllocation />
+        </div>
+      </section>
+
       <section aria-labelledby="model" className="on-dark bg-teal-900 text-white">
         <div className="container-site py-20 md:py-28">
           <SectionHeader
@@ -107,9 +118,9 @@ export default function InvestmentApproachPage() {
             title={<span id="model">Governed allocation at the centre.</span>}
             intro="Six stages, each designed to reduce a particular kind of error — noise at the start, poor fit in the middle, drift once capital is deployed."
           />
-          <Reveal className="mt-14">
-            <InvestmentProcess />
-          </Reveal>
+          <div className="mt-10 lg:-mt-10">
+            <ProcessStory counts={{ instruments: INSTRUMENTS.length, indicators: ILLUSTRATIVE_INDICATORS.length, governanceLayers: GOVERNANCE_LAYERS.length }} />
+          </div>
         </div>
       </section>
 
@@ -128,7 +139,7 @@ export default function InvestmentApproachPage() {
                 <ul className="space-y-2 lg:col-span-3">
                   {s.points.map((p) => (
                     <li key={p} className="flex gap-3 text-[14px] text-stone">
-                      <span aria-hidden className="mt-2 block h-1 w-1 shrink-0 rotate-45 bg-gold-500" />
+                      <NStar className="mt-1.5 h-2 w-2 text-gold-500" />
                       {p}
                     </li>
                   ))}

@@ -25,6 +25,8 @@ export type InsightCategory = (typeof INSIGHT_CATEGORIES)[number];
 
 export type Layer = "data" | "interpretation" | "implication";
 
+export type ScenarioPath = { label?: string; assumption: string; rate?: number; values?: number[] };
+
 export type ScenarioSpec = {
   id: string;
   title: string;
@@ -36,11 +38,14 @@ export type ScenarioSpec = {
   baseValue: number;
   /** Years after the base year, inclusive of base. */
   years: number[];
+  /** Each path is either a constant annual rate from the base value, or explicit values per year/period. */
   scenarios: {
-    downside: { rate: number; assumption: string };
-    base: { rate: number; assumption: string };
-    upside: { rate: number; assumption: string };
+    downside: ScenarioPath;
+    base: ScenarioPath;
+    upside: ScenarioPath;
   };
+  /** Optional custom x-axis labels (e.g. quarters) instead of years. */
+  periodLabels?: string[];
   period: string;
   dataSource: string;
   methodology: string;
@@ -104,6 +109,8 @@ export type Insight = {
   methodology?: string;
   body: Block[];
   related?: string[];
+  /** Instruments surfaced as margin "market signal" pull-outs. */
+  relatedInstruments?: string[];
 };
 
 /** Lightweight shape for lists and cards (no article body). */

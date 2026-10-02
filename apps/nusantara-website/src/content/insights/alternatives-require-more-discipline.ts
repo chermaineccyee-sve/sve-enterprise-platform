@@ -90,4 +90,5 @@ export const alternativesRequireDiscipline: Insight = {
     },
   ],
   related: ["private-credit-the-terms-behind-the-yield", "from-access-to-governed-allocation", "tokenisation-a-framework-first-approach"],
+  relatedInstruments: ["gold"],
 };

@@ -67,4 +67,5 @@ export const privateCreditTerms: Insight = {
     },
   ],
   related: ["alternatives-require-more-discipline", "from-access-to-governed-allocation", "q4-2026-market-outlook"],
+  relatedInstruments: ["us10y"],
 };

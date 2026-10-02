@@ -1,3 +1,4 @@
+import { ARCH_INNER, ARCH_OUTER } from "@/components/identity/Lattice";
 import type { Insight } from "@/content/insights/types";
 
 function seeded(slug: string) {
@@ -35,14 +36,22 @@ export function InsightVisual({
 
   let content: React.ReactNode = null;
   if (motif === "arcs") {
-    const cx = q(560 + r() * 120);
-    const cy = 420;
+    // Lattice, enlarged and cropped: the interlace as landscape.
+    const cx = q(520 + r() * 160);
+    const cy = q(300 + r() * 80);
+    const k = 3.4;
     content = (
       <>
-        {Array.from({ length: 9 }, (_, i) => (
-          <circle key={i} cx={cx} cy={cy} r={60 + i * 48} fill="none" stroke={i === 5 ? gold : line} strokeWidth={i === 5 ? 1.6 : 1} />
-        ))}
         <line x1="0" y1={cy} x2={W} y2={cy} stroke={line} />
+        <line x1={cx} y1="0" x2={cx} y2={H} stroke={line} />
+        <g transform={`translate(${cx} ${cy}) scale(${k})`} fill="none" strokeWidth={1 / k}>
+          {[0, 90, 180, 270].map((rot, i) => (
+            <g key={rot} transform={`rotate(${rot})`}>
+              <path d={ARCH_OUTER} stroke={i === 1 ? gold : line} />
+              <path d={ARCH_INNER} stroke={i === 1 ? gold : line} />
+            </g>
+          ))}
+        </g>
       </>
     );
   } else if (motif === "lines") {
@@ -91,14 +100,14 @@ export function InsightVisual({
       </>
     );
   } else {
+    // Interlaced governance frames.
     content = (
       <>
-        <circle cx={330} cy={250} r={170} fill="none" stroke={line} strokeWidth={1.2} />
-        <circle cx={490} cy={250} r={170} fill="none" stroke={line} strokeWidth={1.2} />
-        <circle cx={410} cy={250} r={58} fill="none" stroke={gold} strokeWidth={1.6} />
-        {Array.from({ length: 5 }, (_, i) => (
-          <circle key={i} cx={410} cy={250} r={240 + i * 36} fill="none" stroke={line} strokeOpacity={0.4} />
-        ))}
+        {Array.from({ length: 7 }, (_, i) => {
+          const h = 230 - i * 30;
+          return <rect key={i} x={400 - h} y={250 - h} width={h * 2} height={h * 2} rx={h * 0.22} fill="none" stroke={i === 2 ? gold : line} strokeWidth={i === 2 ? 1.6 : 1} />;
+        })}
+        <path d={`M400,232 Q403,247 418,250 Q403,253 400,268 Q397,253 382,250 Q397,247 400,232Z`} fill={gold} />
       </>
     );
   }

@@ -22,7 +22,7 @@ export const q4MarketOutlook: Insight = {
   ],
   tags: ["Outlook", "Growth", "Rates", "Currencies", "Commodities"],
   hero: { motif: "lines" },
-  featured: false,
+  featured: true,
   status: "sample",
   sources: [
     { label: "Nusantara Investment Team", detail: "Framework and interpretation." },
@@ -69,6 +69,41 @@ export const q4MarketOutlook: Insight = {
       body: ["We favour clearly articulated theses with defined review points over broad directional positioning."],
     },
 
+    { type: "heading", id: "inflation-scenarios", text: "Inflation pressure: three paths" },
+    {
+      type: "paragraph",
+      text: "Rather than forecast inflation, we set out three paths for an illustrative inflation-pressure composite and ask how an income allocation would behave under each. The exercise is about the robustness of a position, not about which path is most likely.",
+    },
+    {
+      type: "scenario",
+      scenario: {
+        id: "inflation-paths",
+        title: "Inflation-pressure composite under three illustrative paths",
+        metric: "Illustrative composite (50 = neutral)",
+        decimals: 1,
+        baseYear: 2026,
+        baseValue: 48.9,
+        years: [0, 1, 2, 3, 4, 5],
+        periodLabels: ["Q2 26", "Q3 26", "Q4 26", "Q1 27", "Q2 27", "Q3 27"],
+        scenarios: {
+          downside: { label: "Persistent", assumption: "Pressure re-builds as energy and food costs firm", values: [48.9, 49.6, 50.4, 51.1, 51.6, 51.9] },
+          base: { label: "Gradual", assumption: "Pressure eases slowly and unevenly", values: [48.9, 48.6, 48.2, 47.9, 47.7, 47.6] },
+          upside: { label: "Faster easing", assumption: "Broad-based disinflation", values: [48.9, 48.1, 47.2, 46.4, 45.9, 45.6] },
+        },
+        period: "Q2 2026 – Q3 2027",
+        dataSource: "Illustrative composite from the Nusantara Market Dashboard prototype; paths constructed by Nusantara for demonstration.",
+        methodology:
+          "Each path is a hand-specified sequence from a common starting value. The composite is not a published statistic and the paths carry no probabilities.",
+      },
+    },
+    {
+      type: "layer",
+      layer: "implication",
+      title: "Reading the paths",
+      body: [
+        "An income allocation that only performs under the faster-easing path is a forecast, not a framework. We prefer positions whose rationale survives the persistent path too.",
+      ],
+    },
     { type: "heading", id: "rates", text: "Rates and policy" },
     {
       type: "paragraph",
@@ -113,5 +148,6 @@ export const q4MarketOutlook: Insight = {
       text: "This outlook describes a framework for analysis. It is not a recommendation to buy, sell or hold any security or asset class, and it is not a forecast of returns.",
     },
   ],
-  related: ["rates-currencies-and-the-regional-allocator", "from-access-to-governed-allocation", "the-resilience-lens"],
+  related: ["rates-currencies-and-the-regional-allocator", "precious-metals-and-portfolio-resilience", "the-resilience-lens"],
+  relatedInstruments: ["klci", "us10y", "brent"],
 };

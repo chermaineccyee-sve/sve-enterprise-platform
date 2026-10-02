@@ -78,4 +78,5 @@ export const ratesCurrencies: Insight = {
     },
   ],
   related: ["q4-2026-market-outlook", "the-resilience-lens", "from-access-to-governed-allocation"],
+  relatedInstruments: ["usdmyr", "usdsgd", "us10y"],
 };

@@ -27,7 +27,7 @@ export function Change({
     dir === "up" ? (dark ? "text-[#8fd1b0]" : "text-up") : dir === "down" ? (dark ? "text-[#f0a397]" : "text-down") : dark ? "text-teal-200" : "text-stone";
   const isYield = instrument.convention === "yield";
   return (
-    <span className={`num inline-flex items-baseline gap-2 ${size === "md" ? "text-[15px]" : "text-[12.5px]"} ${color} ${className}`}>
+    <span className={`num relative inline-flex items-baseline gap-2 ${size === "md" ? "text-[15px]" : "text-[12.5px]"} ${color} ${className}`}>
       <span aria-hidden className="text-[0.8em]">
         {dir === "up" ? "▲" : dir === "down" ? "▼" : "■"}
       </span>

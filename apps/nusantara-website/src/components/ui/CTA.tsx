@@ -9,15 +9,14 @@ type CTAProps = {
 };
 
 const styles: Record<NonNullable<CTAProps["variant"]>, string> = {
-  primary:
-    "h-12 px-6 bg-teal-800 text-white hover:bg-teal-900 border border-teal-800",
+  primary: "btn-fill h-12 px-6 bg-teal-800 text-white border border-teal-800 [--fill:var(--color-teal-950)]",
   secondary:
-    "h-12 px-6 border border-teal-800/35 text-teal-800 hover:border-teal-800 hover:bg-teal-800 hover:text-white",
-  light: "h-12 px-6 border border-white/30 text-white hover:bg-white hover:text-teal-900",
+    "btn-fill h-12 px-6 border border-teal-800/35 text-teal-800 hover:border-teal-800 hover:text-white focus-visible:text-white [--fill:var(--color-teal-800)]",
+  light: "btn-fill h-12 px-6 border border-white/30 text-white hover:text-teal-900 focus-visible:text-teal-900 [--fill:#fff]",
   text: "text-teal-800 hover:text-teal-950",
 };
 
-/** Text-led call to action with a sliding arrow. Square corners by design. */
+/** Call to action: fills directionally (left → right) and the arrow advances. Square corners by design. */
 export function CTA({ href, children, variant = "primary", className = "" }: CTAProps) {
   return (
     <Link

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { generalDisclaimer, legalNav, site } from "@/lib/site";
+import { AxisRule } from "@/components/identity/AxisRule";
 import { Logo } from "./Logo";
 
 const columns: { title: string; links: { label: string; href: string }[] }[] = [
@@ -64,7 +65,8 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-16 border-t border-white/10 pt-8">
+        <AxisRule tone="dark" className="mt-16" />
+        <div className="pt-8">
           <h2 className="eyebrow text-gold-300">Important information</h2>
           <p className="mt-4 max-w-5xl text-[13px] leading-relaxed text-teal-200">{generalDisclaimer}</p>
           {site.isPrototype && (

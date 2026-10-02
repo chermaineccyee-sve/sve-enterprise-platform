@@ -3,6 +3,7 @@ import { IBM_Plex_Sans, Newsreader } from "next/font/google";
 import { Footer } from "@/components/layout/Footer";
 import { Navbar } from "@/components/layout/Navbar";
 import { PrototypeBanner } from "@/components/layout/PrototypeBanner";
+import { MotionProvider } from "@/components/motion/MotionProvider";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -62,12 +63,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         >
           Skip to main content
         </a>
-        <PrototypeBanner />
-        <Navbar />
-        <main id="main" tabIndex={-1} className="outline-none">
-          {children}
-        </main>
-        <Footer />
+        <MotionProvider>
+          <PrototypeBanner />
+          <Navbar />
+          <main id="main" tabIndex={-1} className="outline-none">
+            {children}
+          </main>
+          <Footer />
+        </MotionProvider>
       </body>
     </html>
   );

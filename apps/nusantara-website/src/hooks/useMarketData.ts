@@ -5,7 +5,7 @@ import type { ChartPeriod, InstrumentHistory, MarketSnapshot } from "@/lib/marke
 
 const historyCache = new Map<ChartPeriod, Promise<InstrumentHistory[]>>();
 
-function fetchHistory(period: ChartPeriod) {
+export function fetchHistory(period: ChartPeriod) {
   let p = historyCache.get(period);
   if (!p) {
     p = fetch(`/api/market/history/${period}`).then((r) => {
@@ -69,4 +69,20 @@ export function useMarketSnapshot(initial: MarketSnapshot, refreshIntervalMs: nu
     return () => window.clearInterval(id);
   }, [refreshIntervalMs]);
   return snapshot;
+}
+
+/** Loads several periods (each a cached static file) once `enabled` becomes true. */
+export function useHistories(periods: readonly ChartPeriod[], enabled: boolean) {
+  const [data, setData] = useState<Partial<Record<ChartPeriod, Map<string, InstrumentHistory["points"]>>>>({});
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    Promise.all(periods.map((p) => fetchHistory(p).then((h) => [p, new Map(h.map((x) => [x.instrumentId, x.points]))] as const)))
+      .then((entries) => !cancelled && setData(Object.fromEntries(entries)))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, periods]);
+  return data;
 }

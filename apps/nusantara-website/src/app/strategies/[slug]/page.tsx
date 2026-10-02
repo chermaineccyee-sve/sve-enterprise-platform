@@ -1,3 +1,4 @@
+import { NStar } from "@/components/identity/NStar";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -114,7 +115,7 @@ export default async function StrategyPage({ params }: PageProps<"/strategies/[s
               <ul className="space-y-3">
                 {s.riskConsiderations.map((r) => (
                   <li key={r} className="flex gap-3 text-[15px] text-charcoal">
-                    <span aria-hidden className="mt-2 block h-1 w-1 shrink-0 rotate-45 bg-gold-500" />
+                    <NStar className="mt-1.5 h-2 w-2 text-gold-500" />
                     {r}
                   </li>
                 ))}

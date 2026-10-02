@@ -31,7 +31,24 @@ export type Strategy = {
   timeHorizon: string | null;
   characteristics: string[];
   documents: { title: string; href: string }[];
+  /** One-line role in a portfolio (general, capability-level). */
+  role: string;
+  /**
+   * Indicative, general characteristics of the ASSET CLASS (0 lower · 1 moderate · 2 higher).
+   * Not product terms. Null for future-development areas.
+   */
+  profile: { liquidity: 0 | 1 | 2; income: 0 | 1 | 2; complexity: 0 | 1 | 2; valuationFrequency: 0 | 1 | 2 } | null;
+  relatedInstruments: string[];
+  relatedIndicators: string[];
+  insight: string;
 };
+
+export const PROFILE_AXES = [
+  { key: "liquidity", label: "Liquidity", low: "Lower", high: "Higher" },
+  { key: "income", label: "Income orientation", low: "Lower", high: "Higher" },
+  { key: "complexity", label: "Complexity", low: "Lower", high: "Higher" },
+  { key: "valuationFrequency", label: "Valuation frequency", low: "Periodic", high: "Frequent" },
+] as const;
 
 export const STRATEGIES: Strategy[] = [
   {
@@ -49,6 +66,11 @@ export const STRATEGIES: Strategy[] = [
     timeHorizon: null,
     characteristics: ["Income-oriented", "Diversified sources of return", "Emphasis on durability over level"],
     documents: [],
+    role: "Regular distributions — durability of income over its level.",
+    profile: { liquidity: 1, income: 2, complexity: 1, valuationFrequency: 1 },
+    relatedInstruments: ["us10y", "mgs10y"],
+    relatedIndicators: ["macro-policy"],
+    insight: "rates-currencies-and-the-regional-allocator",
   },
   {
     slug: "private-credit",
@@ -65,6 +87,11 @@ export const STRATEGIES: Strategy[] = [
     timeHorizon: null,
     characteristics: ["Income-oriented", "Lower liquidity than listed markets", "Structure-dependent outcomes"],
     documents: [],
+    role: "Income from lending, with outcomes shaped by structure.",
+    profile: { liquidity: 0, income: 2, complexity: 2, valuationFrequency: 0 },
+    relatedInstruments: ["us10y", "us2y"],
+    relatedIndicators: ["pm-credit"],
+    insight: "private-credit-the-terms-behind-the-yield",
   },
   {
     slug: "real-assets",
@@ -81,6 +108,11 @@ export const STRATEGIES: Strategy[] = [
     timeHorizon: null,
     characteristics: ["Long-dated", "Potential income and inflation linkage", "Appraisal-based valuation"],
     documents: [],
+    role: "Income and a degree of inflation linkage from physical assets.",
+    profile: { liquidity: 0, income: 1, complexity: 1, valuationFrequency: 0 },
+    relatedInstruments: ["us10y"],
+    relatedIndicators: ["alt-real-assets"],
+    insight: "alternatives-require-more-discipline",
   },
   {
     slug: "precious-metals",
@@ -97,6 +129,11 @@ export const STRATEGIES: Strategy[] = [
     timeHorizon: null,
     characteristics: ["Resilience-oriented", "Custody-sensitive", "Non-income-producing"],
     documents: [],
+    role: "A resilience component, held for behaviour in stress.",
+    profile: { liquidity: 2, income: 0, complexity: 0, valuationFrequency: 2 },
+    relatedInstruments: ["gold", "silver"],
+    relatedIndicators: ["alt-precious"],
+    insight: "precious-metals-and-portfolio-resilience",
   },
   {
     slug: "alternative-investments",
@@ -113,6 +150,11 @@ export const STRATEGIES: Strategy[] = [
     timeHorizon: null,
     characteristics: ["Differentiated return drivers", "Due-diligence intensive", "Varied liquidity profiles"],
     documents: [],
+    role: "Return drivers that differ from traditional markets.",
+    profile: { liquidity: 0, income: 1, complexity: 2, valuationFrequency: 0 },
+    relatedInstruments: [],
+    relatedIndicators: ["am-alt-share", "inst-alts"],
+    insight: "alternatives-require-more-discipline",
   },
   {
     slug: "regional-opportunities",
@@ -129,6 +171,11 @@ export const STRATEGIES: Strategy[] = [
     timeHorizon: null,
     characteristics: ["Growth-oriented themes", "Currency-sensitive", "Selective"],
     documents: [],
+    role: "Exposure to regional growth and structural themes.",
+    profile: { liquidity: 2, income: 1, complexity: 1, valuationFrequency: 2 },
+    relatedInstruments: ["klci", "sti", "jci"],
+    relatedIndicators: ["cf-portfolio"],
+    insight: "q4-2026-market-outlook",
   },
   {
     slug: "shariah-capable",
@@ -145,6 +192,11 @@ export const STRATEGIES: Strategy[] = [
     timeHorizon: null,
     characteristics: ["Principle-aligned", "Shared governance standards", "Adviser oversight"],
     documents: [],
+    role: "Principle-aligned allocation under shared governance.",
+    profile: { liquidity: 1, income: 1, complexity: 1, valuationFrequency: 1 },
+    relatedInstruments: [],
+    relatedIndicators: [],
+    insight: "shariah-capable-allocation-shared-principles",
   },
   {
     slug: "tokenised-real-world-assets",
@@ -160,6 +212,11 @@ export const STRATEGIES: Strategy[] = [
     timeHorizon: null,
     characteristics: ["Future review only", "Framework-first"],
     documents: [],
+    role: "Future review only — framework before exposure.",
+    profile: null,
+    relatedInstruments: [],
+    relatedIndicators: [],
+    insight: "tokenisation-a-framework-first-approach",
   },
 ];
 

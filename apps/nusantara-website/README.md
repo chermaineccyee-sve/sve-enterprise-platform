@@ -9,6 +9,40 @@ research is sample content, and the site is excluded from search indexing
 (`site.isPrototype` in `src/lib/site.ts`). The app is self-contained and has no
 dependency on any other app or service in this repository.
 
+## V2 experience (current)
+
+V2 rebuilt the presentation and interaction layer on the same data and content
+architecture. See [`docs/V2_CREATIVE_REVIEW.md`](./docs/V2_CREATIVE_REVIEW.md) for
+the section-by-section review of what changed and why.
+
+- **Visual DNA — the Nusantara lattice** (`src/components/identity/`): four
+  interlocking arched bands about a cross-axis converging on a four-point star,
+  derived from (never altering) the logo. Used for markers (`NStar`), diagrams
+  (`Lattice`, `AllocationSystem`), gauges (`StateGauge`) and transitions.
+- **Motion** (`motion` / Framer Motion via `LazyMotion`, plus CSS keyframes):
+  values tween when the *selection* changes, charts morph between periods
+  (`MorphChart`), the process visual transforms per stage, a decision token
+  travels the governance gates. `MotionConfig reducedMotion="user"` and CSS
+  `prefers-reduced-motion` rules disable all of it. Illustrative values never
+  update on their own.
+- **Homepage**: live market canvas hero, continuous market ribbon (pausable;
+  swipe on mobile), Nusantara Market State, Market → Signal → Insight lens,
+  scroll-revealed statement, sticky scroll investment story, research rail,
+  governance signal.
+- **Market Dashboard**: intelligence workspace (market rail · morphing chart or
+  table · Nusantara View panel), historical comparison, cross-asset view
+  (derived measures + sample view), schematic markets map, structural indicators.
+- **Insights**: featured research with interactive chart, latest signals, deep
+  dives index, themes; articles with active contents, margin notes and market
+  signal pull-outs, in-view chart drawing, expandable sources/methodology
+  (opened automatically for print).
+- **Strategies**: allocation universe; **Governance**: decision flow and control
+  architecture.
+
+The intelligence layer — Market State, per-instrument views, signals, themes,
+cross-asset view and map — lives in `src/content/intelligence.ts` and is
+**sample content for management review**, labelled as such wherever shown.
+
 ## Running
 
 ```bash
@@ -98,7 +132,7 @@ market insight report, after filtering:
 ## Management review checklist
 
 - [ ] Approve positioning copy (hero, About, Investment Approach)
-- [ ] Approve or replace sample research and the Nusantara View
+- [ ] Approve or replace sample research, Market State readings, instrument views and signals (`src/content/intelligence.ts`)
 - [ ] Appoint a market-data provider; confirm licence and attribution wording
 - [ ] Replace Level B illustrative indicators with sourced research data
 - [ ] Supply contact details, corporate information and leadership (if any)

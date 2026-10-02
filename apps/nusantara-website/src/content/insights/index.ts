@@ -1,5 +1,6 @@
 import { alternativesRequireDiscipline } from "./alternatives-require-more-discipline";
 import { fromAccessToGovernedAllocation } from "./from-access-to-governed-allocation";
+import { preciousMetals } from "./precious-metals-and-portfolio-resilience";
 import { privateCreditTerms } from "./private-credit-the-terms-behind-the-yield";
 import { q4MarketOutlook } from "./q4-2026-market-outlook";
 import { ratesCurrencies } from "./rates-currencies-and-the-regional-allocator";
@@ -20,6 +21,7 @@ const ALL: Insight[] = [
   ratesCurrencies,
   tokenisation,
   shariahCapable,
+  preciousMetals,
 ];
 
 export function getAllInsights(): Insight[] {

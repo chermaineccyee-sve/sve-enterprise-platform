@@ -22,17 +22,13 @@ export const fromAccessToGovernedAllocation: Insight = {
   ],
   tags: ["Governed allocation", "Private wealth", "Governance", "Portfolio construction"],
   hero: { motif: "arcs" },
-  featured: true,
+  featured: false,
   status: "sample",
   sources: [
     { label: "Nusantara Research", detail: "Framework and interpretation developed by Nusantara for this note." },
-    {
-      label: "Illustrative scenario model",
-      detail: "Hypothetical index constructed for demonstration. Not derived from, or calibrated to, any published statistic.",
-    },
   ],
   methodology:
-    "This note is qualitative. The scenario section uses a hypothetical index (base year = 100) compounded at three constant annual rates to illustrate how outcomes diverge under different assumptions. It is not a forecast and is not calibrated to any market or dataset.",
+    "This note is qualitative. It sets out a framework for evaluating allocation processes and does not rely on market data.",
   body: [
     { type: "heading", id: "executive-market-view", text: "Executive market view" },
     {
@@ -130,41 +126,6 @@ export const fromAccessToGovernedAllocation: Insight = {
       ],
     },
 
-    { type: "heading", id: "scenario-analysis", text: "Scenario analysis: why discipline compounds" },
-    {
-      type: "paragraph",
-      text: "The scenario below is deliberately abstract. It does not describe any market, fund or strategy. It shows how a modest difference in an assumed annual rate produces materially different outcomes over five years — and therefore why the assumptions behind any projection deserve as much scrutiny as the projection itself.",
-    },
-    {
-      type: "scenario",
-      scenario: {
-        id: "allocation-index",
-        title: "Hypothetical allocation index under three assumptions",
-        metric: "Hypothetical index",
-        decimals: 1,
-        baseYear: 2026,
-        baseValue: 100,
-        years: [2026, 2027, 2028, 2029, 2030, 2031],
-        scenarios: {
-          downside: { rate: 0.03, assumption: "Constant 3% annual rate" },
-          base: { rate: 0.06, assumption: "Constant 6% annual rate" },
-          upside: { rate: 0.09, assumption: "Constant 9% annual rate" },
-        },
-        period: "2026–2031",
-        dataSource: "Hypothetical index constructed by Nusantara Research for illustration only.",
-        methodology:
-          "Base value of 100 in 2026 compounded annually at each constant rate. No volatility, fees, taxes or path dependency are modelled.",
-      },
-    },
-    {
-      type: "layer",
-      layer: "implication",
-      title: "Reading the scenario",
-      body: [
-        "The spread between the downside and upside paths widens every year. Small differences in assumptions — about growth, fees, liquidity or risk — become large differences in outcome. Governance is, in part, the discipline of testing those assumptions before capital is committed.",
-      ],
-    },
-
     { type: "heading", id: "information-pathway", text: "A layered information pathway" },
     {
       type: "paragraph",
@@ -189,4 +150,5 @@ export const fromAccessToGovernedAllocation: Insight = {
     },
   ],
   related: ["the-resilience-lens", "alternatives-require-more-discipline", "q4-2026-market-outlook"],
+  relatedInstruments: [],
 };

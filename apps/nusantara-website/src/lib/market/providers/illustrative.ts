@@ -44,10 +44,12 @@ const PARAMS: Record<string, { level: number; vol: number; drift: number }> = {
   usdidr: { level: 16418, vol: 0.06, drift: 0.01 },
   sgdmyr: { level: 3.2719, vol: 0.04, drift: -0.01 },
   eurusd: { level: 1.1726, vol: 0.07, drift: 0.06 },
+  usdcnh: { level: 7.1286, vol: 0.04, drift: -0.02 },
   usdjpy: { level: 147.62, vol: 0.1, drift: -0.02 },
   us10y: { level: 4.118, vol: 0.055, drift: -0.25 },
   us2y: { level: 3.574, vol: 0.06, drift: -0.6 },
   mgs10y: { level: 3.418, vol: 0.025, drift: -0.15 },
+  jgb10y: { level: 1.612, vol: 0.03, drift: 0.35 },
   sgs10y: { level: 2.046, vol: 0.04, drift: -0.3 },
   gold: { level: 3641.5, vol: 0.15, drift: 0.32 },
   silver: { level: 41.82, vol: 0.26, drift: 0.3 },
@@ -121,6 +123,23 @@ function buildSeries(inst: InstrumentDefinition): Series {
   for (let i = TRADING_DAYS - 1; i > 0; i--) {
     const shock = normal(rand) * dailyVol + p.drift / 252;
     closes[i - 1] = isYield ? closes[i] - shock : closes[i] / Math.exp(shock);
+  }
+
+  // Anchor the path so the change over the final year equals the stated drift
+  // (keeps each series' shape, avoids implausible illustrative extremes).
+  const yearStart = TRADING_DAYS - 262;
+  if (isYield) {
+    const excess = closes[TRADING_DAYS - 1] - closes[yearStart] - p.drift;
+    for (let i = 0; i < TRADING_DAYS; i++) {
+      const f = Math.min(1, Math.max(0, (i - yearStart) / (TRADING_DAYS - 1 - yearStart)));
+      closes[i] += excess * (1 - f);
+    }
+  } else {
+    const excess = Math.log(closes[TRADING_DAYS - 1] / closes[yearStart]) - Math.log(1 + p.drift);
+    for (let i = 0; i < TRADING_DAYS; i++) {
+      const f = Math.min(1, Math.max(0, (i - yearStart) / (TRADING_DAYS - 1 - yearStart)));
+      closes[i] *= Math.exp(excess * (1 - f));
+    }
   }
 
   const daily = days.map((d, i) => ({ t: d.toISOString(), v: round(closes[i], inst.decimals) }));

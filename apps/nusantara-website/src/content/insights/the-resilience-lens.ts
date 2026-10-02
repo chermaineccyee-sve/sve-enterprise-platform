@@ -72,4 +72,5 @@ export const resilienceLens: Insight = {
     },
   ],
   related: ["from-access-to-governed-allocation", "alternatives-require-more-discipline", "q4-2026-market-outlook"],
+  relatedInstruments: ["spx", "gold"],
 };

@@ -1,5 +1,8 @@
 "use client";
 
+import { useInView } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { LineChart } from "@/components/market/LineChart";
 import { PRIMARY_LINE, SERIES_COLORS } from "@/components/market/chart-utils";
 import { MarketStatus } from "@/components/market/MarketStatus";
@@ -11,6 +14,15 @@ export function ArticleChart({ block, index }: { block: ChartBlock; index: numbe
   const fmt = (v: number) =>
     `${new Intl.NumberFormat("en-GB", { minimumFractionDigits: block.decimals, maximumFractionDigits: block.decimals }).format(v)}${block.unit ?? ""}`;
   const multi = block.series.length > 1;
+  const ref = useRef<HTMLDivElement>(null);
+  // Draw the chart when it scrolls into view (and keep it mounted afterwards).
+  const inView = useInView(ref, { once: true, margin: "-10% 0px" });
+  const [forPrint, setForPrint] = useState(false);
+  useEffect(() => {
+    const on = () => flushSync(() => setForPrint(true));
+    window.addEventListener("beforeprint", on);
+    return () => window.removeEventListener("beforeprint", on);
+  }, []);
   return (
     <figure className="not-prose my-12 border-y border-rule py-6 font-sans">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -30,7 +42,8 @@ export function ArticleChart({ block, index }: { block: ChartBlock; index: numbe
           ))}
         </ul>
       )}
-      <div className="mt-4">
+      <div ref={ref} className="mt-4 min-h-[260px]">
+        {(inView || forPrint) && (
         <LineChart
           series={block.series.map((s, i) => ({ ...s, color: multi ? SERIES_COLORS[i] : PRIMARY_LINE }))}
           xLabels={block.xLabels}
@@ -39,7 +52,9 @@ export function ArticleChart({ block, index }: { block: ChartBlock; index: numbe
           height={260}
           ariaLabel={`${block.caption}.${block.illustrative ? " Illustrative data." : ""}`}
           tableCaption={block.caption}
+          endLabels={!multi}
         />
+        )}
       </div>
       <p className="mt-3 text-[12px] text-stone">Source: {block.source}</p>
     </figure>

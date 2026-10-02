@@ -238,3 +238,106 @@
     break-inside: avoid;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* V2 motion vocabulary                                                */
+/* ------------------------------------------------------------------ */
+@keyframes lattice-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+.lattice-draw {
+  stroke-dasharray: 1;
+  animation: lattice-draw 2.4s var(--ease-out-soft) both;
+}
+
+/* Continuous market ribbon */
+@keyframes ribbon {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+.ribbon-track {
+  animation: ribbon var(--ribbon-duration, 70s) linear infinite;
+}
+.ribbon:hover .ribbon-track,
+.ribbon:focus-within .ribbon-track,
+.ribbon[data-paused="true"] .ribbon-track {
+  animation-play-state: paused;
+}
+
+/* The watching star: a slow, quiet breath — signals monitoring, not live data */
+@keyframes star-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+.star-breathe {
+  animation: star-breathe 3.6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes slow-spin {
+  to { transform: rotate(360deg); }
+}
+.slow-spin {
+  animation: slow-spin 18s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(var(--dx, 3px), var(--dy, -4px)); }
+}
+.drift {
+  animation: drift var(--drift-d, 7s) ease-in-out infinite;
+}
+
+/* Directional button fill */
+.btn-fill {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.btn-fill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--fill, var(--color-teal-900));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 450ms var(--ease-out-soft);
+}
+.btn-fill:hover::before,
+.btn-fill:focus-visible::before {
+  transform: scaleX(1);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ribbon-track,
+  .star-breathe,
+  .slow-spin,
+  .drift,
+  .lattice-draw {
+    animation: none !important;
+  }
+  .lattice-draw {
+    stroke-dasharray: none;
+  }
+}
+/* Rotate about the SVG user-space origin (diagrams centred on 0,0) */
+.spin-origin {
+  animation: slow-spin 14s linear infinite;
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin-origin { animation: none !important; }
+}

@@ -1,3 +1,4 @@
+import { Lattice } from "@/components/identity/Lattice";
 import { CTA } from "@/components/ui/CTA";
 
 export function ContactCTA({
@@ -9,10 +10,9 @@ export function ContactCTA({
 }) {
   return (
     <section aria-labelledby="contact-cta" className="on-dark relative overflow-hidden bg-teal-800 text-white">
-      <svg aria-hidden className="pointer-events-none absolute -left-32 -bottom-48 h-[520px] w-[520px] opacity-60" viewBox="0 0 520 520" fill="none">
-        <circle cx="260" cy="260" r="250" stroke="rgba(205,174,115,0.4)" />
-        <circle cx="260" cy="260" r="190" stroke="rgba(255,255,255,0.1)" />
-      </svg>
+      <div aria-hidden className="pointer-events-none absolute -bottom-40 -left-24 h-[520px] w-[520px] text-white/10">
+        <Lattice className="h-full w-full" strokeWidth={0.5} accent="rgba(205,174,115,0.5)" />
+      </div>
       <div className="container-site relative grid gap-10 py-20 md:py-28 lg:grid-cols-12 lg:items-end">
         <div className="lg:col-span-7">
           <p className="eyebrow text-gold-300">Contact</p>

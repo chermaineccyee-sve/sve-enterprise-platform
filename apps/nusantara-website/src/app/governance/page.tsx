@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { ContactCTA } from "@/components/sections/ContactCTA";
-import { GovernanceStack } from "@/components/sections/GovernanceStack";
+import { GovernanceSignal } from "@/components/home/GovernanceSignal";
+import { NStar } from "@/components/identity/NStar";
+import { GovernanceArchitecture } from "@/components/sections/GovernanceArchitecture";
 import { RiskFramework } from "@/components/sections/RiskFramework";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { PageHero } from "@/components/ui/PageHero";
-import { Reveal } from "@/components/ui/Reveal";
 import { ReviewPlaceholder } from "@/components/ui/ReviewPlaceholder";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
@@ -36,21 +37,42 @@ export default function GovernancePage() {
         crumbs={[{ label: "Home", href: "/" }, { label: "Governance" }]}
       />
 
-      <section aria-labelledby="stack" className="bg-paper">
-        <div className="container-site grid gap-14 py-20 md:py-28 lg:grid-cols-12">
-          <div className="lg:col-span-4">
-            <p className="eyebrow text-gold-700">Governance architecture</p>
-            <h2 id="stack" className="display-m mt-5 text-teal-900">
-              Seven layers through which decisions pass.
-            </h2>
-            <p className="mt-6 text-[15.5px] leading-relaxed text-stone">
-              From oversight at the top to reporting and monitoring at the base, each layer narrows the set of decisions that can
-              pass through unexamined. The architecture is described here at the level of function.
+      <section aria-labelledby="flow" className="on-dark bg-teal-950 text-white">
+        <div className="container-site py-20 md:py-28">
+          <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
+            <div className="lg:col-span-7">
+              <p className="eyebrow flex items-center gap-3 text-gold-300">
+                <NStar className="h-2.5 w-2.5" /> The decision path
+              </p>
+              <h2 id="flow" className="display-l mt-6">
+                Every decision passes the same gates.
+              </h2>
+            </div>
+            <p className="text-[15.5px] leading-relaxed text-teal-100 lg:col-span-5">
+              Follow a decision from market signal to reporting. Each gate asks one question and stops one kind of error. Select a gate
+              to hold it.
             </p>
           </div>
-          <Reveal className="lg:col-span-8">
-            <GovernanceStack />
-          </Reveal>
+          <div className="mt-16">
+            <GovernanceSignal />
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="architecture" className="on-dark border-t border-white/10 bg-teal-900 text-white">
+        <div className="container-site py-20 md:py-28">
+          <p className="eyebrow flex items-center gap-3 text-gold-300">
+            <NStar className="h-2.5 w-2.5" /> Control architecture
+          </p>
+          <h2 id="architecture" className="display-m mt-5 max-w-2xl">
+            Seven functions, nested around every allocation.
+          </h2>
+          <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-teal-100">
+            Described at the level of function. Named bodies, committees and service providers will be published only once approved.
+          </p>
+          <div className="mt-14">
+            <GovernanceArchitecture />
+          </div>
         </div>
       </section>
 

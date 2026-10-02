@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Lattice } from "@/components/identity/Lattice";
 import { Breadcrumb, type Crumb } from "./Breadcrumb";
 
 /** Interior page masthead: breadcrumb, eyebrow, large serif title, lede. */
@@ -43,18 +44,11 @@ export function PageHero({
   );
 }
 
-/** Quiet concentric arcs echoing the Nusantara cover artwork. */
+/** Quiet Nusantara lattice, partly off-canvas, as the masthead's graphic device. */
 export function HeroLines({ dark = false }: { dark?: boolean }) {
   return (
-    <svg
-      aria-hidden
-      className="pointer-events-none absolute -right-40 -top-24 h-[620px] w-[620px] md:-right-24"
-      viewBox="0 0 600 600"
-      fill="none"
-    >
-      <circle cx="300" cy="300" r="290" stroke={dark ? "rgba(205,174,115,0.35)" : "rgba(184,149,90,0.45)"} strokeWidth="1" />
-      <circle cx="300" cy="300" r="220" stroke={dark ? "rgba(255,255,255,0.10)" : "rgba(18,56,74,0.10)"} strokeWidth="1" />
-      <circle cx="300" cy="300" r="150" stroke={dark ? "rgba(205,174,115,0.22)" : "rgba(184,149,90,0.28)"} strokeWidth="1" />
-    </svg>
+    <div aria-hidden className={`pointer-events-none absolute -right-32 -top-28 h-[600px] w-[600px] md:-right-16 ${dark ? "text-white/10" : "text-teal-800/[0.13]"}`}>
+      <Lattice className="h-full w-full" strokeWidth={0.45} accent={dark ? "rgba(205,174,115,0.55)" : "rgba(184,149,90,0.6)"} />
+    </div>
   );
 }
