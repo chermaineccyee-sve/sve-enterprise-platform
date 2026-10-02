@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "build:review": "NUSANTARA_ENV=review MARKET_DATA_PROVIDER=illustrative next build",
+    "start:review": "NUSANTARA_ENV=review MARKET_DATA_PROVIDER=illustrative next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit"
   },

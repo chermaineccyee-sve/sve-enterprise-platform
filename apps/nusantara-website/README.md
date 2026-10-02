@@ -6,7 +6,7 @@ approach, capability architecture and governance.
 
 **Status: management-review prototype.** All market data is illustrative, all
 research is sample content, and the site is excluded from search indexing
-(`NUSANTARA_ENV=prototype`, see `src/lib/config.ts`). The app is self-contained
+(`NUSANTARA_ENV=review`, see `src/lib/config.ts`). The app is self-contained
 and has no dependency on any other app or service in this repository.
 
 **Built for the end state.** The V2.1 design is frozen; the platform beneath it
@@ -84,6 +84,36 @@ the section-by-section review of what changed and why.
 The intelligence layer — Market State, per-instrument views, signals, themes,
 cross-asset view and map — lives in `src/content/data/` and is
 **illustrative content for management review**, labelled as such wherever shown.
+
+## Deploying the management-review build
+
+The review deployment is the fully populated demonstration: illustrative
+market-data provider, every dashboard surface, sample Nusantara Views, the
+Market State demonstration framework and sample research — all labelled, with
+the review banner and noindex.
+
+```bash
+npm ci
+npm run build:review     # NUSANTARA_ENV=review MARKET_DATA_PROVIDER=illustrative
+npm run start:review
+```
+
+On a hosting platform, set `NUSANTARA_ENV=review` and
+`MARKET_DATA_PROVIDER=illustrative` (or leave both unset — review is the
+default) for **both build and runtime**. The build log states the mode:
+
+```
+Nusantara · environment: MANAGEMENT REVIEW · market data: illustrative
+```
+
+| Configuration | Result |
+|---|---|
+| `NUSANTARA_ENV=review` (default) | illustrative provider, full demonstration |
+| `NUSANTARA_ENV=production` + `MARKET_DATA_PROVIDER=http` + credentials | approved provider, published content only |
+| production/staging with no provider, or a failing provider | every market surface shows its UNAVAILABLE state |
+
+A dashboard reading "Market data unavailable" means the deployment is running
+the production configuration without a provider — not the review build.
 
 ## Running
 

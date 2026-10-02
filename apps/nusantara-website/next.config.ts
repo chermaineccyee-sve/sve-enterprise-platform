@@ -2,6 +2,13 @@ import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
 
+// Make the deployment mode visible in every build/start log (no secrets printed).
+{
+  const env = process.env.NUSANTARA_ENV === "staging" || process.env.NUSANTARA_ENV === "production" ? process.env.NUSANTARA_ENV : "review";
+  const provider = process.env.MARKET_DATA_PROVIDER ?? (env === "review" ? "illustrative" : "unconfigured → UNAVAILABLE");
+  console.info(`Nusantara · environment: ${env === "review" ? "MANAGEMENT REVIEW" : env.toUpperCase()} · market data: ${provider}`);
+}
+
 /**
  * Content Security Policy. Everything is served from this origin: fonts are
  * self-hosted by next/font, market data and enquiries go through this site's

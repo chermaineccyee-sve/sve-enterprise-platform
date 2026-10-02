@@ -44,8 +44,9 @@ export function StateGauge({
       </div>
       {showLabels && (
         <div className={`relative mt-2 h-4 text-[10.5px] ${dark ? "text-teal-200" : "text-stone"}`}>
-          {position !== 0 && <span className="absolute left-0">{scale[0]}</span>}
-          {position !== scale.length - 1 && <span className="absolute right-0">{scale[scale.length - 1]}</span>}
+          {/* End labels give way when the reading sits on or beside them, so labels never collide. */}
+          {position > 1 && <span className="absolute left-0">{scale[0]}</span>}
+          {position < scale.length - 2 && <span className="absolute right-0">{scale[scale.length - 1]}</span>}
           <m.span
             initial={false}
             animate={{ left: `${(position / (scale.length - 1)) * 100}%` }}

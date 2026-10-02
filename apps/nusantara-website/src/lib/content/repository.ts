@@ -24,7 +24,7 @@ import { buildContentGraph } from "./relationships";
  *
  * Rules applied:
  *  - only publication states allowed by the environment are returned;
- *  - sample content appears only in the prototype environment;
+ *  - sample content appears only in the management-review environment;
  *  - time-sensitive items past their review date are withdrawn;
  *  - capabilities appear only in an approved lifecycle state;
  *  - integrity problems (dangling references, published items without
@@ -35,7 +35,7 @@ const rules = { visibleStatuses: config.visibleStatuses, allowSampleContent: con
 const visible = <T extends Publication | Omit<Publication, "author">>(items: T[]) => items.filter((i) => isVisible(i as Publication, rules));
 
 const CAPABILITY_VISIBLE: Record<typeof config.environment, CapabilityStatus[]> = {
-  prototype: ["review", "public-capability", "active-product"],
+  review: ["review", "public-capability", "active-product"],
   staging: ["public-capability", "active-product"],
   production: ["public-capability", "active-product"],
 };

@@ -81,7 +81,7 @@ Every Nusantara View, Market State edition, signal, theme and article carries
 
 | Environment | Renders |
 |---|---|
-| prototype | review, approved, published — plus sample content, always labelled |
+| review | review, approved, published — plus sample content, always labelled |
 | staging | approved, published |
 | production | published only; never sample content |
 
@@ -174,9 +174,9 @@ that, `searchIndex()` is where a hosted search service replaces local matching.
 
 ## 8. Environments
 
-`src/lib/config.ts`, driven by `NUSANTARA_ENV` (see `.env.example`):
+`src/lib/config.ts`, driven by `NUSANTARA_ENV` (see `.env.example`; `prototype` is accepted as an alias of `review`):
 
-| | prototype | staging | production |
+| | review (management review; default) | staging | production |
 |---|---|---|---|
 | Market data | illustrative (default) | configured provider (else unavailable) | configured provider (else unavailable) |
 | Banner and prototype wording | shown | hidden | hidden |
