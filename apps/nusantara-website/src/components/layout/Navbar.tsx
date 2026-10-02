@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NStar } from "@/components/identity/NStar";
 import { primaryNav } from "@/lib/site";
-import { Logo } from "./Logo";
+import { MasterLogo } from "./Logo";
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -89,7 +89,7 @@ export function Navbar({ dataLabel, prototypeNote }: { dataLabel: string; protot
           }`}
         >
           <div className={`origin-left transition-transform duration-500 ${scrolled ? "scale-[0.78]" : "scale-100"}`}>
-            <Logo height={64} priority />
+            <MasterLogo />
           </div>
 
           <nav aria-label="Primary" className="hidden xl:block" onMouseLeave={() => setHovered(null)}>
