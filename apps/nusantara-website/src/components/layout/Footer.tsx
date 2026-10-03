@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { generalDisclaimer, legalNav, site } from "@/lib/site";
-import { Logo } from "./Logo";
+import { FooterLogo } from "./Logo";
 
 type FooterColumn = { title: string; links: { label: string; href: string }[] };
 
@@ -41,8 +41,8 @@ export function Footer({ prototype, scenarioHref }: { prototype: boolean; scenar
       <div className="container-site pt-16 pb-10 md:pt-24">
         <div className="grid gap-12 lg:grid-cols-12">
           <div className="lg:col-span-4">
-            <Logo height={84} surface="dark" />
-            <p className="mt-8 max-w-sm font-serif text-2xl leading-snug text-white">
+            <FooterLogo />
+            <p className="mt-10 max-w-sm font-serif text-2xl leading-snug text-white">
               Investing with perspective.
             </p>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-teal-200">

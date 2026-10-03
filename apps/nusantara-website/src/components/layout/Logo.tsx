@@ -1,6 +1,4 @@
-import Image from "next/image";
 import Link from "next/link";
-import legacyLogo from "../../../public/brand/nusantara-logo.png";
 
 /**
  * MASTER LOGO — "Nusantara Logo (Transparent)", stored unaltered in
@@ -41,45 +39,33 @@ export function MasterLogo({ href = "/", className = "" }: { href?: string | nul
   );
 }
 
-type LogoProps = {
-  /** Rendered height in px. Width follows the supplied logo's proportions. */
-  height?: number;
-  /**
-   * Previous logo asset, still used in the footer until a light (dark-ground)
-   * version of the master logo is supplied — a pending brand asset.
-   */
-  surface?: "light" | "dark";
-  href?: string | null;
-  priority?: boolean;
-  className?: string;
-};
-
-export function Logo({ height = 56, surface = "light", href = "/", priority, className = "" }: LogoProps) {
-  const width = Math.round((height * legacyLogo.width) / legacyLogo.height);
+/**
+ * Footer logo on the dark teal ground: the master logo with its wordmark given a
+ * light fill (brand-source/derive-footer-renditions.mjs). Emblem and gold full
+ * stop unchanged; transparent background, so no plate. 116px tall (≈129px wide).
+ */
+export function FooterLogo({ href = "/", className = "" }: { href?: string | null; className?: string }) {
+  const h = 116;
+  const w = Math.round(MASTER_ASPECT * h);
   const img = (
-    <Image
-      src={legacyLogo}
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/brand/nusantara-logo-footer-h${h}@2x.png`}
+      srcSet={[1, 2, 3].map((d) => `/brand/nusantara-logo-footer-h${h}@${d}x.png ${d}x`).join(", ")}
+      width={w}
+      height={h}
       alt="Nusantara Fund Management"
-      width={width}
-      height={height}
-      priority={priority}
-      sizes={`${width}px`}
-      className={surface === "light" ? "mix-blend-multiply" : ""}
-      style={{ width, height }}
+      loading="lazy"
+      decoding="async"
+      className="block h-[116px] w-auto"
+      style={{ aspectRatio: `${MASTER_ASPECT}` }}
     />
   );
-  const body =
-    surface === "dark" ? (
-      <span className="inline-flex bg-white shadow-[0_1px_0_rgba(0,0,0,0.04)]" style={{ padding: height * 0.16 }}>
-        {img}
-      </span>
-    ) : (
-      img
-    );
-  if (!href) return <span className={`inline-flex ${className}`}>{body}</span>;
+  // Block-level, so the tagline spacing below is exact (no inline line-box gap).
+  if (!href) return <span className={`flex w-fit ${className}`}>{img}</span>;
   return (
-    <Link href={href} className={`inline-flex shrink-0 ${className}`} aria-label="Nusantara Fund Management — home">
-      {body}
+    <Link href={href} className={`flex w-fit shrink-0 ${className}`} aria-label="Nusantara Fund Management — home">
+      {img}
     </Link>
   );
 }

@@ -8,5 +8,9 @@
   transparent margin removed, resized with Lanczos, saved as lossless PNG with alpha.
   No recolouring, redrawing, sharpening or cropping of the artwork.
 
-Pending brand asset: a light (dark-ground) version of the master logo for the footer.
-Until it is supplied the footer keeps the previous logo on its white plate.
+- `derive-footer-renditions.mjs` — derives the footer (dark teal ground) renditions
+  `public/brand/nusantara-logo-footer-h116@{1,2,3}x.png`: same trim and resize, with
+  only the near-black wordmark given the site's ivory (`--color-ivory`, #f7f3ea) so it reads on the dark ground. The
+  emblem, the gold full stop and every pixel's alpha are unchanged (verified identical
+  to an unmodified resize). Replace with an official light-wordmark asset if one is
+  issued.
