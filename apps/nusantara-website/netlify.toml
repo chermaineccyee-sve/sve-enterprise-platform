@@ -2,8 +2,14 @@
 # Deployment configuration only: the website itself is unchanged.
 #
 # In the Netlify UI set Base directory = apps/nusantara-website; Netlify then
-# reads this file. Next.js is served by Netlify's Next.js runtime, which is
-# detected and installed automatically (no plugin entry needed here).
+# reads this file.
+#
+# Next.js must be served by Netlify's Next.js runtime (OpenNext adapter). It is
+# declared explicitly below because automatic framework detection is not
+# reliable for an app inside a monorepo subdirectory: without the runtime,
+# Netlify publishes the raw .next folder as static files and every route,
+# including /, returns Netlify's own 404. publish = ".next" is what the
+# runtime expects; it then replaces it with static assets plus a server function.
 
 [build]
   command = "npm run build:review"
@@ -16,3 +22,6 @@
   NUSANTARA_ENV = "review"
   MARKET_DATA_PROVIDER = "illustrative"
   NEXT_TELEMETRY_DISABLED = "1"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
