@@ -6,9 +6,10 @@ import { MarketFocusProvider } from "@/components/home/MarketFocus";
 import { MarketIntelligence } from "@/components/home/MarketIntelligence";
 import { MarketRibbon } from "@/components/home/MarketRibbon";
 import { MarketState } from "@/components/home/MarketState";
-import { ProcessStory } from "@/components/home/ProcessStory";
+import { ProcessStory, ProcessSummary } from "@/components/home/ProcessStory";
 import { ResearchRail } from "@/components/home/ResearchRail";
 import { Statement } from "@/components/home/Statement";
+import { CurrentTime } from "@/components/market/CurrentTime";
 import { ContactCTA } from "@/components/sections/ContactCTA";
 import { CTA } from "@/components/ui/CTA";
 import { PublicationStamp } from "@/components/ui/PublicationStamp";
@@ -98,7 +99,10 @@ export default async function HomePage() {
           <div className="container-site pt-16 pb-16 md:pt-20 md:pb-24 lg:pt-14 lg:pb-16">
             <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
               <div className="lg:col-span-7">
-                <p className="eyebrow text-stone">Market intelligence</p>
+                <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+                  <p className="eyebrow text-stone">Market intelligence</p>
+                  <CurrentTime seconds={false} tone="light" />
+                </div>
                 <h2 id="mi-title" className="display-m mt-4 text-teal-900">
                   Markets observed. A view formed.
                 </h2>
@@ -186,7 +190,10 @@ export default async function HomePage() {
         </div>
         <div className="container-site pb-20 pt-10 md:pb-28 lg:pt-0">
           <ProcessStory counts={{ instruments: INSTRUMENTS.length, indicators: intelligence.indicators.length }} />
-          <div className="mt-10 lg:mt-0">
+          <div className="mt-14 lg:mt-4">
+            <ProcessSummary />
+          </div>
+          <div className="mt-10">
             <CTA href="/investment-approach" variant="light">
               Explore Our Approach
             </CTA>

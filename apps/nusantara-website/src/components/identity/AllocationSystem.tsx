@@ -1,13 +1,14 @@
 /**
  * The persistent visual for the investment story. Built from the Nusantara
- * lattice; each stage adds a layer, so the drawing *accumulates* the process:
+ * lattice; each stage adds a layer and nothing earlier is removed, so by
+ * stage 06 the drawing is the complete system:
  *
- *  0 Market insight      — signals arrive along the four axes
- *  1 Opportunity curation — a curation frame; signals outside it fade
- *  2 Investment review   — the bands resolve; a review sweep passes over them
- *  3 Risk & governance   — interlaced governance frames enclose the system
- *  4 Allocation          — the star fills; arm tips take measured positions
- *  5 Monitoring          — an orbit with a travelling marker and review ticks
+ *  0 Market insight       — market signals along the four axes
+ *  1 Opportunity curation — a curation frame; shortlisted signals turn gold and connect, the rest dim
+ *  2 Investment review    — the lattice bands resolve; a review sweep, then review marks on each arm
+ *  3 Risk & governance    — interlaced governance frames enclose the system, with gates on the axes
+ *  4 Allocation           — the star fills; arm tips take measured positions
+ *  5 Monitoring           — an orbit with review ticks and a travelling marker closes the system
  */
 import { ARCH_INNER, ARCH_OUTER, ARM_ROTATIONS } from "./Lattice";
 import { STAR_PATH } from "./NStar";
@@ -18,6 +19,12 @@ const SIGNALS: { x: number; y: number; keep: boolean }[] = [
   [18, 70, true], [36, -78, false], [58, 46, true], [82, -36, false], [92, 22, false],
   [-60, -8, true], [40, 18, true], [-24, -40, true], [10, 44, true], [70, -66, false], [-84, 70, false],
 ].map(([x, y, keep]) => ({ x: x as number, y: y as number, keep: keep as boolean }));
+
+// Connections drawn between the shortlisted signals, in a fixed order.
+const LINKS = SIGNALS.filter((p) => p.keep)
+  .sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x))
+  .map((p) => `${p.x},${p.y}`)
+  .join(" ");
 
 const fade = (on: boolean, o = 1) => ({ opacity: on ? o : 0, transition: "opacity 700ms cubic-bezier(0.22,1,0.36,1), transform 900ms cubic-bezier(0.22,1,0.36,1)" });
 
@@ -34,7 +41,7 @@ export function AllocationSystem({ stage, className = "" }: { stage: number; cla
       {/* 0 — signals */}
       <g>
         {SIGNALS.map((p, i) => {
-          const visible = s === 0 || (p.keep && s < 4);
+          const o = s === 0 ? (p.keep ? 0.95 : 0.6) : p.keep ? (s >= 4 ? 0.55 : 0.95) : 0.14;
           return (
             <circle
               key={i}
@@ -43,14 +50,17 @@ export function AllocationSystem({ stage, className = "" }: { stage: number; cla
               r={s === 0 ? 2.2 : 2.6}
               fill={p.keep && s >= 1 ? "#cdae73" : "#c4d5db"}
               className="drift"
-              style={{ ...fade(visible, p.keep ? 0.95 : 0.6), ["--dx" as string]: `${(i % 3) - 1}px`, ["--dy" as string]: `${(i % 2 ? -1 : 1) * 2}px`, ["--drift-d" as string]: `${5 + (i % 4)}s` }}
+              style={{ ...fade(true, o), ["--dx" as string]: `${(i % 3) - 1}px`, ["--dy" as string]: `${(i % 2 ? -1 : 1) * 2}px`, ["--drift-d" as string]: `${5 + (i % 4)}s` }}
             />
           );
         })}
       </g>
 
-      {/* 1 — curation frame */}
-      <rect x="-78" y="-78" width="156" height="156" transform="rotate(45)" stroke="#cdae73" strokeWidth="0.8" strokeDasharray="3 4" style={fade(s >= 1 && s < 3, 0.8)} />
+      {/* 1 — shortlisted signals connect */}
+      <polygon points={LINKS} stroke="#cdae73" strokeWidth="0.5" style={fade(s >= 1, s >= 4 ? 0.3 : 0.55)} />
+
+      {/* 1 — curation frame (stays, quieter once the governance frames arrive) */}
+      <rect x="-78" y="-78" width="156" height="156" transform="rotate(45)" stroke="#cdae73" strokeWidth="0.8" strokeDasharray="3 4" style={fade(s >= 1, s >= 3 ? 0.35 : 0.8)} />
 
       {/* 2 — lattice bands resolve */}
       <g style={fade(true)}>
@@ -59,6 +69,12 @@ export function AllocationSystem({ stage, className = "" }: { stage: number; cla
             <path d={ARCH_OUTER} stroke="#e3ecef" strokeWidth="1" style={fade(true, s >= 2 ? 0.95 : 0.18)} />
             <path d={ARCH_INNER} stroke="#e3ecef" strokeWidth="1" style={fade(true, s >= 2 ? 0.95 : 0.18)} />
           </g>
+        ))}
+      </g>
+      {/* review marks: one per arm, kept after the review */}
+      <g style={fade(s >= 2, 0.9)}>
+        {[0, 90, 180, 270].map((r) => (
+          <line key={r} x1="-4" y1="-50" x2="4" y2="-50" stroke="#cdae73" strokeWidth="1" transform={`rotate(${r + 45})`} />
         ))}
       </g>
       {/* review sweep */}
@@ -78,6 +94,13 @@ export function AllocationSystem({ stage, className = "" }: { stage: number; cla
       <g style={fade(s >= 3)}>
         <rect x="-96" y="-96" width="192" height="192" stroke="#cdae73" strokeWidth="1" />
         <rect x="-96" y="-96" width="192" height="192" transform="rotate(45)" stroke="#cdae73" strokeWidth="0.6" strokeOpacity="0.6" />
+        {/* gates where the frame meets the axes */}
+        {[0, 90, 180, 270].map((r) => (
+          <g key={r} transform={`rotate(${r})`}>
+            <line x1="-5" y1="-92" x2="-5" y2="-100" stroke="#cdae73" strokeWidth="1" />
+            <line x1="5" y1="-92" x2="5" y2="-100" stroke="#cdae73" strokeWidth="1" />
+          </g>
+        ))}
       </g>
 
       {/* 4 — allocation: measured positions at arm tips */}

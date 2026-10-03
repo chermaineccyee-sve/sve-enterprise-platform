@@ -1,4 +1,9 @@
 /** Investment operating model — public-suitable, function-level descriptions. */
+/**
+ * The six-stage process. Each stage's input is the previous stage's output, and
+ * every input/output is worded from that stage's own approved text (management
+ * review, October 2026). `considered` lists what the stage weighs.
+ */
 export const PROCESS_STEPS = [
   {
     n: "01",
@@ -6,6 +11,9 @@ export const PROCESS_STEPS = [
     title: "Market Insight",
     question: "What is happening, and why does it matter?",
     text: "We begin with the market environment: macro conditions, asset-class dynamics and structural shifts in capital. Context comes before opportunity.",
+    input: "Market data · Macro conditions · Structural indicators",
+    output: "Market context",
+    considered: [] as string[],
   },
   {
     n: "02",
@@ -13,6 +21,9 @@ export const PROCESS_STEPS = [
     title: "Opportunity Curation",
     question: "Is this worth our attention?",
     text: "Potential strategies and asset classes are filtered to reduce noise. We aim to be curated, not crowded — fewer opportunities, better understood.",
+    input: "Market context",
+    output: "A curated shortlist of opportunities",
+    considered: ["Relevance", "Quality", "Transparency", "Portfolio fit"],
   },
   {
     n: "03",
@@ -20,6 +31,9 @@ export const PROCESS_STEPS = [
     title: "Investment Review",
     question: "Does the evidence support the thesis?",
     text: "Each opportunity is assessed on its merits, risks, liquidity, valuation approach and fit within a portfolio, against defined criteria.",
+    input: "A curated shortlist of opportunities",
+    output: "An assessed investment thesis",
+    considered: ["Return drivers", "Downside cases", "Liquidity terms", "Valuation method"],
   },
   {
     n: "04",
@@ -27,6 +41,9 @@ export const PROCESS_STEPS = [
     title: "Risk & Governance",
     question: "Has it been appropriately reviewed and challenged?",
     text: "Opportunities pass through oversight, compliance review and risk assessment before any commitment is made. Governance is part of the process, not an afterthought.",
+    input: "An assessed investment thesis",
+    output: "A reviewed and challenged opportunity, ready for an allocation decision",
+    considered: ["Oversight", "Review and challenge", "Compliance review"],
   },
   {
     n: "05",
@@ -34,6 +51,9 @@ export const PROCESS_STEPS = [
     title: "Allocation & Execution",
     question: "Is the position sized and structured appropriately?",
     text: "Capital is allocated with sizing and liquidity discipline, through documented processes and appropriate eligibility and suitability checks.",
+    input: "A reviewed and challenged opportunity",
+    output: "A sized, documented position",
+    considered: ["Sizing", "Liquidity alignment", "Concentration", "Suitability"],
   },
   {
     n: "06",
@@ -41,8 +61,18 @@ export const PROCESS_STEPS = [
     title: "Monitoring & Reporting",
     question: "Does the thesis still hold?",
     text: "Positions are reviewed against their original rationale. Material change is identified early and communicated clearly.",
+    input: "A sized, documented position",
+    output: "Ongoing review; material change communicated",
+    considered: ["Defined review cycle", "Thesis re-tested", "Material change reported"],
   },
 ] as const;
+
+/** Closing summary shown after Stage 06 on the homepage (approved wording). */
+export const PROCESS_SUMMARY = {
+  eyebrow: "From insight to allocation",
+  line: ["Market context", "Curated opportunity", "Investment review", "Governance", "Allocation", "Monitoring"],
+  sentence: "How market intelligence, allocation discipline and governance connect, from first insight to ongoing review.",
+} as const;
 
 export const ACCESS_TO_ALLOCATION = [
   { term: "Access", note: "Opportunity is reachable" },

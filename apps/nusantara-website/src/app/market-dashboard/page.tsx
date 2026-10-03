@@ -5,6 +5,7 @@ import { StructuralIndicators } from "@/components/dashboard/StructuralIndicator
 import { Workspace } from "@/components/dashboard/Workspace";
 import { MarketFocusProvider } from "@/components/home/MarketFocus";
 import { MarketRibbon } from "@/components/home/MarketRibbon";
+import { CurrentTime } from "@/components/market/CurrentTime";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { CTA } from "@/components/ui/CTA";
 import { SAMPLE_LABELS } from "@/content/data/sample";
@@ -76,7 +77,16 @@ export default async function MarketDashboardPage() {
               <p className="text-[15px] leading-relaxed text-teal-100">
                 Market data on the left and centre; the Nusantara View — our interpretation — on the right.
               </p>
-              <p className="num mt-4 text-[12px] text-teal-200">{asAt}</p>
+              {/* Current time (visitor clock, MYT) and market-data timestamp are separate: the clock never implies the data is live. */}
+              <div className="mt-4 space-y-1.5">
+                <p>
+                  <CurrentTime seconds />
+                </p>
+                <p className="flex flex-wrap items-baseline gap-x-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300">Market data</span>
+                  <span className="num text-[12px] text-teal-200">{asAt}</span>
+                </p>
+              </div>
             </div>
           </div>
         </div>
