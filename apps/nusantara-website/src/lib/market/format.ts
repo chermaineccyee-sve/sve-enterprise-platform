@@ -52,6 +52,13 @@ export function formatTimestamp(iso: string, opts: { time?: boolean } = { time: 
   return `${date}, ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")} UTC`;
 }
 
+/** Market snapshot stamp, e.g. "02 OCT 2026 · 09:00 UTC" (always UTC; formatting only). */
+export function formatSnapshot(iso: string) {
+  const d = new Date(iso);
+  const date = `${String(d.getUTCDate()).padStart(2, "0")} ${MONTHS[d.getUTCMonth()].toUpperCase()} ${d.getUTCFullYear()}`;
+  return `${date} · ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")} UTC`;
+}
+
 export function formatAxisTime(iso: string, mode: "time" | "day" | "month") {
   const d = new Date(iso);
   if (mode === "time") return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;

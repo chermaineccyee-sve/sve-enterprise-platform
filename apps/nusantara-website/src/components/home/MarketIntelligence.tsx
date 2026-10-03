@@ -2,9 +2,10 @@
 
 import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StateGauge } from "@/components/identity/StateGauge";
 import { PRIMARY_LINE } from "@/components/market/chart-utils";
+import { ViewEvidence, type EvidenceTab } from "@/components/market/ViewEvidence";
 import { Change } from "@/components/market/Change";
 import { Provenance, StaleMark } from "@/components/market/MarketStatus";
 import { MorphChart } from "@/components/market/MorphChart";
@@ -46,6 +47,18 @@ export function MarketIntelligence({
   provenance: DataProvenance;
 }) {
   const { focusId, setFocus } = useMarketFocus();
+  // Which part of the view's reasoning is shown; kept as the visitor moves between markets.
+  const [evidence, setEvidence] = useState<EvidenceTab>("watching");
+  // A brief gold line across the panel each time the market changes.
+  const [sweep, setSweep] = useState(0);
+  const firstFocus = useRef(true);
+  useEffect(() => {
+    if (firstFocus.current) {
+      firstFocus.current = false;
+      return;
+    }
+    setSweep((n) => n + 1);
+  }, [focusId]);
   const selected = instruments.find((s) => s.instrument.id === focusId) ?? instruments[0];
   const classes = CLASSES.filter((c) => instruments.some((s) => s.instrument.assetClass === c));
   if (!selected) return null;
@@ -56,7 +69,8 @@ export function MarketIntelligence({
   };
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] border-t border-teal-800 lg:grid-cols-12">
+    <div className="relative grid grid-cols-[minmax(0,1fr)] border-t border-teal-800 lg:grid-cols-12">
+      {sweep > 0 && <span key={sweep} aria-hidden className="focus-sweep" />}
       {/* SELECT MARKET */}
       <div className="border-b border-rule py-5 lg:col-span-3 lg:border-b-0 lg:border-r lg:py-6 lg:pr-6">
         <label htmlFor="mi-select" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone lg:hidden">
@@ -129,7 +143,7 @@ export function MarketIntelligence({
       <Observed snap={selected} points={histories[inst.id] ?? []} provenance={provenance} />
 
       {/* INTERPRETATION — Nusantara View */}
-      <Interpretation id={inst.id} name={inst.shortName} intel={intel[inst.id]} />
+      <Interpretation id={inst.id} name={inst.shortName} intel={intel[inst.id]} evidence={evidence} onEvidence={setEvidence} />
     </div>
   );
 }
@@ -179,7 +193,20 @@ function Observed({ snap, points, provenance }: { snap: InstrumentSnapshot; poin
   );
 }
 
-function Interpretation({ id, name, intel }: { id: string; name: string; intel: MarketIntel | undefined }) {
+/** Conclusion first (signal, stance, context, related research); the reasoning one tab at a time. */
+function Interpretation({
+  id,
+  name,
+  intel,
+  evidence,
+  onEvidence,
+}: {
+  id: string;
+  name: string;
+  intel: MarketIntel | undefined;
+  evidence: EvidenceTab;
+  onEvidence: (t: EvidenceTab) => void;
+}) {
   const now = useNow();
   const view = intel?.view && !(now !== null && isPastReview(intel.view, now)) ? intel.view : null;
   return (
@@ -187,7 +214,7 @@ function Interpretation({ id, name, intel }: { id: string; name: string; intel: 
       <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</p>
       {view && !view.sample ? <PublicationStamp p={view} tone="dark" className="mt-1" /> : <p className="mt-1 text-[11px] font-medium tracking-[0.04em] text-gold-200">{SAMPLE_LABELS.interpretation}</p>}
       <AnimatePresence mode="wait" initial={false}>
-        <m.div key={id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+        <m.div key={id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
           {view ? (
             <>
               {view.signal && (
@@ -202,7 +229,6 @@ function Interpretation({ id, name, intel }: { id: string; name: string; intel: 
                 </div>
               )}
               <Block label="Context">{view.context}</Block>
-              {view.whatWeAreWatching.length > 0 && <Block label="What we are watching">{view.whatWeAreWatching.join(" ")}</Block>}
             </>
           ) : (
             <p className="mt-6 text-[14px] leading-relaxed text-teal-100" role="status">
@@ -217,6 +243,7 @@ function Interpretation({ id, name, intel }: { id: string; name: string; intel: 
               </Link>
             </div>
           )}
+          {view && <ViewEvidence view={view} tab={evidence} onTab={onEvidence} className="mt-5 lg:mt-3.5" />}
           <Connected intel={intel} />
         </m.div>
       </AnimatePresence>

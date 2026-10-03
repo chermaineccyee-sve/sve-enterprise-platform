@@ -18,7 +18,7 @@ import type { NusantaraView } from "@/content/model/intelligence";
 import { isPastReview } from "@/content/model/publication";
 import { useHistories, useMarketHistory } from "@/hooks/useMarketData";
 import { useNow } from "@/hooks/useNow";
-import { Connected } from "@/components/home/MarketIntelligence";
+import { ViewEvidence, type EvidenceTab } from "@/components/market/ViewEvidence";
 import { track } from "@/lib/analytics";
 import { getUrlParam, setUrlParam } from "@/lib/routes";
 import { realisedVol, resample, resampleSeries, seriesChange } from "@/lib/market/analytics";
@@ -37,7 +37,8 @@ import {
   type MarketSnapshot,
   type UnavailableInstrument,
 } from "@/lib/market/types";
-import type { MarketIntel } from "./types";
+import { ConnectedIntel } from "./ConnectedIntel";
+import type { DimensionPreview, MarketIntel } from "./types";
 
 type Category = "overview" | AssetClass | "macro";
 const CATEGORIES: { id: Category; label: string }[] = [
@@ -59,6 +60,8 @@ type Props = {
   intel: Record<string, MarketIntel>;
   /** Nusantara reading per structural indicator id. */
   readings: Record<string, NusantaraView>;
+  /** Published Market State dimensions by id, for the inline preview (empty when no edition may be shown). */
+  dimensions: Record<string, DimensionPreview>;
 };
 
 type RailRow = InstrumentSnapshot | UnavailableInstrument;
@@ -96,8 +99,12 @@ function WorkspaceUnavailable({ provenance }: { provenance: DataProvenance }) {
   );
 }
 
-function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings }: Props) {
+function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings, dimensions }: Props) {
   const { focusId, setFocus } = useMarketFocus();
+  // Which part of the view's reasoning is shown; kept as the visitor moves between markets.
+  const [evidence, setEvidence] = useState<EvidenceTab>("watching");
+  // The Market State dimension previewed inline (null = closed).
+  const [openDim, setOpenDim] = useState<string | null>(null);
   const [category, setCategory] = useState<Category>("overview");
   const [period, setPeriod] = useState<ChartPeriod>("1M");
   const [mode, setMode] = useState<"single" | "compare">("single");
@@ -153,6 +160,25 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings }
     setCategory((c) => (c === "overview" && OVERVIEW_INSTRUMENT_IDS.includes(focusId)) || c === cls ? c : cls);
   }, [focusId, all]);
 
+  // A previewed dimension stays open while the selected market belongs to it (e.g. chosen from its supporting markets).
+  useEffect(() => {
+    if (!openDim) return;
+    const related = intel[focusId]?.dimensions.some((d) => d.id === openDim) || dimensions[openDim]?.supportingMarkets.includes(focusId);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- close a preview that no longer relates to the selection
+    if (!related) setOpenDim(null);
+  }, [focusId, openDim, intel, dimensions]);
+
+  // A brief gold line across the workspace each time the market changes: the analytical environment has moved.
+  const [sweep, setSweep] = useState(0);
+  const firstFocus = useRef(true);
+  useEffect(() => {
+    if (firstFocus.current) {
+      firstFocus.current = false;
+      return;
+    }
+    setSweep((n) => n + 1);
+  }, [focusId]);
+
   // The selected instrument persists in the URL, so a market view can be shared, bookmarked or reloaded.
   const urlSynced = useRef(false);
   useEffect(() => {
@@ -166,6 +192,18 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings }
   const selected = all.find((s) => s.instrument.id === focusId) ?? all[0];
   const focusInst: InstrumentDefinition = focusUnavailable?.instrument ?? selected.instrument;
   const indicator = indicators.find((i) => i.id === indicatorId) ?? indicators[0];
+  const names = useMemo(() => Object.fromEntries(all.map((x) => [x.instrument.id, x.instrument.shortName])), [all]);
+
+  // Previous / next market, in the ribbon's order (mobile stepper and swipe).
+  const step = (dir: 1 | -1, surface: "stepper" | "swipe") => {
+    const i = all.findIndex((x) => x.instrument.id === focusInst.id);
+    const next = all[(i + dir + all.length) % all.length];
+    if (!next) return;
+    setMode("single");
+    setView("chart");
+    setFocus(next.instrument.id);
+    track({ name: "market_selected", instrument: next.instrument.id, surface });
+  };
 
   const pick = (id: string) => {
     if (mode === "compare") {
@@ -179,7 +217,8 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings }
   };
 
   return (
-    <div className="border-y border-rule bg-white lg:border">
+    <div className="relative border-y border-rule bg-white lg:border">
+      {sweep > 0 && <span key={sweep} aria-hidden className="focus-sweep" />}
       <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_360px]">
         {/* RAIL */}
         <aside aria-label="Market universe" className="hidden border-rule bg-paper lg:row-span-3 lg:block lg:border-r xl:row-span-2">
@@ -213,7 +252,6 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings }
           <div className="border-t border-rule">
             <p className="flex items-center justify-between px-5 pt-4 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-stone">
               <span>{isMacro ? "Indicators" : mode === "compare" ? `Compare · ${compare.length}/${MAX_COMPARE}` : "Instruments"}</span>
-              <span className="text-gold-800">{dataTitle}</span>
             </p>
             <ul className="no-scrollbar flex gap-1 overflow-x-auto px-3 py-3 lg:block lg:max-h-[560px] lg:space-y-0.5 lg:overflow-y-auto lg:overflow-x-hidden">
               {isMacro
@@ -289,7 +327,8 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings }
 
         {/* Mobile instrument selector */}
         <div className="border-b border-rule bg-paper px-5 py-4 lg:hidden">
-          <label htmlFor="ws-instrument" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">
+          {!focusUnavailable && <MarketStepper all={all} current={selected} onStep={step} />}
+          <label htmlFor="ws-instrument" className="mt-4 block text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">
             Instrument
           </label>
           <select
@@ -356,7 +395,7 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings }
             ) : focusUnavailable ? (
               <UnavailableCentre item={focusUnavailable} />
             ) : (
-              <InstrumentCentre snap={selected} points={byId.get(selected.instrument.id) ?? []} period={period} loading={loading} historyError={!!historyError} />
+              <InstrumentCentre snap={selected} points={byId.get(selected.instrument.id) ?? []} period={period} loading={loading} historyError={!!historyError} onSwipe={(d) => step(d, "swipe")} />
             )}
             {!isMacro && (
               <div className="mt-5 lg:hidden">
@@ -371,7 +410,26 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings }
           {isMacro && indicator ? (
             <IndicatorIntel indicator={indicator} reading={readings[indicator.id] ?? null} />
           ) : (
-            <InstrumentIntel inst={focusInst} intel={intel[focusInst.id]} />
+            <InstrumentIntel
+              inst={focusInst}
+              intel={intel[focusInst.id]}
+              evidence={evidence}
+              onEvidence={setEvidence}
+              connected={
+                <ConnectedIntel
+                  intel={intel[focusInst.id]}
+                  dimensions={dimensions}
+                  openId={openDim}
+                  onOpen={setOpenDim}
+                  focusId={focusInst.id}
+                  names={names}
+                  onPickMarket={(id) => {
+                    setMode("single");
+                    setFocus(id);
+                  }}
+                />
+              }
+            />
           )}
         </aside>
 
@@ -432,14 +490,18 @@ function InstrumentCentre({
   period,
   loading,
   historyError,
+  onSwipe,
 }: {
   snap: InstrumentSnapshot;
   points: InstrumentHistory["points"];
   period: ChartPeriod;
   loading: boolean;
   historyError: boolean;
+  /** Horizontal swipe on the value (touch screens): -1 previous, 1 next. */
+  onSwipe?: (dir: 1 | -1) => void;
 }) {
   const inst = snap.instrument;
+  const swipe = useSwipe(onSwipe);
   const stale = useIsStale(snap.provenance);
   const { values, stamps } = useMemo(() => resampleSeries(points, N), [points]);
   const raw = points.map((p) => p.v);
@@ -449,10 +511,10 @@ function InstrumentCentre({
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3" {...swipe}>
         <div>
           <AnimatePresence mode="wait" initial={false}>
-            <m.p key={inst.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-[13px] text-stone">
+            <m.p key={inst.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="text-[13px] text-stone">
               {inst.name} <span className="num">· {inst.ticker}</span>
               {inst.unit && inst.unit !== "%" ? ` · ${inst.unit}` : ""}
             </m.p>
@@ -648,8 +710,25 @@ function IntelBlock({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-/** Interpretation layer. Collapsed on mobile; always visible from lg. */
-function InstrumentIntel({ inst, intel }: { inst: InstrumentDefinition; intel: MarketIntel | undefined }) {
+/**
+ * Interpretation layer, conclusion first: qualification, signal, stance,
+ * context and related research stay visible; the reasoning (watching, key
+ * risk, what would change the view) is one tab at a time. Collapsed on
+ * mobile; always visible from lg.
+ */
+function InstrumentIntel({
+  inst,
+  intel,
+  evidence,
+  onEvidence,
+  connected,
+}: {
+  inst: InstrumentDefinition;
+  intel: MarketIntel | undefined;
+  evidence: EvidenceTab;
+  onEvidence: (t: EvidenceTab) => void;
+  connected: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const now = useNow();
   // A view past its review date is withdrawn in the browser too, even if the page was rendered before it expired.
@@ -671,12 +750,13 @@ function InstrumentIntel({ inst, intel }: { inst: InstrumentDefinition; intel: M
         <span>
           <span className="block text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</span>
           {subline ? <span className="block mt-1 text-[11px] font-medium tracking-[0.04em] text-gold-200">{subline}</span> : view && <PublicationStamp p={view} tone="dark" className="mt-1" />}
+          {view?.signal && !open && <span className="mt-2 block font-serif text-[1.35rem] leading-none text-white">{view.signal}</span>}
         </span>
         <span aria-hidden className={`text-xl text-gold-300 transition-transform ${open ? "rotate-45" : ""}`}>+</span>
       </button>
       <div id="intel-body" className={`${open ? "block" : "hidden"} lg:block`}>
         <AnimatePresence mode="wait" initial={false}>
-          <m.div key={inst.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+          <m.div key={inst.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
             {view ? (
               <>
                 <div className="mt-6 pb-5">
@@ -691,25 +771,6 @@ function InstrumentIntel({ inst, intel }: { inst: InstrumentDefinition; intel: M
                 <IntelBlock label="Context">
                   <p className="text-[14.5px] leading-snug text-teal-50">{view.context}</p>
                 </IntelBlock>
-                {view.whatWeAreWatching.length > 0 && (
-                  <IntelBlock label="What we are watching">
-                    {view.whatWeAreWatching.map((w) => (
-                      <p key={w} className="text-[14.5px] leading-snug text-teal-50">
-                        {w}
-                      </p>
-                    ))}
-                  </IntelBlock>
-                )}
-                {view.keyRisk && (
-                  <IntelBlock label="Key risk">
-                    <p className="text-[14.5px] leading-snug text-teal-50">{view.keyRisk}</p>
-                  </IntelBlock>
-                )}
-                {view.whatWouldChangeOurView && (
-                  <IntelBlock label="What would change our view">
-                    <p className="text-[14.5px] leading-snug text-teal-50">{view.whatWouldChangeOurView}</p>
-                  </IntelBlock>
-                )}
               </>
             ) : (
               <p className="mt-6 border-t border-white/10 pt-4 text-[14px] leading-relaxed text-teal-100" role="status">
@@ -723,12 +784,71 @@ function InstrumentIntel({ inst, intel }: { inst: InstrumentDefinition; intel: M
                 </Link>
               </IntelBlock>
             )}
-            <Connected intel={intel} className="mt-0 pb-1" />
+            {view && <ViewEvidence view={view} tab={evidence} onTab={onEvidence} className="pb-4" />}
           </m.div>
         </AnimatePresence>
+        {/* Outside the per-market fade, so an open Market State preview stays steady while markets change within it. */}
+        {connected}
       </div>
     </div>
   );
+}
+
+/** Mobile: step through markets in the ribbon's order, or swipe; the dropdown below jumps anywhere. */
+function MarketStepper({ all, current, onStep }: { all: InstrumentSnapshot[]; current: InstrumentSnapshot; onStep: (dir: 1 | -1, surface: "stepper" | "swipe") => void }) {
+  const i = all.findIndex((x) => x.instrument.id === current.instrument.id);
+  const prev = all[(i - 1 + all.length) % all.length];
+  const next = all[(i + 1) % all.length];
+  const inst = current.instrument;
+  const swipe = useSwipe((d) => onStep(d, "swipe"));
+  const btn = "flex h-11 w-11 shrink-0 items-center justify-center border border-rule bg-white text-[18px] text-teal-900 active:bg-teal-50";
+  return (
+    <div className="flex items-center gap-3" {...swipe}>
+      <button type="button" onClick={() => onStep(-1, "stepper")} aria-label={`Previous market: ${prev.instrument.shortName}`} className={btn}>
+        <span aria-hidden>‹</span>
+      </button>
+      <div className="min-w-0 flex-1 text-center" aria-live="polite">
+        <AnimatePresence mode="wait" initial={false}>
+          <m.p key={inst.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.18 }} className="leading-tight">
+            <span className="block text-[13px] font-semibold uppercase tracking-[0.12em] text-ink">{inst.shortName}</span>
+            <span className="mt-0.5 flex items-center justify-center gap-2 text-[12.5px]">
+              <span className="num text-charcoal">
+                {formatValue(current.quote.value, inst.decimals)}
+                {inst.unit === "%" ? "%" : ""}
+              </span>
+              <Change instrument={inst} change={current.quote.change} changePct={current.quote.changePct} changeBp={current.quote.changeBp} showAbsolute={false} />
+            </span>
+          </m.p>
+        </AnimatePresence>
+        <span className="num mt-1 block text-[10.5px] text-mist" aria-hidden>
+          {String(i + 1).padStart(2, "0")} / {String(all.length).padStart(2, "0")}
+        </span>
+      </div>
+      <button type="button" onClick={() => onStep(1, "stepper")} aria-label={`Next market: ${next.instrument.shortName}`} className={btn}>
+        <span aria-hidden>›</span>
+      </button>
+    </div>
+  );
+}
+
+/** Horizontal swipe on touch screens; vertical scrolling is left alone. */
+function useSwipe(onSwipe?: (dir: 1 | -1) => void) {
+  const start = useRef<{ x: number; y: number } | null>(null);
+  if (!onSwipe) return {};
+  return {
+    onTouchStart: (e: React.TouchEvent) => {
+      const t = e.touches[0];
+      start.current = { x: t.clientX, y: t.clientY };
+    },
+    onTouchEnd: (e: React.TouchEvent) => {
+      const s0 = start.current;
+      start.current = null;
+      if (!s0) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - s0.x, dy = t.clientY - s0.y;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) onSwipe(dx < 0 ? 1 : -1);
+    },
+  };
 }
 
 function IndicatorIntel({ indicator, reading }: { indicator: IntelligenceIndicator; reading: NusantaraView | null }) {

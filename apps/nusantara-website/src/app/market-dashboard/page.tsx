@@ -14,7 +14,7 @@ import { config } from "@/lib/config";
 import { getMarketIntel } from "@/lib/content/market-intel";
 import { getContentGraph, getInsightListings, getMarketState, getMonitoredMarkets } from "@/lib/content/repository";
 import { crossAsset } from "@/lib/market/analytics";
-import { formatTimestamp } from "@/lib/market/format";
+import { formatSnapshot, formatTimestamp } from "@/lib/market/format";
 import { INSTRUMENTS } from "@/lib/market/instruments";
 import { getIntelligence, getMarketHistory, getMarketSnapshot } from "@/lib/market/service";
 import { STATUS_DEFINITION, STATUS_LABEL, statusTitle } from "@/lib/market/status";
@@ -59,6 +59,10 @@ export default async function MarketDashboardPage() {
   const classViews = Object.fromEntries(CLASSES.map((c) => [c, graph.viewForAssetClass(c)])) as Record<AssetClass, NusantaraView | null>;
   const asAt =
     snapshot.provenance.status === "unavailable" ? "Market data unavailable" : `${statusTitle(snapshot.provenance)} data · As at ${formatTimestamp(snapshot.provenance.asOf)}`;
+  // Published Market State dimensions, for the inline preview beside a market (none when no edition may be shown).
+  const dimensions = Object.fromEntries(
+    (marketState?.dimensions ?? []).map((d) => [d.id, { id: d.id, label: d.label, state: d.state, stance: d.stance, summary: d.summary, supportingMarkets: d.supportingMarkets }]),
+  );
 
   return (
     <MarketFocusProvider initial="klci" targetId="workspace">
@@ -74,18 +78,24 @@ export default async function MarketDashboardPage() {
               <h1 className="display-l mt-5">Markets at a glance.</h1>
             </div>
             <div className="lg:col-span-5">
-              <p className="text-[15px] leading-relaxed text-teal-100">
-                Market data on the left and centre; the Nusantara View — our interpretation — on the right.
-              </p>
               {/* Current time (visitor clock, MYT) and market-data timestamp are separate: the clock never implies the data is live. */}
-              <div className="mt-4 space-y-1.5">
+              <div className="space-y-1.5">
                 <p>
                   <CurrentTime seconds />
                 </p>
-                <p className="flex flex-wrap items-baseline gap-x-2.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300">Market data</span>
-                  <span className="num text-[12px] text-teal-200">{asAt}</span>
-                </p>
+                {snapshot.provenance.status === "illustrative" ? (
+                  // One illustrative snapshot exists; it is stated, not selectable.
+                  <p className="flex flex-wrap items-baseline gap-x-2.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300">Market snapshot</span>
+                    <span className="num text-[12px] tracking-[0.04em] text-teal-50">{formatSnapshot(snapshot.provenance.asOf)}</span>
+                    <span className="text-[11.5px] text-teal-200">Illustrative dataset</span>
+                  </p>
+                ) : (
+                  <p className="flex flex-wrap items-baseline gap-x-2.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300">Market data</span>
+                    <span className="num text-[12px] text-teal-200">{asAt}</span>
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -98,7 +108,7 @@ export default async function MarketDashboardPage() {
       {/* Workspace */}
       <section id="workspace" aria-label="Market workspace" className="bg-paper">
         <div className="mx-auto max-w-[1720px] py-8 lg:px-8 lg:py-10">
-          <Workspace snapshot={snapshot} initialHistory={h1m} indicators={intelligence.indicators} intel={intel} readings={readings} />
+          <Workspace snapshot={snapshot} initialHistory={h1m} indicators={intelligence.indicators} intel={intel} readings={readings} dimensions={dimensions} />
         </div>
       </section>
 

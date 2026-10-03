@@ -14,9 +14,10 @@
  */
 
 export type AnalyticsEvent =
-  | { name: "market_selected"; instrument: string; surface: "rail" | "select" | "ribbon" | "related" | "table" | "link" }
+  | { name: "market_selected"; instrument: string; surface: "rail" | "select" | "ribbon" | "related" | "table" | "link" | "dimension" | "stepper" | "swipe" }
   | { name: "period_changed"; period: string }
   | { name: "nusantara_view_expanded"; instrument: string }
+  | { name: "dimension_previewed"; dimension: string; instrument: string }
   | { name: "insight_opened"; slug: string }
   | { name: "insight_source_expanded"; slug: string; source: number }
   | { name: "capability_explored"; capability: string }
