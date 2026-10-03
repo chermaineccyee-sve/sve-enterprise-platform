@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StateGauge } from "@/components/identity/StateGauge";
 import { PRIMARY_LINE } from "@/components/market/chart-utils";
+import { useMarketTime } from "@/components/market/MarketTime";
 import { ViewEvidence, type EvidenceTab } from "@/components/market/ViewEvidence";
 import { Change } from "@/components/market/Change";
 import { Provenance, StaleMark } from "@/components/market/MarketStatus";
@@ -17,7 +18,7 @@ import { isPastReview } from "@/content/model/publication";
 import { useNow } from "@/hooks/useNow";
 import { track } from "@/lib/analytics";
 import { resampleSeries } from "@/lib/market/analytics";
-import { formatTimestamp, formatValue } from "@/lib/market/format";
+import { formatValue } from "@/lib/market/format";
 import { ASSET_CLASS_LABELS } from "@/lib/market/instruments";
 import { statusPhrase } from "@/lib/market/status";
 import type { AssetClass, DataProvenance, InstrumentSnapshot, PricePoint } from "@/lib/market/types";
@@ -153,6 +154,7 @@ function Observed({ snap, points, provenance }: { snap: InstrumentSnapshot; poin
   const unit = inst.unit === "%" ? "%" : "";
   const fmt = (v: number) => `${formatValue(v, inst.decimals)}${unit}`;
   const { values, stamps } = useMemo(() => resampleSeries(points, N), [points]);
+  const time = useMarketTime(snap.provenance.status);
   return (
     <section aria-label="Market data" className="min-w-0 py-6 lg:col-span-5 lg:px-8 lg:py-6">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">
@@ -174,7 +176,7 @@ function Observed({ snap, points, provenance }: { snap: InstrumentSnapshot; poin
         {values.length > 1 ? (
           <MorphChart
             series={[{ id: "mi", label: inst.shortName, color: PRIMARY_LINE, values }]}
-            labels={stamps.map((t) => formatTimestamp(t, { time: false }))}
+            labels={stamps.map((t) => time.stamp(t, { time: false }))}
             format={fmt}
             height={170}
             ariaLabel={`${inst.name}, one month, ${statusPhrase(snap.provenance)}. Hover or use arrow keys to read values.`}

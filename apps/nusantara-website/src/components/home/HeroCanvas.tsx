@@ -8,7 +8,8 @@ import { NStar } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
 import { StaleMark } from "@/components/market/MarketStatus";
 import { Sparkline } from "@/components/market/Sparkline";
-import { formatTimestamp, formatValue } from "@/lib/market/format";
+import { SnapshotStamp } from "@/components/market/MarketTime";
+import { formatValue } from "@/lib/market/format";
 import { statusTitle } from "@/lib/market/status";
 import { useOptionalMarketFocus } from "./MarketFocus";
 import type { AssetClass, InstrumentSnapshot } from "@/lib/market/types";
@@ -221,7 +222,9 @@ export function HeroCanvas({
               />
             ))}
           </div>
-          <span className="num text-[10.5px] text-stone">{formatTimestamp(current.provenance.asOf)}</span>
+          <span className="num text-[10.5px] text-stone">
+            <SnapshotStamp provenance={current.provenance} />
+          </span>
         </div>
       </div>
       )}

@@ -6,6 +6,7 @@
  * placeholders chosen for layout realism only — they are NOT market data,
  * are always labelled "Illustrative" and must never be presented as live.
  */
+import { ILLUSTRATIVE_AS_OF } from "../illustrative-time";
 import { INSTRUMENTS } from "../instruments";
 import { ILLUSTRATIVE_INDICATORS } from "./illustrative-intelligence";
 import type {
@@ -17,8 +18,8 @@ import type {
   PricePoint,
 } from "../types";
 
-/** Fixed reference time for the illustrative dataset (not a live timestamp). */
-export const ILLUSTRATIVE_AS_OF = "2026-10-02T09:00:00.000Z";
+/** Fixed reference time for the illustrative dataset (not a live timestamp). Defined once in ../illustrative-time. */
+export { ILLUSTRATIVE_AS_OF };
 
 export const ILLUSTRATIVE_DISCLAIMER =
   "Market information displayed in this prototype is illustrative and is provided for demonstration purposes only.";

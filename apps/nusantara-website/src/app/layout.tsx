@@ -3,9 +3,11 @@ import { IBM_Plex_Sans, Newsreader } from "next/font/google";
 import { Footer } from "@/components/layout/Footer";
 import { Navbar } from "@/components/layout/Navbar";
 import { PrototypeBanner } from "@/components/layout/PrototypeBanner";
+import { MarketTimeProvider } from "@/components/market/MarketTime";
 import { MotionProvider } from "@/components/motion/MotionProvider";
 import { config } from "@/lib/config";
 import { getInsights } from "@/lib/content/repository";
+import { renderTimestamp } from "@/lib/market/illustrative-time";
 import { getMarketSnapshot } from "@/lib/market/service";
 import { statusTitle } from "@/lib/market/status";
 import { site } from "@/lib/site";
@@ -73,12 +75,15 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           Skip to main content
         </a>
         <MotionProvider>
+          {/* Render time seeds the illustrative snapshot date for server render and hydration; the browser then keeps it current. */}
+          <MarketTimeProvider renderedAt={renderTimestamp()}>
           <PrototypeBanner />
           <Navbar dataLabel={dataLabel} prototypeNote={prototypeNote} />
           <main id="main" tabIndex={-1} className="outline-none">
             {children}
           </main>
           <Footer prototype={config.isPrototype} scenarioHref={scenarioHref} />
+          </MarketTimeProvider>
         </MotionProvider>
       </body>
     </html>

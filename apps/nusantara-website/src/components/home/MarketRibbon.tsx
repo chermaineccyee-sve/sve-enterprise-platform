@@ -1,35 +1,104 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NStar } from "@/components/identity/NStar";
 import { Change } from "@/components/market/Change";
 import { StaleMark } from "@/components/market/MarketStatus";
 import { track } from "@/lib/analytics";
-import { formatSnapshot, formatTimestamp, formatValue } from "@/lib/market/format";
+import { useMarketTime } from "@/components/market/MarketTime";
+import { formatTimestamp, formatValue } from "@/lib/market/format";
 import { statusPhrase, statusTitle } from "@/lib/market/status";
 import type { DataProvenance, InstrumentSnapshot } from "@/lib/market/types";
 import { routes } from "@/lib/routes";
 import { useOptionalMarketFocus } from "./MarketFocus";
 
 /**
- * Market ribbon — a still, selectable strip (no ticker movement). Where a
- * market-focus provider exists (homepage, dashboard) it is the controller:
- * selecting a market updates the panel that responds to it. Click/tap,
- * previous/next, arrow keys (one tab stop; Home/End), trackpad or swipe to
- * move the strip; the selected market is kept in view. Elsewhere each item
- * opens that market in the dashboard.
+ * Market ribbon — the market snapshot ticker and, where a market-focus
+ * provider exists (homepage, dashboard), the controller: selecting a market
+ * updates the panel that responds to it. Click/tap, previous/next, arrow keys
+ * (one tab stop; Home/End), trackpad or swipe; the selected market is kept in
+ * view. Elsewhere each item opens that market in the dashboard.
+ *
+ * Desktop ticker: on wide screens with a hover pointer the strip drifts
+ * slowly (~30 px/s) and loops seamlessly. It pauses while hovered, while
+ * keyboard focus is inside it, while the visitor drags or scrolls it, and
+ * while the tab is hidden (rAF stops); it eases back in about a second after
+ * the interaction ends. Selecting a market does not stall it. With reduced
+ * motion, and on touch / small screens, it never moves on its own.
  */
+const TICKER_PX_PER_S = 30;
+const TICKER_RESUME_MS = 1000;
+const TICKER_EASE_MS = 600;
+const TICKER_QUERY = "(min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)";
 export function MarketRibbon({ instruments, provenance }: { instruments: InstrumentSnapshot[]; provenance: DataProvenance }) {
   const focus = useOptionalMarketFocus();
   const focusId = focus?.focusId ?? "";
   const listRef = useRef<HTMLUListElement>(null);
+  const time = useMarketTime(provenance.status);
 
-  // Keep the selected market visible in the strip, whichever surface selected it.
+  // Ticker: enabled after mount on desktop with motion allowed (the server and first render are always still).
+  const [ticker, setTicker] = useState(false);
+  const hover = useRef(false);
+  const focused = useRef(false);
+  const dragging = useRef(false);
+  const lastTouch = useRef(0);
+  const pos = useRef(0);
+  const nudge = () => {
+    lastTouch.current = performance.now();
+  };
   useEffect(() => {
-    const el = listRef.current?.querySelector<HTMLElement>(`[data-id="${focusId}"]`);
+    const mq = window.matchMedia(TICKER_QUERY);
+    const apply = () => setTicker(mq.matches && instruments.length > 3);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, [instruments.length]);
+  useEffect(() => {
     const list = listRef.current;
-    if (!el || !list) return;
+    if (!ticker || !list) return;
+    pos.current = list.scrollLeft;
+    let raf = 0;
+    let last = performance.now();
+    let resumedAt = 0;
+    let wasPaused = true;
+    const tick = (now: number) => {
+      const dt = Math.min(64, now - last);
+      last = now;
+      // A manual scroll (trackpad, scrollbar, keep-in-view) moved the strip: follow it and wait before resuming.
+      if (Math.abs(list.scrollLeft - pos.current) > 2) {
+        pos.current = list.scrollLeft;
+        nudge();
+      }
+      const paused = hover.current || focused.current || dragging.current || now - lastTouch.current < TICKER_RESUME_MS;
+      if (paused) wasPaused = true;
+      else {
+        if (wasPaused) {
+          wasPaused = false;
+          resumedAt = now;
+        }
+        // Ease back to full speed rather than jumping.
+        const ease = Math.min(1, (now - resumedAt) / TICKER_EASE_MS);
+        const second = list.querySelector<HTMLElement>("li[data-copy='1']");
+        const span = second ? second.offsetLeft - (list.firstElementChild as HTMLElement).offsetLeft : list.scrollWidth / 2;
+        pos.current += (TICKER_PX_PER_S * ease * ease * dt) / 1000;
+        if (pos.current >= span) pos.current -= span;
+        list.scrollLeft = pos.current;
+        pos.current = Math.abs(list.scrollLeft - pos.current) < 1 ? pos.current : list.scrollLeft;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [ticker]);
+
+  // Keep the selected market visible in the strip, whichever surface selected it (nearest copy when looping).
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const copies = [...list.querySelectorAll<HTMLElement>(`[data-id="${focusId}"]`)];
+    const el = copies.sort((a, b) => Math.abs(a.offsetLeft - list.scrollLeft) - Math.abs(b.offsetLeft - list.scrollLeft))[0];
+    if (!el) return;
     const l = el.offsetLeft, r = l + el.offsetWidth;
     const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
     if (l < list.scrollLeft + 48 || r > list.scrollLeft + list.clientWidth - 64) list.scrollTo({ left: Math.max(0, l - 48), behavior });
@@ -46,7 +115,7 @@ export function MarketRibbon({ instruments, provenance }: { instruments: Instrum
     if (!s || !focus) return;
     focus.setFocus(s.instrument.id);
     track({ name: "market_selected", instrument: s.instrument.id, surface });
-    if (moveFocus) listRef.current?.querySelector<HTMLButtonElement>(`[data-id="${s.instrument.id}"] button`)?.focus({ preventScroll: true });
+    if (moveFocus) listRef.current?.querySelector<HTMLButtonElement>(`li[data-copy='0'][data-id="${s.instrument.id}"] button`)?.focus({ preventScroll: true });
   };
   const page = (dir: 1 | -1) => {
     if (focus) select((index === -1 ? 0 : index) + dir, "ribbon");
@@ -62,7 +131,21 @@ export function MarketRibbon({ instruments, provenance }: { instruments: Instrum
   };
 
   return (
-    <section aria-label={`Market ribbon (${statusPhrase(provenance)} data)`} className="ribbon on-dark relative z-10 border-y border-white/10 bg-teal-950 text-white">
+    <section
+      aria-label={`Market ribbon (${statusPhrase(provenance)} data)`}
+      className="ribbon on-dark relative z-10 border-y border-white/10 bg-teal-950 text-white"
+      onMouseEnter={() => (hover.current = true)}
+      onMouseLeave={() => {
+        hover.current = false;
+        nudge();
+      }}
+      onFocus={() => (focused.current = true)}
+      onBlur={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        focused.current = false;
+        nudge();
+      }}
+    >
       <div className="flex items-stretch">
         <div className="flex shrink-0 items-center gap-3 border-r border-white/10 bg-teal-950 px-4 md:px-6">
           <NStar className="star-breathe h-2.5 w-2.5 text-gold-400" />
@@ -70,7 +153,7 @@ export function MarketRibbon({ instruments, provenance }: { instruments: Instrum
             <span className="leading-tight">
               <span className="block text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">Market snapshot</span>
               <span className="num block text-[10.5px] text-teal-200">
-                <span className="hidden sm:inline">{asOf ? `${formatSnapshot(asOf)} · ` : ""}</span>Illustrative
+                <span className="hidden sm:inline">{asOf ? `${time.snapshot(asOf)} · ` : ""}</span>Illustrative
               </span>
             </span>
           ) : (
@@ -104,19 +187,35 @@ export function MarketRibbon({ instruments, provenance }: { instruments: Instrum
         <div className="relative min-w-0 flex-1">
           <ul
             ref={listRef}
-            className="ribbon-track no-scrollbar flex snap-x overflow-x-auto"
+            className={`ribbon-track no-scrollbar flex overflow-x-auto ${ticker ? "" : "snap-x"}`}
             aria-label={focus ? "Markets — use arrow keys to select" : "Markets"}
             onKeyDown={onKeyDown}
+            onWheel={nudge}
+            onPointerDown={() => {
+              dragging.current = true;
+              nudge();
+            }}
+            onPointerUp={() => {
+              dragging.current = false;
+              nudge();
+            }}
+            onPointerCancel={() => {
+              dragging.current = false;
+              nudge();
+            }}
           >
-            {instruments.map((s, i) => (
-              <Item
-                key={s.instrument.id}
-                s={s}
-                on={focusId === s.instrument.id}
-                tabStop={focus ? (index === -1 ? i === 0 : i === index) : true}
-                onSelect={focus ? (id) => focus.setFocus(id, { scroll: true }) : null}
-              />
-            ))}
+            {(ticker ? [0, 1] : [0]).flatMap((copy) =>
+              instruments.map((s, i) => (
+                <Item
+                  key={`${copy}-${s.instrument.id}`}
+                  s={s}
+                  copy={copy}
+                  on={focusId === s.instrument.id}
+                  tabStop={copy === 0 && (focus ? (index === -1 ? i === 0 : i === index) : true)}
+                  onSelect={focus ? (id) => focus.setFocus(id, { scroll: true }) : null}
+                />
+              )),
+            )}
           </ul>
           <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 hidden w-16 bg-gradient-to-l from-teal-950 md:block" />
         </div>
@@ -125,7 +224,7 @@ export function MarketRibbon({ instruments, provenance }: { instruments: Instrum
   );
 }
 
-function Item({ s, on, tabStop, onSelect }: { s: InstrumentSnapshot; on: boolean; tabStop: boolean; onSelect: ((id: string) => void) | null }) {
+function Item({ s, copy, on, tabStop, onSelect }: { s: InstrumentSnapshot; copy: number; on: boolean; tabStop: boolean; onSelect: ((id: string) => void) | null }) {
   const inst = s.instrument;
   const cls = `group relative flex h-14 items-center gap-3 border-r border-white/10 px-6 text-left transition-colors duration-200 focus-visible:outline-offset-[-3px] ${on ? "bg-white/[0.1]" : "hover:bg-white/[0.05]"}`;
   const body = (
@@ -142,8 +241,9 @@ function Item({ s, on, tabStop, onSelect }: { s: InstrumentSnapshot; on: boolean
     </>
   );
   const value = `${formatValue(s.quote.value, inst.decimals)}${inst.unit === "%" ? "%" : ""}`;
+  // The second copy exists only to make the ticker loop seamlessly: hidden from assistive tech and not focusable.
   return (
-    <li className="relative shrink-0 snap-start" data-id={inst.id}>
+    <li className="relative shrink-0 snap-start" data-id={inst.id} data-copy={copy} aria-hidden={copy === 1 || undefined} inert={copy === 1 || undefined}>
       {onSelect ? (
         <button
           type="button"

@@ -6,6 +6,7 @@ import { Workspace } from "@/components/dashboard/Workspace";
 import { MarketFocusProvider } from "@/components/home/MarketFocus";
 import { MarketRibbon } from "@/components/home/MarketRibbon";
 import { CurrentTime } from "@/components/market/CurrentTime";
+import { SnapshotStamp } from "@/components/market/MarketTime";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { CTA } from "@/components/ui/CTA";
 import { SAMPLE_LABELS } from "@/content/data/sample";
@@ -14,7 +15,7 @@ import { config } from "@/lib/config";
 import { getMarketIntel } from "@/lib/content/market-intel";
 import { getContentGraph, getInsightListings, getMarketState, getMonitoredMarkets } from "@/lib/content/repository";
 import { crossAsset } from "@/lib/market/analytics";
-import { formatSnapshot, formatTimestamp } from "@/lib/market/format";
+import { formatTimestamp } from "@/lib/market/format";
 import { INSTRUMENTS } from "@/lib/market/instruments";
 import { getIntelligence, getMarketHistory, getMarketSnapshot } from "@/lib/market/service";
 import { STATUS_DEFINITION, STATUS_LABEL, statusTitle } from "@/lib/market/status";
@@ -87,8 +88,9 @@ export default async function MarketDashboardPage() {
                   // One illustrative snapshot exists; it is stated, not selectable.
                   <p className="flex flex-wrap items-baseline gap-x-2.5">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300">Market snapshot</span>
-                    <span className="num text-[12px] tracking-[0.04em] text-teal-50">{formatSnapshot(snapshot.provenance.asOf)}</span>
-                    <span className="text-[11.5px] text-teal-200">Illustrative dataset</span>
+                    <span className="num text-[12px] tracking-[0.04em] text-teal-50">
+                      <SnapshotStamp provenance={snapshot.provenance} /> · Illustrative
+                    </span>
                   </p>
                 ) : (
                   <p className="flex flex-wrap items-baseline gap-x-2.5">

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMarketTime } from "./MarketTime";
 import { NStar } from "@/components/identity/NStar";
 import { useNow } from "@/hooks/useNow";
 import { formatTimestamp } from "@/lib/market/format";
@@ -76,7 +77,25 @@ function StatusIcon({ status, stale }: { status: DataStatus; stale: boolean }) {
   return <NStar className="h-2 w-2" />;
 }
 
-export function DataTimestamp({ asOf, label = "As at", className = "" }: { asOf: string; label?: string; className?: string }) {
+export function DataTimestamp({
+  asOf,
+  status,
+  label = "As at",
+  className = "",
+}: {
+  asOf: string;
+  status?: DataProvenance["status"];
+  label?: string;
+  className?: string;
+}) {
+  const t = useMarketTime(status);
+  // Illustrative data is labelled with the shared illustrative snapshot (lib/market/illustrative-time).
+  if (t.illustrative)
+    return (
+      <span className={`num ${className}`}>
+        Snapshot <time dateTime={t.iso(asOf)}>{t.snapshot(asOf)}</time>
+      </span>
+    );
   return (
     <span className={`num ${className}`}>
       {label} <time dateTime={asOf}>{formatTimestamp(asOf)}</time>
@@ -126,7 +145,7 @@ export function Provenance({
     <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] ${dark ? "text-teal-200" : "text-stone"} ${className}`}>
       <MarketStatus status={provenance.status} delayMinutes={provenance.delayMinutes} stale={stale} tone={tone} />
       <DataSource source={provenance.source} />
-      {showTime && <DataTimestamp asOf={provenance.asOf} label={stale ? "Last updated" : provenance.status === "unavailable" ? "Checked" : "As at"} />}
+      {showTime && <DataTimestamp asOf={provenance.asOf} status={provenance.status} label={stale ? "Last updated" : provenance.status === "unavailable" ? "Checked" : "As at"} />}
       {provenance.attribution && provenance.status !== "illustrative" && <span>{provenance.attribution}</span>}
     </div>
   );

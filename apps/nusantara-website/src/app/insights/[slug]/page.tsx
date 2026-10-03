@@ -18,7 +18,8 @@ import { SAMPLE_LABELS } from "@/content/data/sample";
 import { formatInsightDate, type InsightSource } from "@/content/insights/types";
 import { getCapabilities, getContentGraph, getInsight, getInsights, getMarketState } from "@/lib/content/repository";
 import { routes } from "@/lib/routes";
-import { formatTimestamp, formatValue } from "@/lib/market/format";
+import { SnapshotStamp } from "@/components/market/MarketTime";
+import { formatValue } from "@/lib/market/format";
 import { getMarketHistory, getMarketSnapshot } from "@/lib/market/service";
 import { statusTitle } from "@/lib/market/status";
 import { generalDisclaimer, site } from "@/lib/site";
@@ -166,7 +167,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
         })}
       </ul>
       <p className="mt-2 text-[10.5px] text-stone">
-        {statusTitle(snapshot.provenance)} · As at {formatTimestamp(snapshot.provenance.asOf)}
+        {statusTitle(snapshot.provenance)} · {snapshot.provenance.status === "illustrative" ? "Snapshot" : "As at"} <SnapshotStamp provenance={snapshot.provenance} />
       </p>
       {snapshot.instruments.some((s) => graph.viewForMarket(s.instrument.id)?.sample) && (
         <p className="mt-1 text-[10.5px] font-medium tracking-[0.04em] text-gold-800">Nusantara signals: {SAMPLE_LABELS.interpretation}</p>

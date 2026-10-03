@@ -3,7 +3,7 @@
 import { useClock } from "@/hooks/useClock";
 
 /**
- * CURRENT TIME in Malaysia (MYT, UTC+8) from the visitor's clock.
+ * CURRENT TIME in UTC+8 (Malaysia / Singapore: MYT / SGT, no DST) from the visitor's clock.
  *
  * Deliberately separate from market data: it never reads or formats a
  * market timestamp, and it is labelled "Current time" (not "live") so it
@@ -49,8 +49,8 @@ export function CurrentTime({
   const label = tone === "dark" ? "text-teal-300" : "text-stone";
   const value = tone === "dark" ? "text-teal-50" : "text-charcoal";
 
-  const full = t ? `${t.day} ${t.mon} ${t.year} • ${t.hh}:${t.mm}${seconds ? `:${t.ss}` : ""} MYT` : `-- --- ---- • --:--${seconds ? ":--" : ""} MYT`;
-  const compact = t ? `${t.day} ${t.mon} · ${t.hh}:${t.mm} MYT` : "-- --- · --:-- MYT";
+  const full = t ? `${t.day} ${t.mon} ${t.year} · ${t.hh}:${t.mm}${seconds ? `:${t.ss}` : ""} MYT / SGT` : `-- --- ---- · --:--${seconds ? ":--" : ""} MYT / SGT`;
+  const compact = t ? `${t.day} ${t.mon} · ${t.hh}:${t.mm} MYT / SGT` : "-- --- · --:-- MYT / SGT";
 
   return (
     <span className={`inline-flex items-baseline gap-2.5 whitespace-nowrap text-[11px] ${className}`}>
@@ -58,7 +58,7 @@ export function CurrentTime({
       <time dateTime={t ? `${t.year}-${t.month}-${t.day}T${t.hh}:${t.mm}:${t.ss}+08:00` : undefined} className={`num text-[12px] tracking-[0.04em] ${value}`}>
         <span aria-hidden className="hidden sm:inline">{full}</span>
         <span aria-hidden className="sm:hidden">{compact}</span>
-        <span className="sr-only">{t ? `Current time in Malaysia: ${Number(t.day)} ${t.monthName} ${t.year}, ${t.hh}:${t.mm}` : "Current time in Malaysia"}</span>
+        <span className="sr-only">{t ? `Current time in Malaysia and Singapore: ${Number(t.day)} ${t.monthName} ${t.year}, ${t.hh}:${t.mm}` : "Current time in Malaysia and Singapore"}</span>
       </time>
     </span>
   );

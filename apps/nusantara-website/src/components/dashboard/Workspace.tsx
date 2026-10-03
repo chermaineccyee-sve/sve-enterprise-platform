@@ -18,6 +18,7 @@ import type { NusantaraView } from "@/content/model/intelligence";
 import { isPastReview } from "@/content/model/publication";
 import { useHistories, useMarketHistory } from "@/hooks/useMarketData";
 import { useNow } from "@/hooks/useNow";
+import { useMarketTime } from "@/components/market/MarketTime";
 import { ViewEvidence, type EvidenceTab } from "@/components/market/ViewEvidence";
 import { track } from "@/lib/analytics";
 import { getUrlParam, setUrlParam } from "@/lib/routes";
@@ -502,6 +503,7 @@ function InstrumentCentre({
 }) {
   const inst = snap.instrument;
   const swipe = useSwipe(onSwipe);
+  const time = useMarketTime(snap.provenance.status);
   const stale = useIsStale(snap.provenance);
   const { values, stamps } = useMemo(() => resampleSeries(points, N), [points]);
   const raw = points.map((p) => p.v);
@@ -537,7 +539,7 @@ function InstrumentCentre({
         {values.length > 1 ? (
           <MorphChart
             series={[{ id: "main", label: inst.shortName, color: PRIMARY_LINE, values }]}
-            labels={stamps.map((t) => formatTimestamp(t, { time: period === "1D" || period === "1W" }))}
+            labels={stamps.map((t) => time.stamp(t, { time: period === "1D" || period === "1W" }))}
             format={fmt}
             height={340}
             reference={period === "1D" ? { value: snap.quote.previousClose, label: "Previous close" } : undefined}
@@ -633,6 +635,7 @@ function CompareCentre({
   statusLabel: string;
 }) {
   const rows = ids.map((id) => all.find((s) => s.instrument.id === id)).filter((s): s is InstrumentSnapshot => !!s);
+  const time = useMarketTime(all[0]?.provenance.status);
   const series = rows
     .map((r, i) => {
       const pts = byId.get(r.instrument.id) ?? [];
@@ -659,7 +662,7 @@ function CompareCentre({
         {series.length ? (
           <MorphChart
             series={series}
-            labels={stamps.map((t) => formatTimestamp(t, { time: period === "1D" || period === "1W" }))}
+            labels={stamps.map((t) => time.stamp(t, { time: period === "1D" || period === "1W" }))}
             format={(v) => formatValue(v, 2)}
             height={380}
             area={false}
