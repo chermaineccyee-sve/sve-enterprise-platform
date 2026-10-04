@@ -49,3 +49,8 @@ form.login__form a[href$="/forgot"] { display: none; }
 .nd-dl dt { color: var(--theme-elevation-600); }
 .nd-dl dd { margin: 0; }
 .nd-card--readonly { background: var(--theme-elevation-50); }
+
+/* Nusantara workflow status line (replaces Payload's native Draft/Published status) */
+.nusantara-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 1.25rem; font-size: 0.85rem; color: var(--theme-elevation-650); }
+.nusantara-status strong { color: var(--theme-elevation-900); }
+.nusantara-status__changes { color: #8a6a2c; font-weight: 600; }

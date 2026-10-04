@@ -6,11 +6,11 @@ export const Themes = governed({
   slug: "themes",
   singular: "Theme",
   plural: "Themes",
-  group: "Research",
+  group: "Insights & Research",
   useAsTitle: "title",
   separation: false,
   fields: [
-    keyField("key", "Theme id", "Stable id."),
+    keyField("key", "Identifier", "Stable id."),
     { name: "title", type: "text", required: true },
     { name: "statement", type: "textarea", required: true },
     { name: "insights", type: "relationship", relationTo: "insights", hasMany: true, admin: { description: "Curated research, in display order." } },

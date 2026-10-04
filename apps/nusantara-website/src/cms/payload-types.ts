@@ -176,7 +176,7 @@ export interface Insight {
         | {
             text: string;
             /**
-             * In-page anchor id.
+             * Short lower-case name used in the article’s contents list, e.g. “framing”.
              */
             anchor: string;
             id?: string | null;
@@ -223,30 +223,19 @@ export interface Insight {
         | {
             caption: string;
             /**
-             * JSON array of strings.
+             * Type each heading and press Enter.
              */
-            columns?:
-              | {
-                  [k: string]: unknown;
-                }
-              | unknown[]
-              | string
-              | number
-              | boolean
-              | null;
-            /**
-             * JSON array of rows (arrays of strings).
-             */
+            columns?: string[] | null;
             rows?:
               | {
-                  [k: string]: unknown;
-                }
-              | unknown[]
-              | string
-              | number
-              | boolean
+                  cells?: string[] | null;
+                  id?: string | null;
+                }[]
               | null;
             note?: string | null;
+            /**
+             * Optional: which research layer this table belongs to.
+             */
             layer?: ('data' | 'interpretation' | 'implication') | null;
             id?: string | null;
             blockName?: string | null;
@@ -256,17 +245,12 @@ export interface Insight {
             caption: string;
             left: string;
             right: string;
-            /**
-             * JSON array of [left, right] pairs.
-             */
             rows?:
               | {
-                  [k: string]: unknown;
-                }
-              | unknown[]
-              | string
-              | number
-              | boolean
+                  leftText: string;
+                  rightText: string;
+                  id?: string | null;
+                }[]
               | null;
             id?: string | null;
             blockName?: string | null;
@@ -276,28 +260,19 @@ export interface Insight {
             caption: string;
             kind: 'line' | 'bar';
             /**
-             * JSON array of strings.
+             * Type each label and press Enter, e.g. “Oct 25”.
              */
-            xLabels?:
-              | {
-                  [k: string]: unknown;
-                }
-              | unknown[]
-              | string
-              | number
-              | boolean
-              | null;
-            /**
-             * JSON array of { id, label, values[] }.
-             */
+            xLabels?: string[] | null;
             series?:
               | {
-                  [k: string]: unknown;
-                }
-              | unknown[]
-              | string
-              | number
-              | boolean
+                  /**
+                   * Short lower-case name, e.g. “gold”.
+                   */
+                  seriesKey: string;
+                  label: string;
+                  values?: number[] | null;
+                  id?: string | null;
+                }[]
               | null;
             unit?: string | null;
             decimals: number;
@@ -308,18 +283,71 @@ export interface Insight {
             blockType: 'chart';
           }
         | {
-            /**
-             * Scenario specification (content/insights/types.ts → ScenarioSpec).
-             */
-            scenario:
-              | {
-                  [k: string]: unknown;
-                }
-              | unknown[]
-              | string
-              | number
-              | boolean
-              | null;
+            scenario: {
+              /**
+               * Short lower-case name, e.g. “inflation-paths”.
+               */
+              scenarioKey: string;
+              title: string;
+              metric: string;
+              unit?: string | null;
+              decimals: number;
+              baseYear: number;
+              baseValue: number;
+              years?: number[] | null;
+              /**
+               * e.g. quarters, instead of years.
+               */
+              periodLabels?: string[] | null;
+              downside: {
+                /**
+                 * e.g. “Persistent”.
+                 */
+                label?: string | null;
+                assumption: string;
+                /**
+                 * One value per period, in order. Leave empty to use a constant annual rate instead.
+                 */
+                values?: number[] | null;
+                /**
+                 * Only when no values per period are given.
+                 */
+                rate?: number | null;
+              };
+              base: {
+                /**
+                 * e.g. “Persistent”.
+                 */
+                label?: string | null;
+                assumption: string;
+                /**
+                 * One value per period, in order. Leave empty to use a constant annual rate instead.
+                 */
+                values?: number[] | null;
+                /**
+                 * Only when no values per period are given.
+                 */
+                rate?: number | null;
+              };
+              upside: {
+                /**
+                 * e.g. “Persistent”.
+                 */
+                label?: string | null;
+                assumption: string;
+                /**
+                 * One value per period, in order. Leave empty to use a constant annual rate instead.
+                 */
+                values?: number[] | null;
+                /**
+                 * Only when no values per period are given.
+                 */
+                rate?: number | null;
+              };
+              period: string;
+              dataSource: string;
+              methodology: string;
+            };
             id?: string | null;
             blockName?: string | null;
             blockType: 'scenario';
@@ -1289,7 +1317,18 @@ export interface LegalPage {
 export interface AuditLog {
   id: number;
   at: string;
-  action: 'create' | 'edit' | 'submit' | 'approve' | 'publish' | 'archive' | 'classify' | 'restore' | 'delete' | 'user';
+  action:
+    | 'create'
+    | 'edit'
+    | 'submit'
+    | 'approve'
+    | 'publish'
+    | 'archive'
+    | 'classify'
+    | 'restore'
+    | 'discard'
+    | 'delete'
+    | 'user';
   collection: string;
   documentId: string;
   title?: string | null;
@@ -1483,7 +1522,12 @@ export interface InsightsSelect<T extends boolean = true> {
           | {
               caption?: T;
               columns?: T;
-              rows?: T;
+              rows?:
+                | T
+                | {
+                    cells?: T;
+                    id?: T;
+                  };
               note?: T;
               layer?: T;
               id?: T;
@@ -1495,7 +1539,13 @@ export interface InsightsSelect<T extends boolean = true> {
               caption?: T;
               left?: T;
               right?: T;
-              rows?: T;
+              rows?:
+                | T
+                | {
+                    leftText?: T;
+                    rightText?: T;
+                    id?: T;
+                  };
               id?: T;
               blockName?: T;
             };
@@ -1505,7 +1555,14 @@ export interface InsightsSelect<T extends boolean = true> {
               caption?: T;
               kind?: T;
               xLabels?: T;
-              series?: T;
+              series?:
+                | T
+                | {
+                    seriesKey?: T;
+                    label?: T;
+                    values?: T;
+                    id?: T;
+                  };
               unit?: T;
               decimals?: T;
               source?: T;
@@ -1516,7 +1573,46 @@ export interface InsightsSelect<T extends boolean = true> {
         scenario?:
           | T
           | {
-              scenario?: T;
+              scenario?:
+                | T
+                | {
+                    scenarioKey?: T;
+                    title?: T;
+                    metric?: T;
+                    unit?: T;
+                    decimals?: T;
+                    baseYear?: T;
+                    baseValue?: T;
+                    years?: T;
+                    periodLabels?: T;
+                    downside?:
+                      | T
+                      | {
+                          label?: T;
+                          assumption?: T;
+                          values?: T;
+                          rate?: T;
+                        };
+                    base?:
+                      | T
+                      | {
+                          label?: T;
+                          assumption?: T;
+                          values?: T;
+                          rate?: T;
+                        };
+                    upside?:
+                      | T
+                      | {
+                          label?: T;
+                          assumption?: T;
+                          values?: T;
+                          rate?: T;
+                        };
+                    period?: T;
+                    dataSource?: T;
+                    methodology?: T;
+                  };
               id?: T;
               blockName?: T;
             };

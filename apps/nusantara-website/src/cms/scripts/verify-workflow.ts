@@ -13,6 +13,7 @@ import config from "@payload-config";
 import { createLocalReq, getPayload, restoreVersionOperation, type CollectionSlug } from "payload";
 import type { User } from "../payload-types";
 import { isVisible } from "../../content/model/publication";
+import { discardDraftEndpoint } from "../hooks/discard";
 
 if (process.env.NUSANTARA_ENV === "production" || /neon\.tech|amazonaws|prod/i.test(process.env.DATABASE_URL ?? "")) {
   console.error("Refusing to run against what looks like a production database.");
@@ -181,6 +182,26 @@ try {
     await rejects("restored content cannot be published without fresh approval", () => payload.update({ collection: "nusantaraViews", id: v.id, data: { _status: "published" }, ...as(reviewer) }), /Only an approved item|differs from what was approved/);
   } else check("a published version exists to restore", false);
 
+  /* Discard draft changes ------------------------------------------------ */
+  const discard = async (collection: CollectionSlug, id: number, user: U) => {
+    const req = await createLocalReq({ user }, payload);
+    req.routeParams = { id: String(id) };
+    const res = await discardDraftEndpoint(collection).handler(req);
+    return { status: res.status, body: (await res.json()) as { message?: string; discarded?: number } };
+  };
+  const liveBeforeDiscard = await payload.findByID({ collection: "nusantaraViews", id: v.id, draft: false, overrideAccess: true });
+  const d1 = await discard("nusantaraViews", v.id, editor);
+  const wc = await payload.findByID({ collection: "nusantaraViews", id: v.id, draft: true, overrideAccess: true });
+  const liveAfterDiscard = await payload.findByID({ collection: "nusantaraViews", id: v.id, draft: false, overrideAccess: true });
+  check("an Editor can discard draft changes", d1.status === 200 && (d1.body.discarded ?? 0) > 0, `${d1.status} ${d1.body.message}`);
+  check("after discarding, the working copy is the published version", wc.workflowStatus === "published" && wc.signal === liveBeforeDiscard.signal && wc.context === liveBeforeDiscard.context, `wc=${wc.workflowStatus}/${wc.signal}/${wc.context} live=${liveBeforeDiscard.workflowStatus}/${liveBeforeDiscard.signal}/${liveBeforeDiscard.context}`);
+  check("discarding never changes the live version", JSON.stringify(liveAfterDiscard) === JSON.stringify(liveBeforeDiscard));
+  const d2 = await discard("nusantaraViews", v.id, editor);
+  check("discarding again with no changes is harmless", d2.status === 200 && d2.body.discarded === 0);
+  const next = await payload.update({ collection: "nusantaraViews", id: v.id, data: { signal: "After discard" }, draft: true, ...as(editor) });
+  check("the next edit follows the normal workflow (back to Draft)", next.workflowStatus === "draft");
+  await discard("nusantaraViews", v.id, editor);
+
   /* Capabilities: no products through the CMS ---------------------------- */
   await rejects("editors cannot create capabilities", () => payload.create({ collection: "capabilities", data: { slug: `${tag}-cap-x`, name: "x", stage: "capability", summary: "x", overview: "x", approach: "x", role: "x" }, draft: true, ...as(editor) }), /not allowed/i);
   const cap = await payload.create({
@@ -193,6 +214,8 @@ try {
   await rejects("an investment product cannot be created through the CMS", () => payload.update({ collection: "capabilities", id: cap.id, data: { capabilityStatus: "active-product", stage: "active" }, draft: true, ...as(admin) }), /investment product cannot be created/);
   const capEd = await payload.update({ collection: "capabilities", id: cap.id, data: { capabilityStatus: "public-capability", summary: "Edited summary." }, draft: true, ...as(editor) });
   check("editors edit descriptive content but not the lifecycle", capEd.summary === "Edited summary." && capEd.capabilityStatus === "internal", `${capEd.capabilityStatus}`);
+  const neverPublished = await discard("capabilities", cap.id, editor);
+  check("discard refuses an item that was never published (nothing to return to)", neverPublished.status === 409, String(neverPublished.status));
 
   /* CMS content source (CONTENT_SOURCE=cms) ------------------------------- */
   // The site's own loader, as the content repository uses it. This run is the
@@ -220,7 +243,7 @@ try {
   /* Audit trail ---------------------------------------------------------- */
   const audit = await payload.find({ collection: "auditLog", where: { and: [{ collection: { equals: "nusantaraViews" } }, { documentId: { equals: String(v.id) } }] }, limit: 100, overrideAccess: true });
   const actions = audit.docs.map((d) => d.action);
-  check("audit trail records submit, approve, publish, classify and restore", ["create", "submit", "approve", "publish", "classify", "restore"].every((a) => actions.includes(a as never)), actions.join(","));
+  check("audit trail records submit, approve, publish, classify, restore and discard", ["create", "submit", "approve", "publish", "classify", "restore", "discard"].every((a) => actions.includes(a as never)), actions.join(","));
 } finally {
   for (const c of created.reverse()) {
     if (c.collection !== "users") await payload.delete({ collection: c.collection, id: c.id, overrideAccess: true }).catch(() => {});

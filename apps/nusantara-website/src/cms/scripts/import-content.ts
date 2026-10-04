@@ -33,7 +33,7 @@ import { MARKET_VIEWS } from "../../content/data/market-views";
 import { SIGNALS } from "../../content/data/signals";
 import { THEMES } from "../../content/data/themes";
 import { getAllInsights } from "../../content/insights";
-import type { Block, Insight } from "../../content/insights/types";
+import type { Block, Insight, ScenarioPath } from "../../content/insights/types";
 import type { Publication } from "../../content/model/publication";
 import type { Stance } from "../../content/model/intelligence";
 import { STRATEGIES } from "../../content/strategies";
@@ -101,13 +101,45 @@ function block(b: Block): Doc {
     case "layer":
       return { blockType: "layer", layer: b.layer, title: b.title, body: rows(b.body) };
     case "table":
-      return { blockType: "table", caption: b.caption, columns: b.columns, rows: b.rows, note: b.note ?? null, layer: b.layer ?? null };
+      return { blockType: "table", caption: b.caption, columns: b.columns, rows: b.rows.map((cells) => ({ cells })), note: b.note ?? null, layer: b.layer ?? null };
     case "comparison":
-      return { blockType: "comparison", caption: b.caption, left: b.left, right: b.right, rows: b.rows };
+      return { blockType: "comparison", caption: b.caption, left: b.left, right: b.right, rows: b.rows.map(([leftText, rightText]) => ({ leftText, rightText })) };
     case "chart":
-      return { blockType: "chart", caption: b.caption, kind: b.kind, xLabels: b.xLabels, series: b.series, unit: b.unit ?? null, decimals: b.decimals, source: b.source, illustrative: b.illustrative };
-    case "scenario":
-      return { blockType: "scenario", scenario: b.scenario };
+      return {
+        blockType: "chart",
+        caption: b.caption,
+        kind: b.kind,
+        xLabels: b.xLabels,
+        series: b.series.map((x) => ({ seriesKey: x.id, label: x.label, values: x.values })),
+        unit: b.unit ?? null,
+        decimals: b.decimals,
+        source: b.source,
+        illustrative: b.illustrative,
+      };
+    case "scenario": {
+      const sc = b.scenario;
+      const p = (x: ScenarioPath) => ({ label: x.label ?? null, assumption: x.assumption, values: x.values ?? [], rate: x.rate ?? null });
+      return {
+        blockType: "scenario",
+        scenario: {
+          scenarioKey: sc.id,
+          title: sc.title,
+          metric: sc.metric,
+          unit: sc.unit ?? null,
+          decimals: sc.decimals,
+          baseYear: sc.baseYear,
+          baseValue: sc.baseValue,
+          years: sc.years,
+          periodLabels: sc.periodLabels ?? [],
+          downside: p(sc.scenarios.downside),
+          base: p(sc.scenarios.base),
+          upside: p(sc.scenarios.upside),
+          period: sc.period,
+          dataSource: sc.dataSource,
+          methodology: sc.methodology,
+        },
+      };
+    }
     case "callout":
       return { blockType: "callout", title: b.title, text: b.text };
     case "pullquote":
@@ -141,7 +173,7 @@ const insightData = (i: Insight, order: number, withRelations: boolean): Doc => 
 
 /* 1. Insights — text first; relationships once every insight exists. */
 const insights = getAllInsights();
-const insightHash = (i: Insight) => fingerprint({ insight: i, withRelations: true });
+const insightHash = (i: Insight) => fingerprint({ insight: i, withRelations: true, blocks: "structured-v2" });
 for (const [n, i] of insights.entries()) {
   const data = insightData(i, n * 10, false);
   data.legacy.importHash = insightHash(i);

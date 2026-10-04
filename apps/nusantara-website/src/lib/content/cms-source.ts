@@ -74,6 +74,30 @@ const iso = (v: unknown): string | null => (typeof v === "string" && v ? new Dat
 const day = (v: unknown): string => (typeof v === "string" && v ? v.slice(0, 10) : "");
 const textRows = (rows: unknown): string[] => (Array.isArray(rows) ? rows.map((r: Doc) => String(r?.text ?? "")).filter(Boolean) : []);
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
+const numArr = (v: unknown): number[] => (Array.isArray(v) ? v.map(Number) : []);
+const toPath = (p: Doc) => ({
+  ...(p?.label ? { label: p.label } : {}),
+  assumption: p?.assumption ?? "",
+  ...(p?.rate != null ? { rate: Number(p.rate) } : {}),
+  ...(Array.isArray(p?.values) && p.values.length ? { values: numArr(p.values) } : {}),
+});
+function toScenario(s: Doc) {
+  return {
+    id: s.scenarioKey,
+    title: s.title,
+    metric: s.metric,
+    ...(s.unit ? { unit: s.unit } : {}),
+    decimals: Number(s.decimals),
+    baseYear: Number(s.baseYear),
+    baseValue: Number(s.baseValue),
+    years: numArr(s.years),
+    scenarios: { downside: toPath(s.downside), base: toPath(s.base), upside: toPath(s.upside) },
+    ...(Array.isArray(s.periodLabels) && s.periodLabels.length ? { periodLabels: strArr(s.periodLabels) } : {}),
+    period: s.period,
+    dataSource: s.dataSource,
+    methodology: s.methodology,
+  };
+}
 const idOf = (v: unknown): string | null => (v && typeof v === "object" ? String((v as Doc).id) : v == null ? null : String(v));
 
 type Keys = { insights: Map<string, string>; themes: Map<string, string>; capabilities: Map<string, string> };
@@ -112,23 +136,30 @@ function toBlock(b: Doc): Block {
     case "layer":
       return { type: "layer", layer: b.layer, title: b.title, body: textRows(b.body) };
     case "table":
-      return { type: "table", caption: b.caption, columns: strArr(b.columns), rows: Array.isArray(b.rows) ? b.rows : [], ...(b.note ? { note: b.note } : {}), ...(b.layer ? { layer: b.layer } : {}) };
+      return {
+        type: "table",
+        caption: b.caption,
+        columns: strArr(b.columns),
+        rows: (Array.isArray(b.rows) ? b.rows : []).map((r: Doc) => strArr(r.cells)),
+        ...(b.note ? { note: b.note } : {}),
+        ...(b.layer ? { layer: b.layer } : {}),
+      };
     case "comparison":
-      return { type: "comparison", caption: b.caption, left: b.left, right: b.right, rows: Array.isArray(b.rows) ? b.rows : [] };
+      return { type: "comparison", caption: b.caption, left: b.left, right: b.right, rows: (Array.isArray(b.rows) ? b.rows : []).map((r: Doc) => [r.leftText, r.rightText] as [string, string]) };
     case "chart":
       return {
         type: "chart",
         caption: b.caption,
         kind: b.kind,
         xLabels: strArr(b.xLabels),
-        series: Array.isArray(b.series) ? b.series : [],
+        series: (Array.isArray(b.series) ? b.series : []).map((x: Doc) => ({ id: x.seriesKey, label: x.label, values: numArr(x.values) })),
         ...(b.unit ? { unit: b.unit } : {}),
         decimals: b.decimals,
         source: b.source,
         illustrative: b.illustrative !== false,
       };
     case "scenario":
-      return { type: "scenario", scenario: b.scenario };
+      return { type: "scenario", scenario: toScenario(b.scenario ?? {}) };
     case "callout":
       return { type: "callout", title: b.title, text: b.text };
     case "pullquote":

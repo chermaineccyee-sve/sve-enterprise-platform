@@ -1,7 +1,8 @@
-import type { Access, CollectionBeforeChangeHook, CollectionConfig, Field, TextField } from "payload";
+import type { Access, CollectionBeforeChangeHook, CollectionConfig, CollectionSlug, Field, TextField } from "payload";
 import { adminsOnly, editors, signedIn } from "../access/roles";
 import { workflowFields } from "../fields/workflow";
 import { auditAfterChange, auditAfterDelete } from "../hooks/audit";
+import { discardDraftEndpoint } from "../hooks/discard";
 import { revalidateAfterChange, revalidateAfterDelete } from "../hooks/revalidate";
 import { guardLiveWrites, restoreAsDraft, workflowBeforeChange } from "../hooks/workflow";
 import { PREVIEWABLE, previewLink } from "../preview";
@@ -47,7 +48,17 @@ export function governed(opts: {
       defaultColumns: opts.defaultColumns ?? [opts.useAsTitle, "workflowStatus", "contentClass", "updatedAt"],
       description: opts.description,
       ...((PREVIEWABLE as readonly string[]).includes(opts.slug) ? { preview: previewLink(opts.slug) } : {}),
+      // The API tab is a developer tool, not part of editing.
+      hideAPIURL: true,
+      components: {
+        edit: {
+          Status: "/cms/admin/WorkflowControls#NusantaraStatus",
+          PublishButton: "/cms/admin/WorkflowControls#NusantaraPublishButton",
+          UnpublishButton: "/cms/admin/WorkflowControls#NusantaraUnpublishButton",
+        },
+      },
     },
+    endpoints: [discardDraftEndpoint(opts.slug as CollectionSlug)],
     access: {
       read: signedIn,
       readVersions: signedIn,

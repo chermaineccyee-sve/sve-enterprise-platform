@@ -14,7 +14,7 @@ import { auditAfterChange, auditAfterDelete } from "../hooks/audit";
  */
 export const Media: CollectionConfig = {
   slug: "media",
-  admin: { group: "Library", useAsTitle: "alt" },
+  admin: { group: "Media", useAsTitle: "alt" },
   access: { read: signedIn, create: editors, update: editors, delete: adminsOnly },
   hooks: { afterChange: [auditAfterChange], afterDelete: [auditAfterDelete] },
   upload: {

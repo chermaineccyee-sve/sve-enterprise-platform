@@ -290,11 +290,90 @@ The dashboard shows working-copy counts, items requiring review, Nusantara
 Views awaiting separate approval, the Market State status, the latest
 Insights, recent changes and read-only market-data status.
 
+## 9. B1A.1 — admin usability
+
+### Status line
+
+Every governed item shows one line above the form:
+
+> Workflow: In Review · Classification: Illustrative · Website: A published
+> version is live
+
+The Nusantara workflow is the authoritative status. Classification is shown
+separately and is never derived from it. Payload's own Draft/Published badge
+is replaced by this line, and the Payload draft engine itself is unchanged.
+
+- **Publish to website** and **Withdraw from website** are labelled for what
+  they do.
+- Only Reviewers and Admins see those buttons. The server enforces the same
+  rule.
+- The API URL link is hidden.
+
+### Discard draft changes
+
+When an item has a live version and unpublished draft changes, the status
+line shows **Unpublished draft changes** with a **Discard draft changes**
+button. Payload's "Revert to published" is no longer shown. Discard asks for
+confirmation, then calls `POST /api/cms/{collection}/{id}/discard-draft`
+(`src/cms/hooks/discard.ts`):
+
+- It removes only the draft versions saved after the last published version,
+  ordered by version id.
+- The published version becomes the working copy again.
+- The live record is never written, republished or restored, so the website
+  does not change and no approval or revalidation is needed.
+- Any signed-in user may discard, Editors included. The endpoint needs an
+  Admin Portal session and passes the same CSRF origin check as the rest of
+  `/api/cms`.
+- Every discard writes a `discard` entry to the audit log.
+- The next edit starts a normal Draft again.
+- An item that has never been published has nothing to return to, so discard
+  is refused (409).
+
+### Structured Insight content
+
+Insight articles are edited with typed blocks. There is no raw JSON in the
+editor:
+
+- Section heading
+- Paragraph
+- Bulleted / numbered list
+- Pull quote
+- Research layer (Data · Interpretation · Implication)
+- Table (columns and rows of cells)
+- Comparison (left/right rows)
+- Chart (x labels, one or more series with numeric values, unit, decimals,
+  source)
+- Scenario (three paths: downside, base and upside, each with label,
+  assumption, values and rate, plus years, period, data source and
+  methodology)
+- Callout box
+
+Lists of words or numbers are entered one value at a time. The CMS loader
+maps the blocks back to the exact content types the public renderer already
+uses, so the public output is unchanged. `cms:verify-equivalence` confirms
+this for every migrated Insight. This is not a page builder: block types,
+order rules and rendering stay code-controlled.
+
+### Labels
+
+Admin groups are:
+
+- **Nusantara Intelligence:** Views, Market State, Signals
+- **Insights & Research:** Insights, Themes
+- **Corporate:** Capabilities, Legal pages
+- **Media**
+- **Administration:** Users, Audit Log
+
+Workflow values read Draft / In Review / Approved / Published / Archived.
+Classification reads Illustrative / Management Review / Approved Corporate
+Content. Instrument and indicator pickers show plain names.
+
 ### Checks
 
 | Command | What it checks |
 |---|---|
-| `npm run cms:verify-workflow` | Roles, workflow, separation, live-write guard, restore, capabilities, classification, loader (server-side) |
+| `npm run cms:verify-workflow` | Roles, workflow, separation, live-write guard, restore, discard, capabilities, classification, loader (server-side) |
 | `npm run cms:verify-equivalence` | CMS content equals the local files |
 | `node scripts/parity/parity.mjs` | Public site vs `e803790` (HTML, CSS, headers, APIs, files, screenshots) |
 

@@ -48,7 +48,7 @@ export const Capabilities = governed({
   create: adminsOnly,
   beforeChange: [noProductsThroughCms],
   fields: [
-    keyField("slug", "Slug", "URL segment under /strategies/. Set by an Admin; changing it changes the public URL.", { update: adminField }),
+    keyField("slug", "Web address (slug)", "URL segment under /strategies/. Set by an Admin; changing it changes the public URL.", { update: adminField }),
     { name: "name", type: "text", required: true },
     {
       name: "capabilityStatus",

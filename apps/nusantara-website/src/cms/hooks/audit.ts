@@ -10,7 +10,7 @@ import type { WorkflowEvent } from "./workflow";
  * the full before/after content.
  */
 
-type Action = "create" | "edit" | "submit" | "approve" | "publish" | "archive" | "classify" | "restore" | "delete" | "user";
+type Action = "create" | "edit" | "submit" | "approve" | "publish" | "archive" | "classify" | "restore" | "discard" | "delete" | "user";
 
 async function write(req: PayloadRequest, entry: { action: Action; collection: string; documentId: string; title?: string; summary: string }) {
   const u = req.user as { id: number; email?: string } | null;

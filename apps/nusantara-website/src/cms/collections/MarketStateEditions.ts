@@ -6,14 +6,14 @@ export const MarketStateEditions = governed({
   slug: "marketStateEditions",
   dbName: "market_state",
   singular: "Market State edition",
-  plural: "Market State editions",
-  group: "Nusantara interpretation",
+  plural: "Market State",
+  group: "Nusantara Intelligence",
   useAsTitle: "edition",
   separation: true,
   timeSensitive: true,
   description: "House interpretation, published as a whole edition. Editor/Approver separation applies.",
   fields: [
-    keyField("key", "Edition id", "e.g. “market-state-2026-10”."),
+    keyField("key", "Identifier", "e.g. “market-state-2026-10”."),
     { name: "edition", type: "text", required: true, admin: { description: "Edition name, e.g. “October 2026”." } },
     {
       name: "framing",

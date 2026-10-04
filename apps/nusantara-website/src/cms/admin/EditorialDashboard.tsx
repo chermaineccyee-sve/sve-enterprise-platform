@@ -20,7 +20,8 @@ const EDITORIAL: { slug: CollectionSlug; label: string; title: (d: Doc) => strin
   { slug: "themes", label: "Theme", title: (d) => d.title },
   { slug: "capabilities", label: "Capability", title: (d) => d.name },
 ];
-const STATUS_LABEL: Record<WorkflowStatus, string> = { draft: "Draft", review: "In review", approved: "Approved", published: "Published", archived: "Archived" };
+const STATUS_LABEL: Record<WorkflowStatus, string> = { draft: "Draft", review: "In Review", approved: "Approved", published: "Published", archived: "Archived" };
+const COUNT_LABEL: Record<WorkflowStatus, string> = { draft: "Drafts", review: "In Review", approved: "Approved", published: "Published", archived: "Archived" };
 
 function viewTitle(d: Doc): string {
   const s = d.subject ?? {};
@@ -74,7 +75,7 @@ export async function EditorialDashboard({ payload, user }: ServerProps) {
         {(["draft", "review", "approved", "published", "archived"] as WorkflowStatus[]).map((s) => (
           <div key={s} className={`nd-count nd-status--${s}`}>
             <strong>{count(s)}</strong>
-            <span>{STATUS_LABEL[s]}</span>
+            <span>{COUNT_LABEL[s]}</span>
           </div>
         ))}
       </div>
@@ -82,7 +83,7 @@ export async function EditorialDashboard({ payload, user }: ServerProps) {
       <div className="nd-grid">
         <div className="nd-card">
           <h3>Requiring review ({inReview.length})</h3>
-          {migratedInReview > 0 && <p className="nd-note">{migratedInReview} migrated items keep the “In review” status they had on the review website; none has been approved.</p>}
+          {migratedInReview > 0 && <p className="nd-note">{migratedInReview} migrated items keep the “In Review” status they had on the review website; none has been approved.</p>}
           <ul>{inReview.slice(0, 8).map((i) => <Row key={`${i.collection}-${i.id}`} item={i} />)}</ul>
         </div>
 

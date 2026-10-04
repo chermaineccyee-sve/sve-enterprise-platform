@@ -4,53 +4,129 @@ import { governed, keyField, lines } from "./governed";
 
 /**
  * Article body blocks mirror the existing structured block union
- * (content/insights/types.ts → Block) one-to-one, so migrated articles render
- * through the same templates. Charts and scenarios keep their numeric series
- * as structured JSON: they are article exhibits rather than market data, and
- * are always labelled with their source and illustrative status.
+ * (content/insights/types.ts → Block) one-to-one, so articles render through
+ * the same templates. Every value is an ordinary form field — text, number
+ * lists, repeatable rows, choices — so no one needs to edit JSON. Charts and
+ * scenarios are article exhibits (not market data) and always carry their
+ * source and illustrative status.
  */
-const strings = (name: string, label: string): Field => ({ name, label, type: "json", admin: { description: "JSON array of strings." } });
+const layerChoice = { name: "layer", label: "Research layer", type: "select" as const, options: layerOptions };
+const path = (name: "downside" | "base" | "upside", label: string): Field => ({
+  name,
+  label,
+  type: "group",
+  fields: [
+    { name: "label", label: "Path name", type: "text", admin: { description: "e.g. “Persistent”." } },
+    { name: "assumption", type: "text", required: true },
+    { name: "values", label: "Values per period", type: "number", hasMany: true, admin: { description: "One value per period, in order. Leave empty to use a constant annual rate instead." } },
+    { name: "rate", label: "Constant annual rate (%)", type: "number", admin: { description: "Only when no values per period are given." } },
+  ],
+});
 
 const blocks: Block[] = [
-  { slug: "heading", fields: [{ name: "text", type: "text", required: true }, { name: "anchor", type: "text", required: true, admin: { description: "In-page anchor id." } }] },
-  { slug: "paragraph", fields: [{ name: "text", type: "textarea", required: true }] },
-  { slug: "list", fields: [lines("items", "Items", { required: true }), { name: "ordered", type: "checkbox" }] },
-  { slug: "pullquote", fields: [{ name: "text", type: "textarea", required: true }] },
-  { slug: "layer", fields: [{ name: "layer", type: "select", options: layerOptions, required: true }, { name: "title", type: "text", required: true }, lines("body", "Paragraphs", { required: true, textarea: true })] },
+  {
+    slug: "heading",
+    labels: { singular: "Section heading", plural: "Section headings" },
+    fields: [
+      { name: "text", label: "Heading", type: "text", required: true },
+      { name: "anchor", label: "Link anchor", type: "text", required: true, admin: { description: "Short lower-case name used in the article’s contents list, e.g. “framing”." } },
+    ],
+  },
+  { slug: "paragraph", labels: { singular: "Paragraph", plural: "Paragraphs" }, fields: [{ name: "text", type: "textarea", required: true }] },
+  { slug: "list", labels: { singular: "Bulleted list", plural: "Bulleted lists" }, fields: [lines("items", "Items", { required: true }), { name: "ordered", label: "Numbered list", type: "checkbox" }] },
+  { slug: "pullquote", labels: { singular: "Pull quote", plural: "Pull quotes" }, fields: [{ name: "text", label: "Quote", type: "textarea", required: true }] },
+  {
+    slug: "layer",
+    labels: { singular: "Research layer (Data · Interpretation · Implication)", plural: "Research layers" },
+    fields: [{ ...layerChoice, required: true }, { name: "title", type: "text", required: true }, lines("body", "Paragraphs", { required: true, textarea: true })],
+  },
   {
     slug: "table",
+    labels: { singular: "Table", plural: "Tables" },
     fields: [
       { name: "caption", type: "text", required: true },
-      strings("columns", "Columns"),
-      { name: "rows", type: "json", admin: { description: "JSON array of rows (arrays of strings)." } },
+      { name: "columns", label: "Column headings", type: "text", hasMany: true, admin: { description: "Type each heading and press Enter." } },
+      {
+        name: "rows",
+        type: "array",
+        labels: { singular: "Row", plural: "Rows" },
+        fields: [{ name: "cells", label: "Cells (in column order)", type: "text", hasMany: true }],
+      },
       { name: "note", type: "textarea" },
-      { name: "layer", type: "select", options: layerOptions },
+      { ...layerChoice, admin: { description: "Optional: which research layer this table belongs to." } },
     ],
   },
   {
     slug: "comparison",
+    labels: { singular: "Comparison", plural: "Comparisons" },
     fields: [
       { name: "caption", type: "text", required: true },
-      { name: "left", type: "text", required: true },
-      { name: "right", type: "text", required: true },
-      { name: "rows", type: "json", admin: { description: "JSON array of [left, right] pairs." } },
+      { name: "left", label: "Left column heading", type: "text", required: true },
+      { name: "right", label: "Right column heading", type: "text", required: true },
+      {
+        name: "rows",
+        type: "array",
+        labels: { singular: "Row", plural: "Rows" },
+        fields: [
+          { name: "leftText", label: "Left", type: "text", required: true },
+          { name: "rightText", label: "Right", type: "text", required: true },
+        ],
+      },
     ],
   },
   {
     slug: "chart",
+    labels: { singular: "Chart (article exhibit)", plural: "Charts" },
     fields: [
-      { name: "caption", type: "text", required: true },
-      { name: "kind", type: "select", required: true, options: ["line", "bar"] },
-      strings("xLabels", "X-axis labels"),
-      { name: "series", type: "json", admin: { description: "JSON array of { id, label, values[] }." } },
+      { name: "caption", label: "Chart title", type: "text", required: true },
+      { name: "kind", label: "Chart type", type: "select", required: true, options: [{ label: "Line", value: "line" }, { label: "Bar", value: "bar" }] },
+      { name: "xLabels", label: "Labels along the bottom axis", type: "text", hasMany: true, admin: { description: "Type each label and press Enter, e.g. “Oct 25”." } },
+      {
+        name: "series",
+        label: "Data series",
+        type: "array",
+        labels: { singular: "Series", plural: "Series" },
+        fields: [
+          { name: "seriesKey", label: "Series id", type: "text", required: true, admin: { description: "Short lower-case name, e.g. “gold”." } },
+          { name: "label", label: "Name shown", type: "text", required: true },
+          { name: "values", label: "Values (one per label, in order)", type: "number", hasMany: true },
+        ],
+      },
       { name: "unit", type: "text" },
-      { name: "decimals", type: "number", required: true, min: 0, max: 6 },
+      { name: "decimals", label: "Decimal places", type: "number", required: true, min: 0, max: 6, defaultValue: 1 },
       { name: "source", type: "text", required: true },
-      { name: "illustrative", type: "checkbox", defaultValue: true },
+      { name: "illustrative", label: "Illustrative data", type: "checkbox", defaultValue: true },
     ],
   },
-  { slug: "scenario", fields: [{ name: "scenario", type: "json", required: true, admin: { description: "Scenario specification (content/insights/types.ts → ScenarioSpec)." } }] },
-  { slug: "callout", fields: [{ name: "title", type: "text", required: true }, { name: "text", type: "textarea", required: true }] },
+  {
+    slug: "scenario",
+    labels: { singular: "Scenario (three paths)", plural: "Scenarios" },
+    fields: [
+      {
+        name: "scenario",
+        label: "Scenario",
+        type: "group",
+        fields: [
+          { name: "scenarioKey", label: "Scenario id", type: "text", required: true, admin: { description: "Short lower-case name, e.g. “inflation-paths”." } },
+          { name: "title", type: "text", required: true },
+          { name: "metric", label: "What is measured", type: "text", required: true },
+          { name: "unit", type: "text" },
+          { name: "decimals", label: "Decimal places", type: "number", required: true, min: 0, max: 6, defaultValue: 1 },
+          { name: "baseYear", label: "Base year", type: "number", required: true },
+          { name: "baseValue", label: "Starting value", type: "number", required: true },
+          { name: "years", label: "Periods (years after base, starting 0)", type: "number", hasMany: true },
+          { name: "periodLabels", label: "Period labels (optional)", type: "text", hasMany: true, admin: { description: "e.g. quarters, instead of years." } },
+          path("downside", "Downside path"),
+          path("base", "Base path"),
+          path("upside", "Upside path"),
+          { name: "period", label: "Period covered", type: "text", required: true },
+          { name: "dataSource", label: "Data source", type: "text", required: true },
+          { name: "methodology", type: "textarea", required: true },
+        ],
+      },
+    ],
+  },
+  { slug: "callout", labels: { singular: "Callout box", plural: "Callout boxes" }, fields: [{ name: "title", type: "text", required: true }, { name: "text", type: "textarea", required: true }] },
 ];
 
 /** INSIGHT — research articles (content/insights/types.ts → Insight). Categories are fixed. */
@@ -58,7 +134,7 @@ export const Insights = governed({
   slug: "insights",
   singular: "Insight",
   plural: "Insights",
-  group: "Research",
+  group: "Insights & Research",
   useAsTitle: "title",
   defaultColumns: ["title", "category", "workflowStatus", "contentClass", "updatedAt"],
   separation: false,
@@ -69,15 +145,15 @@ export const Insights = governed({
         {
           label: "Article",
           fields: [
-            keyField("slug", "Slug", "URL segment under /insights/. Changing it changes the public URL."),
+            keyField("slug", "Web address (slug)", "URL segment under /insights/. Changing it changes the public URL."),
             { name: "title", type: "text", required: true },
             { name: "subtitle", type: "text", required: true },
             { name: "category", type: "select", required: true, options: insightCategoryOptions },
             { name: "date", label: "Edition date", type: "date", required: true },
             { name: "summary", type: "textarea", required: true },
             lines("executiveSummary", "Executive summary", { textarea: true }),
-            lines("keyTakeaways", "Key takeaways", { textarea: true }),
-            { name: "body", type: "blocks", blocks },
+            lines("keyTakeaways", "Key takeaways (key observations)", { textarea: true }),
+            { name: "body", label: "Article content", type: "blocks", blocks, labels: { singular: "Content section", plural: "Content sections" } },
             { name: "methodology", type: "textarea" },
           ],
         },

@@ -28,8 +28,8 @@ export type ContentClass = (typeof CONTENT_CLASSES)[number];
 
 export const CONTENT_CLASS_LABEL: Record<ContentClass, string> = {
   illustrative: "Illustrative",
-  management_review: "Management review",
-  approved_corporate: "Approved corporate content",
+  management_review: "Management Review",
+  approved_corporate: "Approved Corporate Content",
 };
 
 /** Names of every workflow/classification/audit field; everything else on a document is "content". */
@@ -63,14 +63,14 @@ export function workflowFields(opts: { separation: boolean; timeSensitive?: bool
   return [
     {
       name: "workflowStatus",
-      label: "Workflow status",
+      label: "Workflow",
       type: "select",
       required: true,
       defaultValue: "draft",
       index: true,
       options: [
         { label: "Draft", value: "draft" },
-        { label: "In review", value: "review" },
+        { label: "In Review", value: "review" },
         { label: "Approved", value: "approved" },
         { label: "Published", value: "published" },
         { label: "Archived", value: "archived" },
@@ -84,7 +84,7 @@ export function workflowFields(opts: { separation: boolean; timeSensitive?: bool
     },
     {
       name: "contentClass",
-      label: "Content classification",
+      label: "Classification",
       type: "select",
       required: true,
       defaultValue: "illustrative",
@@ -132,7 +132,7 @@ export function workflowFields(opts: { separation: boolean; timeSensitive?: bool
     },
     {
       name: "legacy",
-      label: "Migrated record (read-only)",
+      label: "Migrated record",
       type: "group",
       admin: {
         position: "sidebar",
