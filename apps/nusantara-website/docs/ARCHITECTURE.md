@@ -146,23 +146,17 @@ missing pages.
 ## 6. CMS readiness
 
 The repository is the seam. Every function in
-`src/lib/content/repository.ts` is already async and returns the model types,
-and every publication rule is applied there. Migrating to a headless CMS:
+`src/lib/content/repository.ts` is async and returns the model types, and
+every publication rule is applied there. The raw content comes from the
+configured source (`src/lib/content/source.ts`):
 
-1. Create CMS content types mirroring the models above (Market View, Market
-   State edition + dimension, Signal, Theme, Insight, Capability, Product,
-   Governance Content, Corporate Content). Workflow states map 1:1 to
-   `PublicationStatus`; references map to ids/slugs.
-2. Replace the loaders at the top of `repository.ts` (imports from
-   `content/…`) with CMS queries returning the same shapes. Rich article
-   bodies map to the typed `Block` union (heading, paragraph, list, layer,
-   table, comparison, chart, scenario, callout).
-3. Keep `contentProblems()` as the publish-time validator (CMS webhook or build).
-4. On publish, call `revalidatePath()` / `revalidateTag()` from a webhook
-   route so pages update without a deploy.
+- `CONTENT_SOURCE=local` (default): the typed files in `src/content`;
+- `CONTENT_SOURCE=cms`: the Admin Portal (Payload CMS), via
+  `src/lib/content/cms-source.ts`, mapped to the same types.
 
-No page or presentation component changes. A paid CMS is not selected;
-see `MANAGEMENT_DECISIONS.md`.
+The Admin Portal (Phase B0) is described in `ADMIN_PORTAL.md`. Still to do in
+later phases: content migration, routing legal pages and corporate copy
+through the repository, and on-publish revalidation.
 
 ## 7. Search
 

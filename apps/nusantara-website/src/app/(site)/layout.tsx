@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata, ResolvingMetadata, Viewport } from "next";
 import { IBM_Plex_Sans, Newsreader } from "next/font/google";
 import { Footer } from "@/components/layout/Footer";
 import { Navbar } from "@/components/layout/Navbar";
@@ -10,7 +10,7 @@ import { getInsights } from "@/lib/content/repository";
 import { renderTimestamp } from "@/lib/market/illustrative-time";
 import { getMarketSnapshot } from "@/lib/market/service";
 import { statusTitle } from "@/lib/market/status";
-import { site } from "@/lib/site";
+import { siteMetadata } from "./metadata";
 import "./globals.css";
 
 const newsreader = Newsreader({
@@ -28,26 +28,21 @@ const plex = IBM_Plex_Sans({
   weight: ["400", "500", "600"],
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(site.url),
-  title: {
-    default: `${site.name} — Investing with Perspective`,
-    template: `%s | ${site.name}`,
-  },
-  description: site.description,
-  applicationName: site.name,
-  alternates: { canonical: "/" },
-  openGraph: {
-    type: "website",
-    siteName: site.name,
-    title: `${site.name} — Investing with Perspective`,
-    description: site.description,
-    locale: "en_GB",
-  },
-  twitter: { card: "summary_large_image" },
-  // Indexing follows the environment; production only once management decides (src/lib/config.ts).
-  robots: config.indexing === "allow" ? { index: true, follow: true } : { index: false, follow: false },
-};
+/**
+ * The site's share image is the code-controlled file app/opengraph-image.jpg.
+ * It sits at the app root (outside this route group) so its public URL stays
+ * /opengraph-image.jpg; Next.js resolves it on the parent segment, so it is
+ * carried into this layout's openGraph here.
+ */
+export async function generateMetadata(_: unknown, parent: ResolvingMetadata): Promise<Metadata> {
+  // Re-expressed as site-relative URLs so this layout's metadataBase applies, as before.
+  const images = ((await parent).openGraph?.images ?? []).map((i) => {
+    const image = typeof i === "string" ? { url: i } : i;
+    const u = new URL(String(image.url));
+    return { ...image, url: u.pathname + u.search };
+  });
+  return { ...siteMetadata, openGraph: { ...siteMetadata.openGraph, ...(images.length ? { images } : {}) } };
+}
 
 export const viewport: Viewport = {
   themeColor: "#12384a",

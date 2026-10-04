@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Admin Portal: local development uploads (production media lives in S3)
+/media
+
+# Parity check output (scripts/parity)
+/parity-out
