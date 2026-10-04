@@ -84,6 +84,8 @@ async function headers() {
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Lets a second build (e.g. the CMS-source parity build) sit beside the default .next.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   headers,
   // Two root layouts (public site, Admin Portal): unmatched URLs use app/global-not-found.tsx.
   experimental: { globalNotFound: true },

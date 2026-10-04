@@ -10,6 +10,7 @@ export const MarketStateEditions = governed({
   group: "Nusantara interpretation",
   useAsTitle: "edition",
   separation: true,
+  timeSensitive: true,
   description: "House interpretation, published as a whole edition. Editor/Approver separation applies.",
   fields: [
     keyField("key", "Edition id", "e.g. “market-state-2026-10”."),
@@ -36,8 +37,9 @@ export const MarketStateEditions = governed({
         { name: "summary", type: "textarea", required: true },
         lines("watchItems", "Watch items"),
         { name: "changeConditions", label: "What would change this", type: "textarea", required: true },
-        { name: "supportingMarkets", dbName: "markets", type: "select", hasMany: true, options: instrumentOptions },
+        { name: "supportingMarkets", dbName: "ms_dim_markets", enumName: "enum_ms_dim_markets", type: "select", hasMany: true, options: instrumentOptions },
         { name: "relatedInsight", type: "relationship", relationTo: "insights" },
+        { name: "capabilities", label: "Related capabilities", type: "relationship", relationTo: "capabilities", hasMany: true },
         { name: "dimensionUpdatedAt", label: "Dimension updated", type: "date" },
         {
           name: "dimensionStatus",

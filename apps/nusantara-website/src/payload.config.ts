@@ -49,8 +49,15 @@ export default buildConfig({
     avatar: "default",
     importMap: { baseDir: path.resolve(dirname) },
     meta: {
-      titleSuffix: " · Nusantara Admin Portal",
+      titleSuffix: " · Nusantara Administration",
       robots: "noindex, nofollow",
+      icons: [{ rel: "icon", type: "image/png", url: "/icon.png" }],
+    },
+    theme: "light",
+    components: {
+      graphics: { Logo: "/cms/admin/Branding#Logo", Icon: "/cms/admin/Branding#Icon" },
+      afterLogin: ["/cms/admin/Branding#LoginHelp"],
+      beforeDashboard: ["/cms/admin/EditorialDashboard#EditorialDashboard"],
     },
     dateFormat: "d MMM yyyy, HH:mm",
   },

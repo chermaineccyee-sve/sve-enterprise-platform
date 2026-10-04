@@ -9,6 +9,7 @@ export const Signals = governed({
   group: "Nusantara interpretation",
   useAsTitle: "headline",
   separation: false,
+  timeSensitive: true,
   fields: [
     keyField("key", "Signal id", "Stable id."),
     { name: "date", type: "date", required: true },

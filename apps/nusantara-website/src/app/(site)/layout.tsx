@@ -7,6 +7,8 @@ import { MarketTimeProvider } from "@/components/market/MarketTime";
 import { MotionProvider } from "@/components/motion/MotionProvider";
 import { config } from "@/lib/config";
 import { getInsights } from "@/lib/content/repository";
+import { getPreviewTarget } from "@/lib/content/preview-session";
+import { PreviewBanner } from "@/components/preview/PreviewBanner";
 import { renderTimestamp } from "@/lib/market/illustrative-time";
 import { getMarketSnapshot } from "@/lib/market/service";
 import { statusTitle } from "@/lib/market/status";
@@ -49,7 +51,7 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [{ provenance }, insights] = await Promise.all([getMarketSnapshot(), getInsights()]);
+  const [{ provenance }, insights, preview] = await Promise.all([getMarketSnapshot(), getInsights(), getPreviewTarget()]);
   const scenario = insights.find((i) => i.body.some((b) => b.type === "scenario"));
   const scenarioHref = scenario ? `/insights/${scenario.slug}#scenario` : null;
   const dataLabel = provenance.status === "unavailable" ? "Data unavailable" : `${statusTitle(provenance)} data`;
@@ -63,6 +65,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         />
       </head>
       <body className="min-h-screen">
+        {preview && <PreviewBanner />}
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:bg-teal-800 focus:px-4 focus:py-3 focus:text-white"

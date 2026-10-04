@@ -3,8 +3,8 @@
  *
  * Relationships are declared once, as data, on whichever record owns them:
  *
- *   Nusantara View      → subject market / asset class / indicator, related markets, related insight
- *   Market State dim.   → supporting markets, related insight
+ *   Nusantara View      → subject market / asset class / indicator, related markets, related insight, capabilities
+ *   Market State dim.   → supporting markets, related insight, capabilities
  *   Insight             → markets, themes, capabilities, Market State dimensions, related research
  *   Theme               → insights, markets, indicators
  *   Capability          → markets, indicators, insights, risks
@@ -77,6 +77,10 @@ export function buildContentGraph(input: GraphInput) {
   const capInsights: Edges = new Map();
   const insightThemes: Edges = new Map();
   const themeInsights: Edges = new Map();
+  const dimCaps: Edges = new Map();
+  const capDims: Edges = new Map();
+  const capSlugs = new Set(capabilities.map((c) => c.slug));
+  const keepCap = (s: string) => capSlugs.has(s);
 
   for (const i of insights) {
     for (const m of i.markets ?? []) if (instrumentIds.has(m)) link(insightMarkets, marketInsights, i.slug, m);
@@ -89,10 +93,13 @@ export function buildContentGraph(input: GraphInput) {
     if (keepInsight(v.relatedInsight)) add(marketInsights, v.subject.id, v.relatedInsight);
     // Dimensions a view reads into come first; supporting-market links follow.
     for (const d of v.marketStateDimensions ?? []) add(marketDims, v.subject.id, d);
+    // Capabilities declared on the view come first; capabilities that list the market follow.
+    for (const c of v.capabilities ?? []) if (keepCap(c)) add(marketCaps, v.subject.id, c);
   }
   for (const d of marketState?.dimensions ?? []) {
     for (const m of d.supportingMarkets) add(marketDims, m, d.id);
     if (keepInsight(d.relatedInsight)) link(dimInsights, insightDims, d.id, d.relatedInsight);
+    for (const c of d.capabilities ?? []) if (keepCap(c)) link(dimCaps, capDims, d.id, c);
   }
   for (const t of themes) for (const s of t.insights) if (keepInsight(s)) link(themeInsights, insightThemes, t.id, s);
   for (const c of capabilities) {
@@ -132,6 +139,8 @@ export function buildContentGraph(input: GraphInput) {
     dimensionsForInsight: (slug: string) => list(insightDims, slug),
     insightsForTheme: (id: string) => list(themeInsights, id),
     insightsForDimension: (id: string) => list(dimInsights, id),
+    capabilitiesForDimension: (id: string) => list(dimCaps, id),
+    dimensionsForCapability: (slug: string) => list(capDims, slug),
     insightsForCapability(slug: string): string[] {
       const declared = capabilities.find((c) => c.slug === slug)?.insights.filter(keepInsight) ?? [];
       return [...new Set([...declared, ...list(capInsights, slug)])];

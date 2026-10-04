@@ -46,3 +46,6 @@ next-env.d.ts
 
 # Parity check output (scripts/parity)
 /parity-out
+
+# Secondary build directories (scripts/parity)
+/.next-*/

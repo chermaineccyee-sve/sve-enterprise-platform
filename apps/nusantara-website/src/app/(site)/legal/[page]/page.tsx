@@ -5,7 +5,10 @@ import { PageHero } from "@/components/ui/PageHero";
 import { ReviewPlaceholder } from "@/components/ui/ReviewPlaceholder";
 import { getLegalPage, LEGAL_PAGES } from "@/content/legal";
 
-export const dynamicParams = false;
+// Pre-rendered at build; unknown slugs are a 404 via notFound() below. Rendering on demand
+// is allowed so a page can be regenerated after Admin Portal content is published (the
+// site layout reads CMS content); with dynamicParams=false Next.js cannot regenerate it.
+export const dynamicParams = true;
 
 export function generateStaticParams() {
   return LEGAL_PAGES.map((p) => ({ page: p.slug }));

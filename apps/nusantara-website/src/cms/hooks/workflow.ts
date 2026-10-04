@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { APIError, type CollectionBeforeChangeHook, type PayloadRequest } from "payload";
+import { APIError, type CollectionBeforeChangeHook, type CollectionBeforeOperationHook, type PayloadRequest } from "payload";
 import { canApprove, hasRole, roleOf } from "../access/roles";
 import { WORKFLOW_FIELD_NAMES, type ContentClass, type WorkflowStatus } from "../fields/workflow";
 
@@ -79,6 +79,8 @@ export type WorkflowEvent = {
   to: WorkflowStatus;
   published: boolean;
   contentChanged: boolean;
+  restored?: boolean;
+  unpublished?: boolean;
   classification?: { from: ContentClass | null; to: ContentClass };
 };
 
@@ -87,7 +89,7 @@ const displayName = (req: PayloadRequest) => {
   return (u?.name && u.name.trim()) || u?.email || "Unknown user";
 };
 
-export function workflowBeforeChange(opts: { separation: boolean }): CollectionBeforeChangeHook {
+export function workflowBeforeChange(opts: { separation: boolean; timeSensitive?: boolean }): CollectionBeforeChangeHook {
   return ({ data, originalDoc, operation, req, context }) => {
     const d = data as Doc;
     const orig = (originalDoc ?? {}) as Doc;
@@ -108,11 +110,16 @@ export function workflowBeforeChange(opts: { separation: boolean }): CollectionB
     }
 
     const prev: WorkflowStatus = operation === "create" ? "draft" : (orig.workflowStatus ?? "draft");
+    // Restoring an earlier version always produces a new Draft working copy
+    // (restores run as drafts — see restoreAsDraft below); it never publishes.
+    const restoring = context.restoring === true;
+    const unpublishing = context.unpublishing === true;
+    if (restoring || unpublishing) d.workflowStatus = "draft";
     let next: WorkflowStatus = d.workflowStatus ?? prev;
-    const publishing = d._status === "published";
+    const publishing = !restoring && d._status === "published";
     const merged: Doc = { ...orig, ...d };
     const hash = contentHash(merged);
-    const contentChanged = operation === "create" || hash !== contentHash(orig);
+    const contentChanged = operation === "create" || restoring || hash !== contentHash(orig);
     const actors = [orig.createdBy, orig.submittedBy, orig.lastEditedBy].map(idOf);
     const ownWork = operation === "create" || contentChanged || actors.includes(me);
 
@@ -135,7 +142,8 @@ export function workflowBeforeChange(opts: { separation: boolean }): CollectionB
     if (next === "archived" && prev !== "archived" && !canApprove(req)) throw forbid("Only a Reviewer or Admin may archive.");
 
     /* Submit --------------------------------------------------------- */
-    if (next === "review" && prev !== "review") {
+    // A content change saved as In review is a (re)submission by whoever made it.
+    if (next === "review" && (prev !== "review" || contentChanged)) {
       d.submittedBy = req.user.id;
       d.submittedAt = now;
     }
@@ -171,6 +179,10 @@ export function workflowBeforeChange(opts: { separation: boolean }): CollectionB
         else if (contentChanged) recordApproval();
         next = "published";
       }
+      if (next === "published" && opts.timeSensitive) {
+        const reviewAt = merged.reviewAt ? Date.parse(String(merged.reviewAt)) : NaN;
+        if (!(reviewAt > Date.now())) throw forbid("Set a future “Re-review by” date before publishing time-sensitive interpretation (it must be part of the approved content).");
+      }
       if (next === "published" && !d.publishedAt) d.publishedAt = now;
     }
 
@@ -191,15 +203,52 @@ export function workflowBeforeChange(opts: { separation: boolean }): CollectionB
 
     /* Authorship ----------------------------------------------------- */
     if (operation === "create") d.createdBy = req.user.id;
-    if (contentChanged) d.lastEditedBy = req.user.id;
+    if (contentChanged) {
+      d.lastEditedBy = req.user.id;
+      d.revisedAt = now;
+    }
     if (next === "draft" && contentChanged && operation === "update") {
       // A new working copy needs a new approval.
       d.approvedContentHash = null;
     }
 
     d.workflowStatus = next;
-    const event: WorkflowEvent = { from: prev, to: next, published: publishing, contentChanged, ...(toClass !== fromClass && operation === "update" ? { classification: { from: fromClass, to: toClass } } : {}) };
+    const event: WorkflowEvent = { from: prev, to: next, published: publishing, unpublished: unpublishing, contentChanged, restored: restoring, ...(toClass !== fromClass && operation === "update" ? { classification: { from: fromClass, to: toClass } } : {}) };
     context.workflowEvent = event;
     return d;
   };
 }
+
+/**
+ * Restores always create a Draft working copy, for every governed collection:
+ * the restored content then goes through review (and, for Nusantara Views and
+ * the Market State, separate approval) before it can be published. A
+ * non-draft restore would overwrite — or unpublish — the live version, so it
+ * is refused. The Admin Portal's API route (app/(payload)/api/cms) requests
+ * every restore as a draft, so the restore buttons work as expected.
+ */
+export const restoreAsDraft: CollectionBeforeOperationHook = ({ operation, args, req }) => {
+  if (operation !== "restoreVersion") return args;
+  if (req.user && (args as { draft?: boolean }).draft !== true) throw forbid("Versions are restored as a Draft working copy, which then goes through review.");
+  req.context.restoring = true;
+  return args;
+};
+
+/**
+ * The live version can only change through an explicit Publish (validated by
+ * the workflow rules) or an Unpublish by a Reviewer/Admin. Any other signed-in
+ * save — e.g. an API request without the draft flag — is turned into a draft
+ * save, so it can never overwrite live content.
+ */
+export const guardLiveWrites: CollectionBeforeOperationHook = ({ operation, args, req }) => {
+  if (operation !== "update" || !req.user) return args;
+  const a = args as { draft?: boolean; data?: { _status?: string } };
+  if (a.data?._status === "published") return args;
+  if (a.draft) return args;
+  if (a.data?._status === "draft") {
+    if (!canApprove(req)) throw forbid("Only a Reviewer or Admin may unpublish (withdraw) live content.");
+    req.context.unpublishing = true;
+    return args;
+  }
+  return { ...args, draft: true };
+};

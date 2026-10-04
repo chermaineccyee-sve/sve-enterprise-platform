@@ -15,7 +15,7 @@ export const AuditLog: CollectionConfig = {
       type: "select",
       required: true,
       index: true,
-      options: ["create", "edit", "submit", "approve", "publish", "archive", "classify", "delete", "user"],
+      options: ["create", "edit", "submit", "approve", "publish", "archive", "classify", "restore", "delete", "user"],
     },
     { name: "collection", type: "text", required: true, index: true },
     { name: "documentId", type: "text", required: true, index: true },

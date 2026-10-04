@@ -10,7 +10,7 @@ import type { WorkflowEvent } from "./workflow";
  * the full before/after content.
  */
 
-type Action = "create" | "edit" | "submit" | "approve" | "publish" | "archive" | "classify" | "delete" | "user";
+type Action = "create" | "edit" | "submit" | "approve" | "publish" | "archive" | "classify" | "restore" | "delete" | "user";
 
 async function write(req: PayloadRequest, entry: { action: Action; collection: string; documentId: string; title?: string; summary: string }) {
   const u = req.user as { id: number; email?: string } | null;
@@ -28,10 +28,12 @@ export const auditAfterChange: CollectionAfterChangeHook = async ({ doc, operati
   const ev = context.workflowEvent as WorkflowEvent | undefined;
   const base = { collection: collection.slug, documentId: String(doc.id), title: titleOf(doc) };
   if (operation === "create") await write(req, { ...base, action: "create", summary: `Created (${ev?.to ?? doc.workflowStatus ?? "draft"})` });
+  else if (ev?.unpublished) await write(req, { ...base, action: "archive", summary: "Unpublished — withdrawn from the live site" });
+  else if (ev?.restored) await write(req, { ...base, action: "restore", summary: "Restored an earlier version as a Draft working copy (live version unchanged)" });
   else if (ev && ev.published && ev.to === "archived") await write(req, { ...base, action: "archive", summary: "Archived and withdrawn from the live site" });
   else if (ev && ev.published) await write(req, { ...base, action: "publish", summary: `Published${ev.contentChanged ? " with content changes" : ""}` });
   else if (ev && ev.to === "approved" && ev.from !== "approved") await write(req, { ...base, action: "approve", summary: "Approved" });
-  else if (ev && ev.to === "review" && ev.from !== "review") await write(req, { ...base, action: "submit", summary: "Submitted for review" });
+  else if (ev && ev.to === "review" && (ev.from !== "review" || ev.contentChanged)) await write(req, { ...base, action: "submit", summary: "Submitted for review" });
   else if (ev && ev.to === "archived" && ev.from !== "archived") await write(req, { ...base, action: "archive", summary: "Archived (working copy)" });
   else await write(req, { ...base, action: "edit", summary: ev ? `Saved (${ev.from} → ${ev.to})${ev.contentChanged ? ", content changed" : ""}` : "Saved" });
   if (ev?.classification) await write(req, { ...base, action: "classify", summary: `Classification ${ev.classification.from ?? "—"} → ${ev.classification.to}` });

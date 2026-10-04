@@ -49,6 +49,8 @@ export type NusantaraView = Publication & {
   theme: string | null;
   /** Market State dimensions this view reads into (ids), most relevant first. */
   marketStateDimensions?: string[];
+  /** Capability slugs this market relates to, in addition to capabilities that list the market. Instrument views only. */
+  capabilities?: string[];
 };
 
 /** One dimension of the Market State. */
@@ -64,6 +66,8 @@ export type MarketStateDimension = {
   supportingMarkets: string[];
   /** Insight slug. */
   relatedInsight: string | null;
+  /** Capability slugs related to this dimension. */
+  capabilities?: string[];
   updatedAt: string;
   status: Publication["status"];
 };

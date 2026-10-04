@@ -154,9 +154,11 @@ configured source (`src/lib/content/source.ts`):
 - `CONTENT_SOURCE=cms`: the Admin Portal (Payload CMS), via
   `src/lib/content/cms-source.ts`, mapped to the same types.
 
-The Admin Portal (Phase B0) is described in `ADMIN_PORTAL.md`. Still to do in
-later phases: content migration, routing legal pages and corporate copy
-through the repository, and on-publish revalidation.
+The Admin Portal is described in `ADMIN_PORTAL.md`. In B1A the editorial and
+intelligence content was imported, with preview (Draft Mode, per-request
+session check) and on-publish revalidation (tag per collection, live
+versions only). Still to come: routing legal pages and corporate copy
+through the repository (B1B).
 
 ## 7. Search
 

@@ -9,7 +9,8 @@ import { capabilityProblems, type CapabilityStatus, type Strategy } from "@/cont
 import { config } from "@/lib/config";
 import { INSTRUMENTS } from "@/lib/market/instruments";
 import { buildContentGraph } from "./relationships";
-import { LOCAL_CONTENT, loadRawContent, type RawContent } from "./source";
+import { getPreviewTarget } from "./preview-session";
+import { contentSource, LOCAL_CONTENT, loadRawContent, type ContentKind, type RawContent } from "./source";
 
 /**
  * CONTENT REPOSITORY — the only way pages obtain editorial content.
@@ -27,10 +28,19 @@ import { LOCAL_CONTENT, loadRawContent, type RawContent } from "./source";
  *  - capabilities appear only in an approved lifecycle state;
  *  - integrity problems (dangling references, published items without
  *    approval, active products without product details) fail the build.
+ *
+ * CMS source: the Admin Portal enforces the same rules when content is
+ * published, so the integrity check reports (never crashes the live site),
+ * and illustrative content may be published while staying sample content.
+ * In an authorised preview the previewed item is shown whatever its status.
  */
 
 const rules = { visibleStatuses: config.visibleStatuses, allowSampleContent: config.allowSampleContent };
-const visible = <T extends Publication | Omit<Publication, "author">>(items: T[]) => items.filter((i) => isVisible(i as Publication, rules));
+type Keyed = { slug?: string; id?: string };
+const keyOf = (i: Keyed) => String(i.slug ?? i.id);
+const isPreviewed = (raw: RawContent, kind: ContentKind, item: Keyed) => !!raw.preview && raw.preview.kind === kind && raw.preview.key === keyOf(item);
+const visible = <T extends (Publication | Omit<Publication, "author">) & Keyed>(raw: RawContent, kind: ContentKind, items: T[]) =>
+  items.filter((i) => isVisible(i as Publication, rules) || isPreviewed(raw, kind, i));
 
 const CAPABILITY_VISIBLE: Record<typeof config.environment, CapabilityStatus[]> = {
   review: ["review", "public-capability", "active-product"],
@@ -68,12 +78,14 @@ export function contentProblems(raw: RawContent = LOCAL_CONTENT): string[] {
     ref(`view ${v.id}`, "instrument", instruments, v.relatedMarkets);
     ref(`view ${v.id}`, "insight", slugs, [v.relatedInsight]);
     ref(`view ${v.id}`, "dimension", dims, v.marketStateDimensions ?? []);
+    ref(`view ${v.id}`, "capability", caps, v.capabilities ?? []);
   }
   for (const e of MARKET_STATE_EDITIONS) {
     out.push(...publicationProblems(`market state ${e.id}`, e, { timeSensitive: true }));
     for (const d of e.dimensions) {
       ref(`market state ${e.id}/${d.id}`, "instrument", instruments, d.supportingMarkets);
       ref(`market state ${e.id}/${d.id}`, "insight", slugs, [d.relatedInsight]);
+      ref(`market state ${e.id}/${d.id}`, "capability", caps, d.capabilities ?? []);
     }
   }
   for (const s of SIGNALS) {
@@ -100,7 +112,13 @@ export function contentProblems(raw: RawContent = LOCAL_CONTENT): string[] {
 
 /** Raw content from the configured source, integrity-checked once per request/build. */
 const content = cache(async (): Promise<RawContent> => {
-  const raw = await loadRawContent();
+  const raw = await loadRawContent(await getPreviewTarget());
+  if (contentSource === "cms") {
+    // Published illustrative content is allowed in the CMS: classification, not publication, keeps it sample.
+    const problems = contentProblems(raw).filter((p) => !p.endsWith("sample content cannot be published"));
+    if (problems.length) console.error(`Content integrity (CMS):\n  - ${problems.join("\n  - ")}`);
+    return raw;
+  }
   const problems = contentProblems(raw);
   if (problems.length) throw new Error(`Content integrity check failed:\n  - ${problems.join("\n  - ")}`);
   return raw;
@@ -111,7 +129,8 @@ const content = cache(async (): Promise<RawContent> => {
 /* ------------------------------------------------------------------ */
 
 export const getInsights = cache(async (): Promise<Insight[]> => {
-  return visible((await content()).insights);
+  const raw = await content();
+  return visible(raw, "insights", raw.insights);
 });
 
 export async function getInsight(slug: string): Promise<Insight | undefined> {
@@ -134,23 +153,28 @@ export { readingMinutes };
 /* ------------------------------------------------------------------ */
 
 export const getMarketViews = cache(async (): Promise<NusantaraView[]> => {
-  return visible((await content()).views);
+  const raw = await content();
+  return visible(raw, "views", raw.views);
 });
 
 /** The latest visible Market State edition, with only its visible dimensions. Null when none may be shown. */
 export const getMarketState = cache(async (): Promise<MarketStateEdition | null> => {
-  const edition = visible((await content()).marketStateEditions).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  const raw = await content();
+  const previewed = raw.marketStateEditions.find((e) => isPreviewed(raw, "marketStateEditions", e));
+  const edition = previewed ?? visible(raw, "marketStateEditions", raw.marketStateEditions).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   if (!edition) return null;
-  const dimensions = edition.dimensions.filter((d) => rules.visibleStatuses.includes(d.status));
+  const dimensions = edition.dimensions.filter((d) => rules.visibleStatuses.includes(d.status) || (edition === previewed && d.status !== "archived"));
   return dimensions.length ? { ...edition, dimensions } : null;
 });
 
 export async function getSignals(): Promise<Signal[]> {
-  return visible((await content()).signals).sort((a, b) => b.date.localeCompare(a.date));
+  const raw = await content();
+  return visible(raw, "signals", raw.signals).sort((a, b) => b.date.localeCompare(a.date));
 }
 
 export async function getThemes(): Promise<Theme[]> {
-  return visible((await content()).themes);
+  const raw = await content();
+  return visible(raw, "themes", raw.themes);
 }
 
 export async function getMonitoredMarkets() {
@@ -162,7 +186,8 @@ export async function getMonitoredMarkets() {
 /* ------------------------------------------------------------------ */
 
 export const getCapabilities = cache(async (): Promise<Strategy[]> => {
-  return (await content()).capabilities.filter((s) => CAPABILITY_VISIBLE[config.environment].includes(s.status));
+  const raw = await content();
+  return raw.capabilities.filter((s) => CAPABILITY_VISIBLE[config.environment].includes(s.status) || isPreviewed(raw, "capabilities", s));
 });
 
 export async function getCapability(slug: string): Promise<Strategy | undefined> {

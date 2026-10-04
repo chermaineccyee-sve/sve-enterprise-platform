@@ -1,8 +1,10 @@
-import type { CollectionConfig, Field } from "payload";
+import type { Access, CollectionBeforeChangeHook, CollectionConfig, Field, TextField } from "payload";
 import { adminsOnly, editors, signedIn } from "../access/roles";
 import { workflowFields } from "../fields/workflow";
 import { auditAfterChange, auditAfterDelete } from "../hooks/audit";
-import { workflowBeforeChange } from "../hooks/workflow";
+import { revalidateAfterChange, revalidateAfterDelete } from "../hooks/revalidate";
+import { guardLiveWrites, restoreAsDraft, workflowBeforeChange } from "../hooks/workflow";
+import { PREVIEWABLE, previewLink } from "../preview";
 
 /**
  * A governed editorial collection: version history with drafts (the live
@@ -27,6 +29,12 @@ export function governed(opts: {
   description?: string;
   /** Keep every version (legal pages) instead of the most recent 100. */
   keepAllVersions?: boolean;
+  /** Time-sensitive interpretation: publishing requires a future re-review date. */
+  timeSensitive?: boolean;
+  /** Extra beforeChange hooks, run before the workflow rules. */
+  beforeChange?: CollectionBeforeChangeHook[];
+  /** Override create access (e.g. capabilities: Admins only). */
+  create?: Access;
   fields: Field[];
 }): CollectionConfig {
   return {
@@ -38,26 +46,39 @@ export function governed(opts: {
       useAsTitle: opts.useAsTitle,
       defaultColumns: opts.defaultColumns ?? [opts.useAsTitle, "workflowStatus", "contentClass", "updatedAt"],
       description: opts.description,
+      ...((PREVIEWABLE as readonly string[]).includes(opts.slug) ? { preview: previewLink(opts.slug) } : {}),
     },
     access: {
       read: signedIn,
       readVersions: signedIn,
-      create: editors,
+      create: opts.create ?? editors,
       update: editors,
       delete: adminsOnly,
     },
     versions: { drafts: true, maxPerDoc: opts.keepAllVersions ? 0 : 100 },
     hooks: {
-      beforeChange: [workflowBeforeChange({ separation: opts.separation })],
-      afterChange: [auditAfterChange],
-      afterDelete: [auditAfterDelete],
+      beforeOperation: [restoreAsDraft, guardLiveWrites],
+      beforeChange: [...(opts.beforeChange ?? []), workflowBeforeChange({ separation: opts.separation, timeSensitive: opts.timeSensitive })],
+      afterChange: [auditAfterChange, revalidateAfterChange],
+      afterDelete: [auditAfterDelete, revalidateAfterDelete],
     },
-    fields: [...opts.fields, ...workflowFields({ separation: opts.separation })],
+    fields: [
+      ...opts.fields,
+      {
+        name: "displayOrder",
+        label: "Order in lists",
+        type: "number",
+        defaultValue: 1000,
+        index: true,
+        admin: { position: "sidebar", step: 10, description: "Lower numbers appear first where the website lists these items in a fixed order." },
+      },
+      ...workflowFields({ separation: opts.separation, timeSensitive: opts.timeSensitive }),
+    ],
   };
 }
 
 /** A unique, URL-safe identifier field. */
-export const keyField = (name: string, label: string, description: string): Field => ({
+export const keyField = (name: string, label: string, description: string, access?: TextField["access"]): TextField => ({
   name,
   label,
   type: "text",
@@ -66,6 +87,7 @@ export const keyField = (name: string, label: string, description: string): Fiel
   index: true,
   validate: (v: unknown) => (typeof v === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v) ? true : "Lower-case letters, numbers and single hyphens only."),
   admin: { description },
+  ...(access ? { access } : {}),
 });
 
 /** A list of plain-text lines (bullets, paragraphs). Stored as rows of { text }. */

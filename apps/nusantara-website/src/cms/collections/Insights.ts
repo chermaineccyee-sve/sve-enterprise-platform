@@ -1,5 +1,5 @@
 import type { Block, Field } from "payload";
-import { heroMotifOptions, indicatorOptions, insightCategoryOptions, instrumentOptions, layerOptions, marketStateDimensionOptions, researchAssetClassOptions } from "../taxonomy";
+import { heroMotifOptions, insightCategoryOptions, instrumentOptions, layerOptions, marketStateDimensionOptions, researchAssetClassOptions } from "../taxonomy";
 import { governed, keyField, lines } from "./governed";
 
 /**
@@ -112,7 +112,6 @@ export const Insights = governed({
             { name: "assetClasses", label: "Asset classes", type: "select", hasMany: true, options: researchAssetClassOptions },
             { name: "capabilities", type: "relationship", relationTo: "capabilities", hasMany: true },
             { name: "marketStateDimensions", label: "Market State dimensions", type: "select", hasMany: true, options: marketStateDimensionOptions },
-            { name: "indicators", type: "select", hasMany: true, options: indicatorOptions, admin: { description: "Optional structural indicators discussed." } },
           ],
         },
         {

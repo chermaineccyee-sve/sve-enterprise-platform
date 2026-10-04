@@ -134,10 +134,12 @@ if (SHOTS) {
         // height (same for both), allowed to settle, then captured.
         const fullHeight = Math.max(...(await Promise.all(pages.map((pg) => pg.evaluate(() => document.documentElement.scrollHeight)))));
         // Charts measure their axis labels once; whether the web font has swapped in by
-      // then is a race. A 1px width nudge makes every chart re-measure with the final font.
-      await Promise.all(pages.map((pg) => pg.setViewportSize({ width: viewport.width + 1, height: fullHeight })));
-      await pages[1].waitForTimeout(300);
-      await Promise.all(pages.map((pg) => pg.setViewportSize({ width: viewport.width, height: fullHeight })));
+        // then is a race. A 1px width nudge makes every chart re-measure with the final font.
+        await Promise.all(pages.map((pg) => pg.setViewportSize({ width: viewport.width + 1, height: fullHeight })));
+        await pages[1].waitForTimeout(300);
+        await Promise.all(pages.map((pg) => pg.setViewportSize({ width: viewport.width, height: fullHeight })));
+        // Scroll-driven UI (the article reading-progress bar) settles on an explicit scroll event.
+        await Promise.all(pages.map((pg) => pg.evaluate(() => window.dispatchEvent(new Event("scroll")))));
         await pages[1].waitForTimeout(1500);
         const capture = () => Promise.all(pages.map((pg) => pg.screenshot({ fullPage: true, animations: "disabled" })));
         let pngs = await capture();
@@ -162,8 +164,9 @@ if (SHOTS) {
           await ref2.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
           await ref2.evaluate(() => document.fonts.ready);
           await ref2.setViewportSize({ width: viewport.width + 1, height: fullHeight });
-        await ref2.waitForTimeout(300);
-        await ref2.setViewportSize({ width: viewport.width, height: fullHeight });
+          await ref2.waitForTimeout(300);
+          await ref2.setViewportSize({ width: viewport.width, height: fullHeight });
+          await ref2.evaluate(() => window.dispatchEvent(new Event("scroll")));
           await ref2.waitForTimeout(1500);
           controls.push((await ref2.screenshot({ fullPage: true, animations: "disabled" })).toString("base64"));
           await ref2.close();

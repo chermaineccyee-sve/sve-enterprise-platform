@@ -1,0 +1,51 @@
+/*
+ * Nusantara Administration — a restrained identity layer on Payload's admin.
+ * Payload's layout and controls are unchanged; only the logo, mark, a brand
+ * accent and the editorial dashboard are styled here.
+ */
+:root {
+  --nusantara-teal: #12384a;
+  --nusantara-gold: #b08d4c;
+  --nusantara-ivory: #f7f3ea;
+}
+
+.nusantara-admin-logo { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+.nusantara-admin-logo span { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--nusantara-teal); }
+.nusantara-admin-icon { display: block; object-fit: contain; mix-blend-mode: multiply; }
+.nusantara-admin-login-help { margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--theme-elevation-500); }
+
+/* Email password reset is not configured: the link is replaced by the note above. */
+form.login__form a[href$="/forgot"] { display: none; }
+
+.nusantara-admin-forgot { max-width: 32rem; margin: 6rem auto; padding: 0 1.5rem; }
+.nusantara-admin-forgot h1 { margin-bottom: 1rem; }
+
+
+/* Editorial dashboard */
+.nusantara-dashboard { margin: 0 0 2.5rem; }
+.nusantara-dashboard .nd-head h2 { margin: 0 0 0.25rem; }
+.nusantara-dashboard .nd-head p { margin: 0 0 1.25rem; color: var(--theme-elevation-600); }
+.nd-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
+.nd-count { border: 1px solid var(--theme-elevation-150); border-top: 3px solid var(--theme-elevation-300); padding: 0.75rem 1rem; background: var(--theme-elevation-0); }
+.nd-count strong { display: block; font-size: 1.75rem; line-height: 1.1; }
+.nd-count span { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--theme-elevation-600); }
+.nd-count.nd-status--review { border-top-color: var(--nusantara-gold); }
+.nd-count.nd-status--approved { border-top-color: #4b7f6b; }
+.nd-count.nd-status--published { border-top-color: var(--nusantara-teal); }
+.nd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1rem; }
+.nd-card { border: 1px solid var(--theme-elevation-150); padding: 1rem 1.25rem; background: var(--theme-elevation-0); }
+.nd-card h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.nd-card h4 { margin: 1rem 0 0.25rem; font-size: 0.9rem; }
+.nd-card ul { list-style: none; margin: 0; padding: 0; }
+.nd-card li { padding: 0.45rem 0; border-top: 1px solid var(--theme-elevation-100); display: flex; flex-direction: column; gap: 0.1rem; }
+.nd-card li a { font-weight: 600; text-decoration: none; }
+.nd-meta, .nd-note { font-size: 0.8rem; color: var(--theme-elevation-600); }
+.nd-note { margin: 0 0 0.5rem; }
+.nd-status { font-weight: 600; }
+.nd-status--review { color: #8a6a2c; }
+.nd-status--approved { color: #3e6b5a; }
+.nd-status--published { color: var(--nusantara-teal); }
+.nd-dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin: 0; font-size: 0.85rem; }
+.nd-dl dt { color: var(--theme-elevation-600); }
+.nd-dl dd { margin: 0; }
+.nd-card--readonly { background: var(--theme-elevation-50); }

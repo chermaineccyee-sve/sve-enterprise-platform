@@ -10,6 +10,7 @@ export const NusantaraViews = governed({
   useAsTitle: "key",
   defaultColumns: ["key", "signal", "workflowStatus", "contentClass", "updatedAt"],
   separation: true,
+  timeSensitive: true,
   description: "House interpretation. Editor/Approver separation applies: you cannot approve or publish your own submission.",
   fields: [
     keyField("key", "View id", "Stable id, e.g. “klci”. Matches the existing code-based view id."),
@@ -41,7 +42,15 @@ export const NusantaraViews = governed({
     { name: "whatWouldChangeOurView", label: "What would change our view", type: "textarea" },
     { name: "relatedMarkets", label: "Related markets", type: "select", hasMany: true, options: instrumentOptions },
     { name: "relatedInsight", label: "Related insight", type: "relationship", relationTo: "insights" },
-    { name: "theme", type: "relationship", relationTo: "themes" },
-    { name: "marketStateDimensions", label: "Market State dimensions", type: "select", hasMany: true, options: marketStateDimensionOptions },
+    { name: "theme", label: "Theme label", type: "text", admin: { description: "Short label shown with the view, e.g. “Resilience”." } },
+    { name: "marketStateDimensions", label: "Market State dimensions", type: "select", hasMany: true, options: marketStateDimensionOptions, admin: { description: "Dimensions this view reads into, most relevant first." } },
+    {
+      name: "capabilities",
+      label: "Related capabilities",
+      type: "relationship",
+      relationTo: "capabilities",
+      hasMany: true,
+      admin: { description: "Capabilities this market relates to (in addition to capabilities that list the market). Instrument views only." },
+    },
   ],
 });

@@ -398,34 +398,15 @@ export interface Insight {
     | null;
   capabilities?: (number | Capability)[] | null;
   marketStateDimensions?: ('growth' | 'rates' | 'liquidity' | 'risk' | 'currencies' | 'commodities')[] | null;
-  /**
-   * Optional structural indicators discussed.
-   */
-  indicators?:
-    | (
-        | 'am-assets'
-        | 'am-alt-share'
-        | 'pm-fundraising'
-        | 'pm-undeployed'
-        | 'pm-credit'
-        | 'alt-real-assets'
-        | 'alt-precious'
-        | 'cf-portfolio'
-        | 'cf-direct'
-        | 'pw-pool'
-        | 'pw-advised'
-        | 'fo-formation'
-        | 'inst-alts'
-        | 'macro-growth'
-        | 'macro-inflation'
-        | 'macro-policy'
-      )[]
-    | null;
   seo?: {
     title?: string | null;
     description?: string | null;
     image?: (number | null) | Media;
   };
+  /**
+   * Lower numbers appear first where the website lists these items in a fixed order.
+   */
+  displayOrder?: number | null;
   /**
    * Editors: Draft or In review. Reviewers/Admins may approve and publish.
    */
@@ -454,6 +435,10 @@ export interface Insight {
   approvedContentHash?: string | null;
   publishedAt?: string | null;
   /**
+   * Set automatically when content changes. Shown on the website as the update date.
+   */
+  revisedAt?: string | null;
+  /**
    * Preserved verbatim from the code-based content during migration. Never used to infer approval.
    */
   legacy?: {
@@ -461,6 +446,7 @@ export interface Insight {
     status?: ('draft' | 'review' | 'approved' | 'published' | 'archived') | null;
     sample?: boolean | null;
     updatedAt?: string | null;
+    importHash?: string | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -531,6 +517,10 @@ export interface Theme {
       )[]
     | null;
   /**
+   * Lower numbers appear first where the website lists these items in a fixed order.
+   */
+  displayOrder?: number | null;
+  /**
    * Editors: Draft or In review. Reviewers/Admins may approve and publish.
    */
   workflowStatus: 'draft' | 'review' | 'approved' | 'published' | 'archived';
@@ -558,6 +548,10 @@ export interface Theme {
   approvedContentHash?: string | null;
   publishedAt?: string | null;
   /**
+   * Set automatically when content changes. Shown on the website as the update date.
+   */
+  revisedAt?: string | null;
+  /**
    * Preserved verbatim from the code-based content during migration. Never used to infer approval.
    */
   legacy?: {
@@ -565,6 +559,7 @@ export interface Theme {
     status?: ('draft' | 'review' | 'approved' | 'published' | 'archived') | null;
     sample?: boolean | null;
     updatedAt?: string | null;
+    importHash?: string | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -602,17 +597,25 @@ export interface User {
   collection: 'users';
 }
 /**
+ * Descriptive capability content and relationships. New capabilities: Admins only. Investment products cannot be created here.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "capabilities".
  */
 export interface Capability {
   id: number;
   /**
-   * URL segment under /strategies/. Changing it changes the public URL.
+   * URL segment under /strategies/. Set by an Admin; changing it changes the public URL.
    */
   slug: string;
   name: string;
+  /**
+   * Governance lifecycle (Reviewers/Admins). “active-product” cannot be set here.
+   */
   capabilityStatus: 'internal' | 'review' | 'public-capability' | 'active-product' | 'archived';
+  /**
+   * Public stage (Reviewers/Admins). “Active” cannot be set here.
+   */
   stage: 'capability' | 'under-review' | 'strategy' | 'active' | 'future-development';
   summary: string;
   overview: string;
@@ -696,6 +699,10 @@ export interface Capability {
     | null;
   insights?: (number | Insight)[] | null;
   /**
+   * Lower numbers appear first where the website lists these items in a fixed order.
+   */
+  displayOrder?: number | null;
+  /**
    * Editors: Draft or In review. Reviewers/Admins may approve and publish.
    */
   workflowStatus: 'draft' | 'review' | 'approved' | 'published' | 'archived';
@@ -723,6 +730,10 @@ export interface Capability {
   approvedContentHash?: string | null;
   publishedAt?: string | null;
   /**
+   * Set automatically when content changes. Shown on the website as the update date.
+   */
+  revisedAt?: string | null;
+  /**
    * Preserved verbatim from the code-based content during migration. Never used to infer approval.
    */
   legacy?: {
@@ -730,6 +741,7 @@ export interface Capability {
     status?: ('draft' | 'review' | 'approved' | 'published' | 'archived') | null;
     sample?: boolean | null;
     updatedAt?: string | null;
+    importHash?: string | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -895,8 +907,22 @@ export interface NusantaraView {
       )[]
     | null;
   relatedInsight?: (number | null) | Insight;
-  theme?: (number | null) | Theme;
+  /**
+   * Short label shown with the view, e.g. “Resilience”.
+   */
+  theme?: string | null;
+  /**
+   * Dimensions this view reads into, most relevant first.
+   */
   marketStateDimensions?: ('growth' | 'rates' | 'liquidity' | 'risk' | 'currencies' | 'commodities')[] | null;
+  /**
+   * Capabilities this market relates to (in addition to capabilities that list the market). Instrument views only.
+   */
+  capabilities?: (number | Capability)[] | null;
+  /**
+   * Lower numbers appear first where the website lists these items in a fixed order.
+   */
+  displayOrder?: number | null;
   /**
    * Editors: Draft or In review. A different Reviewer/Admin approves (no content changes in the same save), then publishes. You cannot approve or publish your own submission.
    */
@@ -912,7 +938,7 @@ export interface NusantaraView {
    */
   author?: string | null;
   /**
-   * After this date the item is withdrawn from the public site until re-reviewed.
+   * Required to publish: a future date. After it the item is withdrawn from the public site until re-reviewed.
    */
   reviewAt?: string | null;
   createdBy?: (number | null) | User;
@@ -925,6 +951,10 @@ export interface NusantaraView {
   approvedContentHash?: string | null;
   publishedAt?: string | null;
   /**
+   * Set automatically when content changes. Shown on the website as the update date.
+   */
+  revisedAt?: string | null;
+  /**
    * Preserved verbatim from the code-based content during migration. Never used to infer approval.
    */
   legacy?: {
@@ -932,6 +962,7 @@ export interface NusantaraView {
     status?: ('draft' | 'review' | 'approved' | 'published' | 'archived') | null;
     sample?: boolean | null;
     updatedAt?: string | null;
+    importHash?: string | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -1011,6 +1042,7 @@ export interface MarketStateEdition {
             )[]
           | null;
         relatedInsight?: (number | null) | Insight;
+        capabilities?: (number | Capability)[] | null;
         dimensionUpdatedAt?: string | null;
         /**
          * Per-dimension status, preserved from the existing model.
@@ -1019,6 +1051,10 @@ export interface MarketStateEdition {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Lower numbers appear first where the website lists these items in a fixed order.
+   */
+  displayOrder?: number | null;
   /**
    * Editors: Draft or In review. A different Reviewer/Admin approves (no content changes in the same save), then publishes. You cannot approve or publish your own submission.
    */
@@ -1034,7 +1070,7 @@ export interface MarketStateEdition {
    */
   author?: string | null;
   /**
-   * After this date the item is withdrawn from the public site until re-reviewed.
+   * Required to publish: a future date. After it the item is withdrawn from the public site until re-reviewed.
    */
   reviewAt?: string | null;
   createdBy?: (number | null) | User;
@@ -1047,6 +1083,10 @@ export interface MarketStateEdition {
   approvedContentHash?: string | null;
   publishedAt?: string | null;
   /**
+   * Set automatically when content changes. Shown on the website as the update date.
+   */
+  revisedAt?: string | null;
+  /**
    * Preserved verbatim from the code-based content during migration. Never used to infer approval.
    */
   legacy?: {
@@ -1054,6 +1094,7 @@ export interface MarketStateEdition {
     status?: ('draft' | 'review' | 'approved' | 'published' | 'archived') | null;
     sample?: boolean | null;
     updatedAt?: string | null;
+    importHash?: string | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -1106,6 +1147,10 @@ export interface Signal {
     | null;
   insight?: (number | null) | Insight;
   /**
+   * Lower numbers appear first where the website lists these items in a fixed order.
+   */
+  displayOrder?: number | null;
+  /**
    * Editors: Draft or In review. Reviewers/Admins may approve and publish.
    */
   workflowStatus: 'draft' | 'review' | 'approved' | 'published' | 'archived';
@@ -1120,7 +1165,7 @@ export interface Signal {
    */
   author?: string | null;
   /**
-   * After this date the item is withdrawn from the public site until re-reviewed.
+   * Required to publish: a future date. After it the item is withdrawn from the public site until re-reviewed.
    */
   reviewAt?: string | null;
   createdBy?: (number | null) | User;
@@ -1133,6 +1178,10 @@ export interface Signal {
   approvedContentHash?: string | null;
   publishedAt?: string | null;
   /**
+   * Set automatically when content changes. Shown on the website as the update date.
+   */
+  revisedAt?: string | null;
+  /**
    * Preserved verbatim from the code-based content during migration. Never used to infer approval.
    */
   legacy?: {
@@ -1140,6 +1189,7 @@ export interface Signal {
     status?: ('draft' | 'review' | 'approved' | 'published' | 'archived') | null;
     sample?: boolean | null;
     updatedAt?: string | null;
+    importHash?: string | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -1184,6 +1234,10 @@ export interface LegalPage {
     legalReviewNotes?: string | null;
   };
   /**
+   * Lower numbers appear first where the website lists these items in a fixed order.
+   */
+  displayOrder?: number | null;
+  /**
    * Editors: Draft or In review. Reviewers/Admins may approve and publish.
    */
   workflowStatus: 'draft' | 'review' | 'approved' | 'published' | 'archived';
@@ -1211,6 +1265,10 @@ export interface LegalPage {
   approvedContentHash?: string | null;
   publishedAt?: string | null;
   /**
+   * Set automatically when content changes. Shown on the website as the update date.
+   */
+  revisedAt?: string | null;
+  /**
    * Preserved verbatim from the code-based content during migration. Never used to infer approval.
    */
   legacy?: {
@@ -1218,6 +1276,7 @@ export interface LegalPage {
     status?: ('draft' | 'review' | 'approved' | 'published' | 'archived') | null;
     sample?: boolean | null;
     updatedAt?: string | null;
+    importHash?: string | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -1230,7 +1289,7 @@ export interface LegalPage {
 export interface AuditLog {
   id: number;
   at: string;
-  action: 'create' | 'edit' | 'submit' | 'approve' | 'publish' | 'archive' | 'classify' | 'delete' | 'user';
+  action: 'create' | 'edit' | 'submit' | 'approve' | 'publish' | 'archive' | 'classify' | 'restore' | 'delete' | 'user';
   collection: string;
   documentId: string;
   title?: string | null;
@@ -1493,7 +1552,6 @@ export interface InsightsSelect<T extends boolean = true> {
   assetClasses?: T;
   capabilities?: T;
   marketStateDimensions?: T;
-  indicators?: T;
   seo?:
     | T
     | {
@@ -1501,6 +1559,7 @@ export interface InsightsSelect<T extends boolean = true> {
         description?: T;
         image?: T;
       };
+  displayOrder?: T;
   workflowStatus?: T;
   contentClass?: T;
   classificationConfirmedBy?: T;
@@ -1516,6 +1575,7 @@ export interface InsightsSelect<T extends boolean = true> {
   approvedAt?: T;
   approvedContentHash?: T;
   publishedAt?: T;
+  revisedAt?: T;
   legacy?:
     | T
     | {
@@ -1523,6 +1583,7 @@ export interface InsightsSelect<T extends boolean = true> {
         status?: T;
         sample?: T;
         updatedAt?: T;
+        importHash?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -1568,6 +1629,8 @@ export interface NusantaraViewsSelect<T extends boolean = true> {
   relatedInsight?: T;
   theme?: T;
   marketStateDimensions?: T;
+  capabilities?: T;
+  displayOrder?: T;
   workflowStatus?: T;
   contentClass?: T;
   classificationConfirmedBy?: T;
@@ -1583,6 +1646,7 @@ export interface NusantaraViewsSelect<T extends boolean = true> {
   approvedAt?: T;
   approvedContentHash?: T;
   publishedAt?: T;
+  revisedAt?: T;
   legacy?:
     | T
     | {
@@ -1590,6 +1654,7 @@ export interface NusantaraViewsSelect<T extends boolean = true> {
         status?: T;
         sample?: T;
         updatedAt?: T;
+        importHash?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -1635,10 +1700,12 @@ export interface MarketStateEditionsSelect<T extends boolean = true> {
         changeConditions?: T;
         supportingMarkets?: T;
         relatedInsight?: T;
+        capabilities?: T;
         dimensionUpdatedAt?: T;
         dimensionStatus?: T;
         id?: T;
       };
+  displayOrder?: T;
   workflowStatus?: T;
   contentClass?: T;
   classificationConfirmedBy?: T;
@@ -1654,6 +1721,7 @@ export interface MarketStateEditionsSelect<T extends boolean = true> {
   approvedAt?: T;
   approvedContentHash?: T;
   publishedAt?: T;
+  revisedAt?: T;
   legacy?:
     | T
     | {
@@ -1661,6 +1729,7 @@ export interface MarketStateEditionsSelect<T extends boolean = true> {
         status?: T;
         sample?: T;
         updatedAt?: T;
+        importHash?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -1678,6 +1747,7 @@ export interface SignalsSelect<T extends boolean = true> {
   reading?: T;
   instrument?: T;
   insight?: T;
+  displayOrder?: T;
   workflowStatus?: T;
   contentClass?: T;
   classificationConfirmedBy?: T;
@@ -1693,6 +1763,7 @@ export interface SignalsSelect<T extends boolean = true> {
   approvedAt?: T;
   approvedContentHash?: T;
   publishedAt?: T;
+  revisedAt?: T;
   legacy?:
     | T
     | {
@@ -1700,6 +1771,7 @@ export interface SignalsSelect<T extends boolean = true> {
         status?: T;
         sample?: T;
         updatedAt?: T;
+        importHash?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -1716,6 +1788,7 @@ export interface ThemesSelect<T extends boolean = true> {
   insights?: T;
   instruments?: T;
   indicators?: T;
+  displayOrder?: T;
   workflowStatus?: T;
   contentClass?: T;
   classificationConfirmedBy?: T;
@@ -1731,6 +1804,7 @@ export interface ThemesSelect<T extends boolean = true> {
   approvedAt?: T;
   approvedContentHash?: T;
   publishedAt?: T;
+  revisedAt?: T;
   legacy?:
     | T
     | {
@@ -1738,6 +1812,7 @@ export interface ThemesSelect<T extends boolean = true> {
         status?: T;
         sample?: T;
         updatedAt?: T;
+        importHash?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -1786,6 +1861,7 @@ export interface CapabilitiesSelect<T extends boolean = true> {
   markets?: T;
   indicators?: T;
   insights?: T;
+  displayOrder?: T;
   workflowStatus?: T;
   contentClass?: T;
   classificationConfirmedBy?: T;
@@ -1801,6 +1877,7 @@ export interface CapabilitiesSelect<T extends boolean = true> {
   approvedAt?: T;
   approvedContentHash?: T;
   publishedAt?: T;
+  revisedAt?: T;
   legacy?:
     | T
     | {
@@ -1808,6 +1885,7 @@ export interface CapabilitiesSelect<T extends boolean = true> {
         status?: T;
         sample?: T;
         updatedAt?: T;
+        importHash?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -1841,6 +1919,7 @@ export interface LegalPagesSelect<T extends boolean = true> {
         changeNote?: T;
         legalReviewNotes?: T;
       };
+  displayOrder?: T;
   workflowStatus?: T;
   contentClass?: T;
   classificationConfirmedBy?: T;
@@ -1856,6 +1935,7 @@ export interface LegalPagesSelect<T extends boolean = true> {
   approvedAt?: T;
   approvedContentHash?: T;
   publishedAt?: T;
+  revisedAt?: T;
   legacy?:
     | T
     | {
@@ -1863,6 +1943,7 @@ export interface LegalPagesSelect<T extends boolean = true> {
         status?: T;
         sample?: T;
         updatedAt?: T;
+        importHash?: T;
       };
   updatedAt?: T;
   createdAt?: T;

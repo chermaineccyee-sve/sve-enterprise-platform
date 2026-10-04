@@ -7,6 +7,7 @@ import { getAllInsights } from "@/content/insights";
 import type { Insight } from "@/content/insights/types";
 import type { MarketStateEdition, NusantaraView, Signal, Theme } from "@/content/model/intelligence";
 import { STRATEGIES, type Strategy } from "@/content/strategies";
+import type { PreviewTarget } from "./preview-session";
 
 /**
  * CONTENT SOURCE — where the repository's raw editorial content comes from.
@@ -22,6 +23,8 @@ import { STRATEGIES, type Strategy } from "@/content/strategies";
 export type ContentSourceId = "local" | "cms";
 export const contentSource: ContentSourceId = process.env.CONTENT_SOURCE === "cms" ? "cms" : "local";
 
+export type ContentKind = "insights" | "views" | "marketStateEditions" | "signals" | "themes" | "capabilities";
+
 export type RawContent = {
   insights: Insight[];
   views: NusantaraView[];
@@ -29,6 +32,8 @@ export type RawContent = {
   signals: Signal[];
   themes: Theme[];
   capabilities: Strategy[];
+  /** In an authorised CMS preview: the item shown as its working copy, whatever its status. */
+  preview?: { kind: ContentKind; key: string } | null;
 };
 
 export const LOCAL_CONTENT: RawContent = {
@@ -40,9 +45,9 @@ export const LOCAL_CONTENT: RawContent = {
   capabilities: STRATEGIES,
 };
 
-export async function loadRawContent(): Promise<RawContent> {
+export async function loadRawContent(preview: PreviewTarget | null = null): Promise<RawContent> {
   if (contentSource === "local") return LOCAL_CONTENT;
   // Loaded only in CMS mode, so the local site never touches Payload or a database.
   const { loadCmsContent } = await import("./cms-source");
-  return loadCmsContent();
+  return loadCmsContent(preview);
 }

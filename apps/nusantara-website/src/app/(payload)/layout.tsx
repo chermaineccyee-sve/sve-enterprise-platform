@@ -1,6 +1,7 @@
 /* Admin Portal root layout (Payload CMS). Separate from the public site's root layout in app/(site). */
 import config from "@payload-config";
 import "@payloadcms/next/css";
+import "./custom.css";
 import { handleServerFunctions, RootLayout } from "@payloadcms/next/layouts";
 import type { ServerFunctionClient } from "payload";
 import type React from "react";

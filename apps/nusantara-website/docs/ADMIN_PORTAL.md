@@ -1,9 +1,19 @@
-# Admin Portal — Phase B0 (Foundation)
+# Admin Portal — Nusantara Administration
 
-Payload CMS 3 runs inside this Next.js app. **No content has been migrated, and
-the public site still reads the typed files in `src/content`**
-(`CONTENT_SOURCE=local`, the default). The frozen management-review build is
-commit `e803790`. `scripts/parity` checks the public site against it.
+Payload CMS 3 runs inside this Next.js app.
+
+- **B0 (foundation):** roles, workflow, classification, security and the
+  content-source switch.
+- **B1A (editorial CMS):** the editorial and intelligence content is imported
+  into the Admin Portal and can be run end to end from `/admin`. This covers
+  Insights, Nusantara Views, the Market State, Signals, Themes and
+  Capabilities, with preview, publishing, revalidation and version restore
+  under the approval workflow.
+
+The live site still reads the typed files (`CONTENT_SOURCE=local`, the
+default). Setting `CONTENT_SOURCE=cms` switches it to the Admin Portal. The
+frozen management-review build is commit `e803790`, and `scripts/parity`
+checks the public site against it.
 
 ## 1. Architecture
 
@@ -144,3 +154,147 @@ See `.env.example`. B0 adds `CONTENT_SOURCE`, `DATABASE_URL`,
 `PAYLOAD_SECRET`, `CMS_ALLOW_FIRST_USER`, `CMS_EXTRA_ORIGINS` and `S3_*`.
 `NEXT_PUBLIC_SITE_URL` is the public origin; it is also the Admin Portal's
 CSRF origin.
+
+## 8. B1A — editorial CMS
+
+### What is CMS-managed
+
+These are managed in the CMS: Insights, Nusantara Views, the Market State
+(edition and dimensions), Signals, Themes and Capabilities (descriptive
+content and relationships).
+
+These are not migrated yet: homepage and other page copy, About, Contact,
+navigation and footer, corporate information, legal text, and production
+media.
+
+### Import (`npm run cms:import`)
+
+The import is idempotent, and its order follows the relationships:
+
+1. insights (text first)
+2. themes
+3. capabilities
+4. insights again, to add related research
+5. signals
+6. Nusantara Views
+7. Market State
+
+What the import preserves:
+
+- Every id/slug, wording, relationship, date, publication status and sample
+  flag.
+- The legacy status, sample flag and date, stored verbatim in each record's
+  read-only "Migrated record" group.
+
+How records are classified:
+
+- Views, Market State and Signals become **Illustrative**.
+- Insights, Themes and Capabilities become **Management review**.
+- Nothing becomes Approved corporate content.
+
+Each record becomes its live version with its legacy workflow status (e.g.
+In review), exactly as the review site shows it. No approval is recorded.
+
+On re-runs:
+
+- Unchanged records are skipped.
+- Records nobody has edited are updated.
+- Records edited in the Admin Portal are never overwritten.
+
+`npm run cms:verify-equivalence` compares the content the site would render
+from the CMS with the local files, field by field.
+
+### Relationships
+
+There is one relationship graph (`src/lib/content/relationships.ts`), built
+from whichever source is configured. Every page asks that graph, so a change
+made in `/admin` resolves the same way everywhere: the homepage Market
+Intelligence panel, the dashboard workspace, articles and strategies.
+
+B1A adds explicit **capability** links on Nusantara Views and on Market State
+dimensions. Links are declared once and are visible from both sides. Links to
+anything that is not live disappear, just as unpublished links always have.
+
+### Preview
+
+1. Save Draft, then use the Preview button. It opens `/api/preview`.
+2. The route requires a signed-in Admin Portal user. A cross-site request is
+   not authenticated, so it can't start a preview.
+3. The route enables Next.js Draft Mode, records the item, and redirects to
+   the item's real public page, computed from the stored document.
+4. Every preview render re-checks the Admin session. A copied Draft Mode
+   cookie alone shows only the live site.
+
+The previewed item is shown as its working copy, and everything else stays
+live. Pages carry a "Preview · Not published" banner and are noindex and
+`no-store`. Exit preview clears Draft Mode.
+
+### Publishing and revalidation
+
+Public reads use **live versions only**. Each collection is cached under its
+own tag (`cms:<collection>`).
+
+Publishing, archiving, unpublishing or deleting revalidates that tag. Saving
+drafts, submitting, approving or restoring does not, because none of them
+changes the live site.
+
+The next request to any page that uses the collection re-renders it. There is
+no rebuild or redeploy.
+
+The legal route renders on demand (`dynamicParams = true`) so it can be
+regenerated after a publish. Unknown slugs are still 404.
+
+### Live-write protection
+
+The live version changes only through:
+
+- an explicit **Publish**, validated by the workflow rules, or
+- an **Unpublish** by a Reviewer or Admin.
+
+Any other signed-in save, such as an API request without the draft flag,
+becomes a draft save.
+
+Time-sensitive interpretation (Views, Market State, Signals) needs a future
+"Re-review by" date as part of the approved content before it can be
+published.
+
+### Versions and restore
+
+Every save is a version. The version screens show each version's fields,
+including the last editor, submitter and approver of record. The audit log
+records who submitted, approved, published, restored and unpublished.
+
+Restores always create a **Draft working copy**:
+
+- The API route requests restores as drafts.
+- The collections refuse non-draft restores.
+
+The live version is untouched. Restored content goes through review again,
+and under Editor ≠ Approver the person who restored it can't approve it.
+
+### Capabilities
+
+Admins create capabilities. Reviewers and Admins set lifecycle and stage.
+Editors edit descriptive content and relationships. An investment product
+("active-product" / stage "Active") cannot be created or activated in the CMS.
+
+### Administration
+
+The admin uses the Nusantara logo and mark, "Nusantara Administration"
+naming and a light theme.
+
+"Forgot password?" is replaced by "ask an Admin" until an email service
+exists, and `/admin/forgot` explains this.
+
+The dashboard shows working-copy counts, items requiring review, Nusantara
+Views awaiting separate approval, the Market State status, the latest
+Insights, recent changes and read-only market-data status.
+
+### Checks
+
+| Command | What it checks |
+|---|---|
+| `npm run cms:verify-workflow` | Roles, workflow, separation, live-write guard, restore, capabilities, classification, loader (server-side) |
+| `npm run cms:verify-equivalence` | CMS content equals the local files |
+| `node scripts/parity/parity.mjs` | Public site vs `e803790` (HTML, CSS, headers, APIs, files, screenshots) |
+

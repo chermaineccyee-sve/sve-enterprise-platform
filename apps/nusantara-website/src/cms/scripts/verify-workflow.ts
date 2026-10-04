@@ -10,8 +10,9 @@
  * and documents and deletes them afterwards. Never run against production.
  */
 import config from "@payload-config";
-import { getPayload, type CollectionSlug } from "payload";
+import { createLocalReq, getPayload, restoreVersionOperation, type CollectionSlug } from "payload";
 import type { User } from "../payload-types";
+import { isVisible } from "../../content/model/publication";
 
 if (process.env.NUSANTARA_ENV === "production" || /neon\.tech|amazonaws|prod/i.test(process.env.DATABASE_URL ?? "")) {
   console.error("Refusing to run against what looks like a production database.");
@@ -60,6 +61,8 @@ const viewData = {
   subject: { kind: "instrument" as const, instrument: "klci" as const },
   signal: "Selective",
   context: "Test context — local verification only.",
+  // Time-sensitive interpretation: a future re-review date is part of the approved content.
+  reviewAt: new Date(Date.now() + 30 * 86400_000).toISOString(),
 };
 
 try {
@@ -103,6 +106,11 @@ try {
   check("editing published content returns the working copy to Draft", draft2.workflowStatus === "draft", draft2.workflowStatus ?? "");
   const live = await payload.findByID({ collection: "nusantaraViews", id: v.id, draft: false, overrideAccess: true });
   check("the live version is unchanged until re-published", live.signal === "Selective" && live.workflowStatus === "published", `${live.signal}/${live.workflowStatus}`);
+  // A save without the draft flag (e.g. a crafted API request) never reaches the live version.
+  await payload.update({ collection: "nusantaraViews", id: v.id, data: { signal: "Overwrite attempt" }, ...as(editor2) });
+  const liveStill = await payload.findByID({ collection: "nusantaraViews", id: v.id, draft: false, overrideAccess: true });
+  check("a non-draft save cannot overwrite the live version", liveStill.signal === "Selective" && liveStill._status === "published", `${liveStill.signal}/${liveStill._status}`);
+  await rejects("editors cannot unpublish live content", () => payload.update({ collection: "nusantaraViews", id: v.id, data: { _status: "draft" }, ...as(editor) }), /Only a Reviewer or Admin may unpublish/);
   await rejects("changed content cannot be published without re-approval", () => payload.update({ collection: "nusantaraViews", id: v.id, data: { _status: "published", workflowStatus: "published" }, ...as(reviewer) }), /Only an approved item|differs from what was approved/);
 
   /* Classification ----------------------------------------------------- */
@@ -135,6 +143,57 @@ try {
   const auditForEditor = await payload.find({ collection: "auditLog", ...as(editor) }).then(() => "allowed", () => "denied");
   check("editors cannot read the audit log", auditForEditor === "denied", auditForEditor);
 
+  /* Time-sensitive publishing (signals) --------------------------------- */
+  const sig = await payload.create({
+    collection: "signals",
+    data: { key: `${tag}-signal`, date: "2026-10-03", theme: "Test", headline: "Test signal", reading: "Local verification only." },
+    draft: true,
+    ...as(editor),
+  });
+  created.push({ collection: "signals", id: sig.id });
+  await rejects("time-sensitive content cannot be published without a future re-review date", () => payload.update({ collection: "signals", id: sig.id, data: { _status: "published" }, ...as(reviewer) }), /Re-review by/);
+  const sigPub = await payload.update({ collection: "signals", id: sig.id, data: { reviewAt: new Date(Date.now() + 7 * 86400_000).toISOString(), _status: "published" }, ...as(reviewer) });
+  check("with a re-review date it publishes", sigPub.workflowStatus === "published");
+  await payload.update({ collection: "signals", id: sig.id, data: { _status: "draft" }, ...as(reviewer) });
+  const sigLive = await payload.findByID({ collection: "signals", id: sig.id, draft: false, overrideAccess: true });
+  check("a reviewer can unpublish (withdraw) live content", sigLive._status === "draft" && sigLive.workflowStatus === "draft", `${sigLive._status}/${sigLive.workflowStatus}`);
+
+  /* Version restore ------------------------------------------------------- */
+  const versions = await payload.findVersions({ collection: "nusantaraViews", where: { parent: { equals: v.id } }, sort: "createdAt", limit: 50, overrideAccess: true });
+  const publishedVersion = versions.docs.find((x) => (x.version as { workflowStatus?: string }).workflowStatus === "published");
+  check("version history records each change", versions.docs.length >= 5, `${versions.docs.length} versions`);
+  if (publishedVersion) {
+    await rejects("a restore cannot replace the live version directly", () => payload.restoreVersion({ collection: "nusantaraViews", id: publishedVersion.id, ...as(reviewer2) }), /restored as a Draft/);
+    // The same operation the REST endpoint runs (the Local API wrapper does not pass `draft`).
+    const restored = await restoreVersionOperation({
+      id: publishedVersion.id,
+      collection: payload.collections.nusantaraViews,
+      draft: true,
+      overrideAccess: false,
+      req: await createLocalReq({ user: reviewer2 }, payload),
+    });
+    const latest = await payload.findByID({ collection: "nusantaraViews", id: v.id, draft: true, overrideAccess: true });
+    const liveAfter = await payload.findByID({ collection: "nusantaraViews", id: v.id, draft: false, overrideAccess: true });
+    check("restoring creates a Draft working copy", latest.workflowStatus === "draft" && latest.signal === "Selective", `${latest.workflowStatus}/${latest.signal} (restore returned ${restored?.id ? "doc" : "nothing"})`);
+    check("the live version is untouched by a restore", liveAfter.workflowStatus === "published" && liveAfter._status === "published");
+    await payload.update({ collection: "nusantaraViews", id: v.id, data: { workflowStatus: "review" }, draft: true, ...as(reviewer2) });
+    await rejects("whoever restored a version cannot approve it", () => payload.update({ collection: "nusantaraViews", id: v.id, data: { workflowStatus: "approved" }, draft: true, ...as(reviewer2) }), /cannot approve/);
+    await rejects("restored content cannot be published without fresh approval", () => payload.update({ collection: "nusantaraViews", id: v.id, data: { _status: "published" }, ...as(reviewer) }), /Only an approved item|differs from what was approved/);
+  } else check("a published version exists to restore", false);
+
+  /* Capabilities: no products through the CMS ---------------------------- */
+  await rejects("editors cannot create capabilities", () => payload.create({ collection: "capabilities", data: { slug: `${tag}-cap-x`, name: "x", stage: "capability", summary: "x", overview: "x", approach: "x", role: "x" }, draft: true, ...as(editor) }), /not allowed/i);
+  const cap = await payload.create({
+    collection: "capabilities",
+    data: { slug: `${tag}-cap`, name: "Test capability", capabilityStatus: "internal", stage: "capability", summary: "Test.", overview: "Test.", approach: "Test.", role: "Test." },
+    draft: true,
+    ...as(admin),
+  });
+  created.push({ collection: "capabilities", id: cap.id });
+  await rejects("an investment product cannot be created through the CMS", () => payload.update({ collection: "capabilities", id: cap.id, data: { capabilityStatus: "active-product", stage: "active" }, draft: true, ...as(admin) }), /investment product cannot be created/);
+  const capEd = await payload.update({ collection: "capabilities", id: cap.id, data: { capabilityStatus: "public-capability", summary: "Edited summary." }, draft: true, ...as(editor) });
+  check("editors edit descriptive content but not the lifecycle", capEd.summary === "Edited summary." && capEd.capabilityStatus === "internal", `${capEd.capabilityStatus}`);
+
   /* CMS content source (CONTENT_SOURCE=cms) ------------------------------- */
   // The site's own loader, as the content repository uses it. This run is the
   // review environment (NUSANTARA_ENV unset), which reads latest versions and
@@ -148,17 +207,20 @@ try {
   created.push({ collection: "themes", id: theme.id });
   await payload.update({ collection: "themes", id: theme.id, data: { _status: "published" }, ...as(reviewer) });
   const { loadCmsContent } = await import("../../lib/content/cms-source");
-  const raw = await loadCmsContent();
+  const raw = await loadCmsContent(null, { cached: false });
   const t = raw.themes.find((x) => x.id === `${tag}-theme`);
   check("CMS loader maps a published theme to the site's Theme type", !!t && t.title === "Test theme" && t.instruments.join() === "klci,gold" && t.status === "published", JSON.stringify(t ?? null).slice(0, 160));
   check("CMS loader marks non-confirmed content as sample (never shown in production)", t?.sample === true);
-  check("CMS loader leaves out a Draft working copy", !raw.views.some((x) => x.id === `${tag}-view`));
-  check("CMS loader leaves out Archived items", !raw.insights.some((x) => x.slug === `${tag}-insight`));
+  const liveView = raw.views.find((x) => x.id === `${tag}-view`);
+  check("public reads return the LIVE version, never the working copy", liveView?.signal === "Selective" && liveView?.status === "published", `${liveView?.signal}/${liveView?.status}`);
+  const archivedInsight = raw.insights.find((x) => x.slug === `${tag}-insight`);
+  check("an archived (withdrawn) item is never visible", !archivedInsight || !isVisible(archivedInsight as never, { visibleStatuses: ["review", "approved", "published"], allowSampleContent: true }), archivedInsight?.status ?? "absent");
+  check("a never-published draft is not loaded at all", !raw.capabilities.some((x) => x.slug === `${tag}-cap`));
 
   /* Audit trail ---------------------------------------------------------- */
   const audit = await payload.find({ collection: "auditLog", where: { and: [{ collection: { equals: "nusantaraViews" } }, { documentId: { equals: String(v.id) } }] }, limit: 100, overrideAccess: true });
   const actions = audit.docs.map((d) => d.action);
-  check("audit trail records submit, approve, publish and classify", ["create", "submit", "approve", "publish", "classify"].every((a) => actions.includes(a as never)), actions.join(","));
+  check("audit trail records submit, approve, publish, classify and restore", ["create", "submit", "approve", "publish", "classify", "restore"].every((a) => actions.includes(a as never)), actions.join(","));
 } finally {
   for (const c of created.reverse()) {
     if (c.collection !== "users") await payload.delete({ collection: c.collection, id: c.id, overrideAccess: true }).catch(() => {});

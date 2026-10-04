@@ -47,6 +47,7 @@ export const WORKFLOW_FIELD_NAMES = [
   "approvedAt",
   "approvedContentHash",
   "publishedAt",
+  "revisedAt",
   "legacy",
 ] as const;
 
@@ -58,7 +59,7 @@ const readOnlyUser = (name: string, label: string): Field => ({
   admin: { readOnly: true, position: "sidebar" },
 });
 
-export function workflowFields(opts: { separation: boolean }): Field[] {
+export function workflowFields(opts: { separation: boolean; timeSensitive?: boolean }): Field[] {
   return [
     {
       name: "workflowStatus",
@@ -109,7 +110,9 @@ export function workflowFields(opts: { separation: boolean }): Field[] {
       admin: {
         position: "sidebar",
         date: { pickerAppearance: "dayAndTime" },
-        description: "After this date the item is withdrawn from the public site until re-reviewed.",
+        description: opts.timeSensitive
+          ? "Required to publish: a future date. After it the item is withdrawn from the public site until re-reviewed."
+          : "After this date the item is withdrawn from the public site until re-reviewed.",
       },
     },
     readOnlyUser("createdBy", "Created by"),
@@ -121,6 +124,12 @@ export function workflowFields(opts: { separation: boolean }): Field[] {
     { name: "approvedAt", label: "Approved at", type: "date", admin: { readOnly: true, position: "sidebar", date: { pickerAppearance: "dayAndTime" } } },
     { name: "approvedContentHash", type: "text", admin: { hidden: true } },
     { name: "publishedAt", label: "First published", type: "date", admin: { readOnly: true, position: "sidebar", date: { pickerAppearance: "dayAndTime" } } },
+    {
+      name: "revisedAt",
+      label: "Last substantive update",
+      type: "date",
+      admin: { readOnly: true, position: "sidebar", date: { pickerAppearance: "dayAndTime" }, description: "Set automatically when content changes. Shown on the website as the update date." },
+    },
     {
       name: "legacy",
       label: "Migrated record (read-only)",
@@ -136,6 +145,7 @@ export function workflowFields(opts: { separation: boolean }): Field[] {
         { name: "status", label: "Legacy status", type: "select", options: publicationStatusOptions },
         { name: "sample", label: "Legacy sample flag", type: "checkbox" },
         { name: "updatedAt", label: "Legacy updatedAt", type: "text" },
+        { name: "importHash", label: "Import fingerprint", type: "text", admin: { hidden: true } },
       ],
     },
   ];
