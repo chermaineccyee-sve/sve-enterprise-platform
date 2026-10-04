@@ -3,6 +3,8 @@ import * as migration_20261004_102225_b1a_editorial from './20261004_102225_b1a_
 import * as migration_20261004_102349_legacy_import_hash from './20261004_102349_legacy_import_hash';
 import * as migration_20261004_102625_market_state_markets_table from './20261004_102625_market_state_markets_table';
 import * as migration_20261004_162930_structured_insight_blocks from './20261004_162930_structured_insight_blocks';
+import * as migration_20261004_171724_media_public_delivery from './20261004_171724_media_public_delivery';
+import * as migration_20261004_172404_media_storage_fields from './20261004_172404_media_storage_fields';
 
 export const migrations = [
   {
@@ -28,6 +30,16 @@ export const migrations = [
   {
     up: migration_20261004_162930_structured_insight_blocks.up,
     down: migration_20261004_162930_structured_insight_blocks.down,
-    name: '20261004_162930_structured_insight_blocks'
+    name: '20261004_162930_structured_insight_blocks',
+  },
+  {
+    up: migration_20261004_171724_media_public_delivery.up,
+    down: migration_20261004_171724_media_public_delivery.down,
+    name: '20261004_171724_media_public_delivery',
+  },
+  {
+    up: migration_20261004_172404_media_storage_fields.up,
+    down: migration_20261004_172404_media_storage_fields.down,
+    name: '20261004_172404_media_storage_fields'
   },
 ];

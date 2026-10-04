@@ -781,11 +781,20 @@ export interface Capability {
  */
 export interface Media {
   id: number;
+  /**
+   * Describes the image for people who cannot see it. Required.
+   */
   alt: string;
   /**
-   * Source and licence. Required before public use.
+   * Who made it and under what licence. Required before public use.
    */
   credit?: string | null;
+  /**
+   * Only a Reviewer or Admin can set this. Until it is set, the file can be opened only by signed-in staff.
+   */
+  publicDelivery?: boolean | null;
+  prefix?: string | null;
+  _objectKey?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -2052,6 +2061,9 @@ export interface LegalPagesSelect<T extends boolean = true> {
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
   credit?: T;
+  publicDelivery?: T;
+  prefix?: T;
+  _objectKey?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;

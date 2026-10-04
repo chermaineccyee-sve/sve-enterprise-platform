@@ -54,3 +54,5 @@ form.login__form a[href$="/forgot"] { display: none; }
 .nusantara-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 1.25rem; font-size: 0.85rem; color: var(--theme-elevation-650); }
 .nusantara-status strong { color: var(--theme-elevation-900); }
 .nusantara-status__changes { color: #8a6a2c; font-weight: 600; }
+.nusantara-bootstrap-form { display: grid; gap: 0.5rem; margin: 1.5rem 0; }
+.nusantara-bootstrap-form input { padding: 0.6rem 0.75rem; border: 1px solid var(--theme-elevation-250); border-radius: 4px; font: inherit; }

@@ -37,6 +37,7 @@ const extra = [
   "/insights/removed-article-xyz",
   "/strategies/not-a-capability",
   "/legal/not-a-page",
+  "/legal/PRIVACY",
   "/a/b/c",
   "/robots.txt",
   "/sitemap.xml",

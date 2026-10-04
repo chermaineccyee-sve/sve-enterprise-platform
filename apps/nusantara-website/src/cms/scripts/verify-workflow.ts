@@ -14,6 +14,7 @@ import { createLocalReq, getPayload, restoreVersionOperation, type CollectionSlu
 import type { User } from "../payload-types";
 import { isVisible } from "../../content/model/publication";
 import { discardDraftEndpoint } from "../hooks/discard";
+import { requireDevelopmentDatabase } from "./guards";
 
 if (process.env.NUSANTARA_ENV === "production" || /neon\.tech|amazonaws|prod/i.test(process.env.DATABASE_URL ?? "")) {
   console.error("Refusing to run against what looks like a production database.");
@@ -21,6 +22,7 @@ if (process.env.NUSANTARA_ENV === "production" || /neon\.tech|amazonaws|prod/i.t
 }
 
 const payload = await getPayload({ config });
+await requireDevelopmentDatabase(payload, "verify-workflow");
 const startedAt = new Date().toISOString();
 const tag = `wf-test-${Date.now()}`;
 let passed = 0;

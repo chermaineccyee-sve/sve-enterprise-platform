@@ -1,5 +1,6 @@
 import { revalidateTag } from "next/cache";
 import type { CollectionAfterChangeHook, CollectionAfterDeleteHook } from "payload";
+import { logEvent } from "../log";
 import type { WorkflowEvent } from "./workflow";
 
 /**
@@ -17,8 +18,11 @@ export const contentTag = (collection: string) => `cms:${collection}`;
 function revalidate(collection: string) {
   try {
     revalidateTag(contentTag(collection), { expire: 0 });
-  } catch {
-    // Outside a Next.js request (CLI import, seed): nothing is cached yet.
+    logEvent("info", "cms.revalidate", { collection });
+  } catch (err) {
+    // Expected outside a Next.js request (CLI import/seed: nothing is cached there). Inside the
+    // site it means the public pages may keep showing the previous live version — investigate.
+    logEvent("warn", "cms.revalidate.failed", { collection, error: err });
   }
 }
 

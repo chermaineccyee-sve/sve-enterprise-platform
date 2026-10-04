@@ -15,6 +15,12 @@ default). Setting `CONTENT_SOURCE=cms` switches it to the Admin Portal. The
 frozen management-review build is commit `e803790`, and `scripts/parity`
 checks the public site against it.
 
+- **B1B (online readiness):** Neon Postgres and private S3 configuration,
+  guarded deploy-time migrations, bootstrap window, media delivery rules,
+  observability and the legal-404 fix. Deployment and operations:
+  [DEPLOYMENT.md](DEPLOYMENT.md); cutover gate:
+  [CMS_CUTOVER_CHECKLIST.md](CMS_CUTOVER_CHECKLIST.md).
+
 ## 1. Architecture
 
 ```
@@ -132,9 +138,9 @@ import map.
     `SameSite=Strict`) and expire after 8 hours.
   - After 5 failed attempts an account locks for 15 minutes.
   - Requests are checked against a CSRF/CORS origin allowlist.
-- **No self-registration.** The first Admin is created by `cms:seed-admin`,
-  or through `/admin` only while `CMS_ALLOW_FIRST_USER=true` and no user
-  exists.
+- **No self-registration.** The first Admin is created through the
+  bootstrap window (`CMS_BOOTSTRAP_TOKEN` + `/admin/bootstrap`, only while no
+  account exists) or by `cms:seed-admin` (docs/DEPLOYMENT.md §6).
 - **Password reset by email is disabled** until an email service is
   configured. Otherwise Payload would write reset links to the server log.
   Until then, an Admin resets passwords.
@@ -142,7 +148,8 @@ import map.
   `X-Robots-Tag: noindex` and `Cache-Control: private, no-store`, and production
   `robots.txt` disallows `/admin`.
 - **No anonymous API access.** Anonymous `/api/cms` requests can read
-  nothing. The public site reads only through the content repository, on the
+  nothing, except media files a Reviewer or Admin has approved for public
+  use. The public site reads only through the content repository, on the
   server.
 - **SSO/MFA later.** Payload auth strategies can authenticate against a
   corporate identity provider and resolve to the same user records. Roles stay
@@ -150,10 +157,9 @@ import map.
 
 ## 7. Environment variables
 
-See `.env.example`. B0 adds `CONTENT_SOURCE`, `DATABASE_URL`,
-`PAYLOAD_SECRET`, `CMS_ALLOW_FIRST_USER`, `CMS_EXTRA_ORIGINS` and `S3_*`.
-`NEXT_PUBLIC_SITE_URL` is the public origin; it is also the Admin Portal's
-CSRF origin.
+See `.env.example`, and docs/DEPLOYMENT.md §4 for the full matrix per deploy
+context. `NEXT_PUBLIC_SITE_URL` is the public origin; it is also the Admin
+Portal's CSRF origin.
 
 ## 8. B1A — editorial CMS
 
@@ -377,3 +383,34 @@ Content. Instrument and indicator pickers show plain names.
 | `npm run cms:verify-equivalence` | CMS content equals the local files |
 | `node scripts/parity/parity.mjs` | Public site vs `e803790` (HTML, CSS, headers, APIs, files, screenshots) |
 
+
+## 10. B1B — online readiness
+
+Deployment, environment matrix, provisioning, migrations, bootstrap, media,
+email/MFA assessment, backup and observability: [DEPLOYMENT.md](DEPLOYMENT.md).
+The cutover gate: [CMS_CUTOVER_CHECKLIST.md](CMS_CUTOVER_CHECKLIST.md).
+
+### Unknown legal URLs
+
+Unknown `/legal/<slug>` URLs, case variants included, return the site's
+styled 404. The response is HTTP 404 with the "Page not found" title and is
+complete without JavaScript.
+
+How it works:
+- A rewrite in `next.config.ts` sends unknown slugs to the global 404 before
+  the dynamic route runs.
+- `experimental.caseSensitiveRoutes` makes config matching case-sensitive,
+  like the routes themselves.
+- The legal route keeps `dynamicParams = true`, so valid pages still
+  regenerate after publishing. With `false`, Next.js answers a revalidated
+  legal page with a 404.
+
+`scripts/regression/publish-revalidation.mjs` checks both.
+
+### Regression scripts (HTTP, any CMS-source deployment)
+
+| Script | Checks |
+|---|---|
+| `scripts/regression/publish-revalidation.mjs` | publish/withdraw → every public route stays 200 and updates without a rebuild; legal pages regenerate; unknown legal URLs stay a styled 404 |
+| `scripts/regression/bootstrap-and-access.mjs` | anonymous account creation refused; bootstrap window and its closure; CSRF on the session cookie |
+| `scripts/regression/media-access.mjs` | unapproved media not public; approval needs a Reviewer and a licence; caching; refused types and sizes |

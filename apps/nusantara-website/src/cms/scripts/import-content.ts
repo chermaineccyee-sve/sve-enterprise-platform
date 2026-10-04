@@ -62,8 +62,20 @@ function governance(p: Omit<Publication, "author"> & { author?: string | null },
   };
 }
 
+/**
+ * Production-safety rules for every imported record: no TEST records (the
+ * typed files contain none; this keeps it that way) and never Approved
+ * Corporate Content — that classification is only ever set by an Admin.
+ */
+function assertImportable(collection: string, key: string, data: Doc) {
+  const title = String(data.title ?? data.name ?? data.headline ?? data.edition ?? "");
+  if (/^test[-_]/i.test(key) || /^TEST\b/.test(title)) throw new Error(`Refusing to import TEST record ${collection}/${key}.`);
+  if (data.contentClass === "approved_corporate") throw new Error(`Refusing to import ${collection}/${key} as Approved Corporate Content.`);
+}
+
 /** Upsert one record by its stable key field. */
 async function upsert(collection: CollectionSlug, keyField: string, key: string, data: Doc): Promise<Doc | null> {
+  assertImportable(collection, key, data);
   const r = (report[collection] ??= { created: 0, updated: 0, unchanged: 0, skippedEdited: [] });
   const found = (await payload.find({ collection, where: { [keyField]: { equals: key } }, draft: true, limit: 1, depth: 0, overrideAccess: true })).docs[0] as Doc | undefined;
   if (found?.legacy?.importHash === data.legacy.importHash) {

@@ -1,5 +1,4 @@
-# Netlify deployment — Management-review (Eric Review Build).
-# Deployment configuration only: the website itself is unchanged.
+# Netlify deployment — Nusantara website + Admin Portal.
 #
 # In the Netlify UI set Base directory = apps/nusantara-website; Netlify then
 # reads this file.
@@ -10,9 +9,19 @@
 # Netlify publishes the raw .next folder as static files and every route,
 # including /, returns Netlify's own 404. publish = ".next" is what the
 # runtime expects; it then replaces it with static assets plus a server function.
+#
+# Build = Admin Portal deploy step, then the site build:
+#   scripts/cms/deploy.mjs — with no DATABASE_URL it does nothing (public site
+#   only). Otherwise it checks the environment and database, guards the data
+#   environment, and applies database migrations only where allowed
+#   (docs/DEPLOYMENT.md). Any failure fails the build and the previous deploy
+#   stays live.
+#
+# Secrets (DATABASE_URL, PAYLOAD_SECRET, S3 keys, …) are set in the Netlify UI,
+# per deploy context — never here. docs/DEPLOYMENT.md has the full matrix.
 
 [build]
-  command = "npm run build:review"
+  command = "node scripts/cms/deploy.mjs && npm run build:review"
   publish = ".next"
 
 [build.environment]
@@ -22,6 +31,24 @@
   NUSANTARA_ENV = "review"
   MARKET_DATA_PROVIDER = "illustrative"
   NEXT_TELEMETRY_DISABLED = "1"
+
+# The public production site keeps reading the typed content files. Switching it
+# to the Admin Portal (CONTENT_SOURCE = "cms") is the separately approved
+# cutover: it is made here, in a reviewed commit (docs/CMS_CUTOVER_CHECKLIST.md).
+[context.production.environment]
+  CONTENT_SOURCE = "local"
+
+# Admin Portal test site: branch deploys of claude/admin-portal read the CMS,
+# so /admin preview and publishing can be tested end to end. It uses the
+# preview database and bucket (CMS_DATA_ENV = "preview"), never production data.
+[context."claude/admin-portal".environment]
+  CONTENT_SOURCE = "cms"
+  CMS_DATA_ENV = "preview"
+
+# Pull-request deploy previews: public pages only, local content. They get the
+# Admin Portal only if a preview DATABASE_URL is deliberately scoped to them.
+[context.deploy-preview.environment]
+  CONTENT_SOURCE = "local"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

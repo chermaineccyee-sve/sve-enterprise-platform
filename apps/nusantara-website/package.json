@@ -14,6 +14,7 @@
     "payload": "payload",
     "cms:generate": "payload generate:importmap && payload generate:types",
     "cms:migrate": "payload migrate",
+    "cms:deploy": "node scripts/cms/deploy.mjs",
     "cms:migrate:create": "payload migrate:create",
     "cms:seed-admin": "payload run src/cms/scripts/seed-admin.ts",
     "cms:verify-workflow": "NODE_OPTIONS=--conditions=react-server payload run src/cms/scripts/verify-workflow.ts",

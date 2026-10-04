@@ -1,6 +1,9 @@
 import { APIError, type CollectionConfig } from "payload";
 import { adminField, adminsOnly, hasRole, ROLES, signedIn } from "../access/roles";
+import { hasBootstrapCookie } from "../bootstrap";
 import { auditUserChange } from "../hooks/audit";
+import { logLogin, logLogout } from "../hooks/observability";
+import { logEvent } from "../log";
 
 const MIN_PASSWORD = 12;
 const isProd = process.env.NODE_ENV === "production";
@@ -10,9 +13,10 @@ const isProd = process.env.NODE_ENV === "production";
  * authentication: salted PBKDF2 hashes, HTTP-only session cookie, CSRF origin
  * checks, login throttling and lock-out, session expiry, logout.
  *
- * No self-registration. The very first account can only be created when
- * CMS_ALLOW_FIRST_USER=true (or by the server-side seed script); afterwards
- * only an Admin creates accounts and assigns roles.
+ * No self-registration. The very first account can only be created through
+ * the bootstrap window (CMS_BOOTSTRAP_TOKEN + /admin/bootstrap, see
+ * ../bootstrap.ts) or the server-side seed script; afterwards only an Admin
+ * creates accounts and assigns roles.
  *
  * SSO/MFA later: Payload auth strategies (auth.strategies) can authenticate
  * against a corporate identity provider and resolve to these same user
@@ -36,8 +40,8 @@ export const Users: CollectionConfig = {
     create: async ({ req }) => {
       if (hasRole(req, "admin")) return true;
       if (req.user) return false;
-      // Bootstrap: only with the explicit flag, and only while no account exists.
-      if (process.env.CMS_ALLOW_FIRST_USER !== "true") return false;
+      // Bootstrap: only with the bootstrap cookie, and only while no account exists.
+      if (!hasBootstrapCookie(req.headers.get("cookie"))) return false;
       const { totalDocs } = await req.payload.count({ collection: "users", overrideAccess: true });
       return totalDocs === 0;
     },
@@ -45,13 +49,16 @@ export const Users: CollectionConfig = {
   },
   hooks: {
     beforeOperation: [
-      ({ operation, args, req }) => {
+      async ({ operation, args, req }) => {
         // No anonymous account creation over HTTP — including Payload's built-in
         // first-register endpoint, which bypasses collection access control.
-        // Only the server-side seed script (Local API) or an explicit bootstrap
-        // window (CMS_ALLOW_FIRST_USER=true, no users yet) may create the first account.
-        if (operation === "create" && !req.user && req.payloadAPI !== "local" && process.env.CMS_ALLOW_FIRST_USER !== "true") {
-          throw new APIError("Account creation is disabled. An Admin creates accounts.", 403, null, true);
+        // Only the server-side seed script (Local API) or the bootstrap window
+        // (valid bootstrap cookie, no accounts yet) may create the first account.
+        if (operation === "create" && !req.user && req.payloadAPI !== "local") {
+          const { totalDocs } = await req.payload.count({ collection: "users", overrideAccess: true, req });
+          if (totalDocs > 0 || !hasBootstrapCookie(req.headers.get("cookie"))) {
+            throw new APIError("Account creation is disabled. An Admin creates accounts.", 403, null, true);
+          }
         }
         // Without an email service, Payload would write reset links to the server log. Until
         // one is configured, an Admin resets passwords in the Admin Portal instead.
@@ -73,12 +80,17 @@ export const Users: CollectionConfig = {
         // The bootstrap account is always an Admin.
         if (operation === "create" && !req.user) {
           const { totalDocs } = await req.payload.count({ collection: "users", overrideAccess: true, req });
-          if (totalDocs === 0) data.role = "admin";
+          if (totalDocs === 0) {
+            data.role = "admin";
+            logEvent("info", "auth.bootstrap.admin_created", { via: req.payloadAPI });
+          }
         }
         return data;
       },
     ],
     afterChange: [auditUserChange],
+    afterLogin: [logLogin],
+    afterLogout: [logLogout],
   },
   fields: [
     { name: "name", type: "text", required: true },
