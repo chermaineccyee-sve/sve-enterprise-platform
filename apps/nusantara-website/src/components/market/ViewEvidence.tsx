@@ -81,7 +81,7 @@ export function ViewEvidence({
                 onTab(t);
                 e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
               }}
-              className={`relative shrink-0 py-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] transition-colors duration-200 ${on ? "text-gold-200" : "text-teal-300 hover:text-teal-50"}`}
+              className={`relative shrink-0 py-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] transition-colors duration-200 ${on ? "text-gold-200" : "text-teal-300 hover:text-teal-50"}`}
             >
               {LABELS[t]}
               <span aria-hidden className={`absolute inset-x-0 -bottom-px h-px bg-gold-400 transition-opacity duration-200 ${on ? "opacity-100" : "opacity-0"}`} />

@@ -15,7 +15,7 @@ export function LatestSignals({ signals, instruments }: { signals: Signal[]; ins
         const inst = s.instrument ? instruments[s.instrument] : null;
         return (
           <li key={s.id} className="w-[78vw] shrink-0 snap-start border-l border-rule px-6 py-6 md:w-auto md:border-t md:[&:nth-child(-n+2)]:border-t-0 xl:[&:nth-child(-n+3)]:border-t-0">
-            <p className="flex items-center justify-between text-[11px] uppercase tracking-[0.14em]">
+            <p className="flex items-center justify-between text-[11px] uppercase tracking-[0.08em]">
               <span className="flex items-center gap-2 font-semibold text-gold-700">
                 {s.theme}
               </span>

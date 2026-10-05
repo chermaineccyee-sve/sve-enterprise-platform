@@ -93,7 +93,7 @@ export default function AboutPage() {
           <ol className="mt-14 border-t border-teal-800">
             {PRINCIPLES.map((p, i) => (
               <li key={p.title} className="group grid gap-3 border-b border-rule py-8 md:grid-cols-[80px_minmax(0,1fr)_minmax(0,1fr)] md:items-baseline md:gap-8">
-                <span className="num font-serif text-[2.6rem] leading-none text-gold-500">{i + 1}</span>
+                <span className="num text-[2.25rem] font-medium leading-none text-gold-500">{i + 1}</span>
                 <h3 className="font-serif text-[clamp(1.6rem,3vw,2.4rem)] leading-tight text-teal-900 transition-transform duration-500 group-hover:translate-x-2">{p.title}</h3>
                 <p className="max-w-md text-[15.5px] leading-relaxed text-stone">{p.text}</p>
               </li>

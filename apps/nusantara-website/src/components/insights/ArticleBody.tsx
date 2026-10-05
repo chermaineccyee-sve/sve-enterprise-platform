@@ -118,7 +118,7 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
                     <span className="mt-2 block font-serif text-[1.2rem] leading-snug text-teal-900">{b.caption}</span>
                   </span>
                   {b.layer && (
-                    <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.12em] text-stone">
+                    <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-stone">
                       <LayerGlyph layer={b.layer} /> {LAYER_META[b.layer].label}
                     </span>
                   )}
@@ -129,7 +129,7 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
                     <thead>
                       <tr className="border-b border-rule">
                         {b.columns.map((c) => (
-                          <th key={c} scope="col" className="py-3 pr-6 text-[11px] font-semibold uppercase tracking-[0.1em] text-stone">
+                          <th key={c} scope="col" className="py-3 pr-6 text-[11px] font-medium uppercase tracking-[0.08em] text-stone">
                             {c}
                           </th>
                         ))}
@@ -162,7 +162,7 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
                       <dl className="mt-2 space-y-2 text-[14px]">
                         {r.slice(1).map((cell, c) => (
                           <div key={c}>
-                            <dt className="text-[11px] uppercase tracking-[0.1em] text-stone">{b.columns[c + 1]}</dt>
+                            <dt className="text-[11px] uppercase tracking-[0.08em] text-stone">{b.columns[c + 1]}</dt>
                             <dd className="text-charcoal">{cell}</dd>
                           </div>
                         ))}

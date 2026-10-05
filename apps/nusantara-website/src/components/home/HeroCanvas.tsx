@@ -154,7 +154,7 @@ export function HeroCanvas({
         {ARM_TIPS.map(([tx, ty], i) => (
           <span
             key={i}
-            className={`absolute -translate-x-1/2 -translate-y-1/2 text-[10.5px] font-semibold uppercase tracking-[0.2em] transition-colors duration-500 ${
+            className={`absolute -translate-x-1/2 -translate-y-1/2 text-[10.5px] font-medium uppercase tracking-[0.08em] transition-colors duration-500 ${
               i === arm ? "text-gold-700" : "text-teal-800/45"
             }`}
             style={{ left: `${50 + (tx / 200) * 100 * 1.22}%`, top: `${50 + (ty / 200) * 100 * 1.22}%` }}
@@ -170,11 +170,11 @@ export function HeroCanvas({
         className="pointer-events-auto absolute bottom-8 right-5 hidden w-[300px] md:block border border-teal-800/15 bg-paper/85 p-5 shadow-[0_20px_60px_-30px_rgba(14,45,59,0.45)] backdrop-blur-md md:right-10 lg:bottom-14"
       >
         <div className="flex items-center justify-between gap-3">
-          <p className="flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.18em] text-teal-800">
+          <p className="flex items-center gap-2 text-[10.5px] font-medium uppercase tracking-[0.08em] text-teal-800">
             <NStar className="star-breathe h-2.5 w-2.5 text-gold-500" />
             Market monitor
           </p>
-          <span className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gold-800">{statusTitle(current.provenance)}</span>
+          <span className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-gold-800">{statusTitle(current.provenance)}</span>
         </div>
         <div className="relative mt-4 h-[92px]" aria-live="polite">
           <AnimatePresence mode="wait" initial={false}>

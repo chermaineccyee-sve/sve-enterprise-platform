@@ -68,7 +68,7 @@ export function CrossAssetView({
             <tr>
               <th scope="col" className="w-[150px]" />
               {CLASSES.map((c) => (
-                <th key={c} scope="col" className="pb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone">
+                <th key={c} scope="col" className="pb-3 text-[11px] font-medium uppercase tracking-[0.08em] text-stone">
                   {ASSET_CLASS_LABELS[c]}
                 </th>
               ))}
@@ -109,7 +109,7 @@ export function CrossAssetView({
       <div className="mt-5 min-h-[72px] border-l-2 border-gold-500 pl-4" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <m.div key={`${cell.row}-${cell.c}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone">
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone">
               {cell.row} · {ASSET_CLASS_LABELS[cell.c]}
             </p>
             <p className="mt-1 text-[14px] leading-relaxed text-charcoal">{detail(cell.row, cell.c)}</p>

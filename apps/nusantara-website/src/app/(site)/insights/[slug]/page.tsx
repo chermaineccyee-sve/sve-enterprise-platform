@@ -285,7 +285,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
           <div id="article-body" className="min-w-0 lg:col-span-9 xl:col-span-7">
             {insight.sample && (
               <p className="mb-10 border-l-2 border-gold-500 pl-4 text-[12.5px] text-stone">
-                <span className="font-semibold uppercase tracking-[0.12em] text-gold-800">Management review · Pending approval.</span> Data shown is illustrative.
+                <span className="font-medium uppercase tracking-[0.08em] text-gold-800">Management review · Pending approval.</span> Data shown is illustrative.
               </p>
             )}
 
@@ -395,7 +395,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
               <li key={r.slug} className="border-b border-rule">
                 <Link href={`/insights/${r.slug}`} className="group grid gap-2 py-6 md:grid-cols-[60px_200px_minmax(0,1fr)_40px] md:items-baseline md:gap-6">
                   <span className="num text-[12px] text-mist">{String(i + 1).padStart(2, "0")}</span>
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">{r.category}</span>
+                  <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone">{r.category}</span>
                   <span className="font-serif text-[1.5rem] leading-snug text-teal-900 transition-transform duration-500 group-hover:translate-x-2">{r.title}</span>
                   <span aria-hidden className="hidden text-teal-800 md:block">→</span>
                 </Link>

@@ -41,7 +41,7 @@ export function ConnectedIntel({
     <div className="border-t border-white/10 pt-4 text-[12.5px]">
       {dims.length > 0 && (
         <div>
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-teal-200">Market State</p>
+          <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-teal-200">Market State</p>
           <ul className="mt-2 flex flex-wrap gap-1.5">
             {dims.map((d) => {
               const preview = dimensions[d.id];
@@ -83,7 +83,7 @@ export function ConnectedIntel({
                 className="overflow-hidden"
               >
                 <div className="mt-3 border-l-2 border-gold-400/70 pb-1 pl-4">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-teal-200">
+                  <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-teal-200">
                     Market State <span aria-hidden className="text-teal-300">·</span> {open.label}
                   </p>
                   <p className="mt-1.5 font-serif text-[1.35rem] leading-tight text-white">{open.state}</p>
@@ -93,7 +93,7 @@ export function ConnectedIntel({
                   <p className="mt-3 text-[13.5px] leading-snug text-teal-50">{open.summary}</p>
                   {open.supportingMarkets.some((id) => names[id]) && (
                     <div className="mt-3">
-                      <p className="text-[10.5px] uppercase tracking-[0.16em] text-teal-300">Supporting markets</p>
+                      <p className="text-[10.5px] uppercase tracking-[0.08em] text-teal-300">Supporting markets</p>
                       <ul className="mt-1.5 flex flex-wrap gap-1.5">
                         {open.supportingMarkets
                           .filter((id) => names[id])
@@ -108,7 +108,7 @@ export function ConnectedIntel({
                                     onPickMarket(id);
                                     track({ name: "market_selected", instrument: id, surface: "dimension" });
                                   }}
-                                  className={`px-2 py-1 text-[12px] font-semibold uppercase tracking-[0.08em] transition-colors duration-200 ${sel ? "bg-gold-400 text-teal-950" : "bg-white/[0.07] text-teal-50 hover:bg-white/[0.14]"}`}
+                                  className={`px-2 py-1 text-[12px] font-medium uppercase tracking-[0.08em] transition-colors duration-200 ${sel ? "bg-gold-400 text-teal-950" : "bg-white/[0.07] text-teal-50 hover:bg-white/[0.14]"}`}
                                 >
                                   {names[id]}
                                 </button>

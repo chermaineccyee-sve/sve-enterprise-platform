@@ -33,7 +33,7 @@ export function ScenarioAnalysis({ spec }: { spec: ScenarioSpec }) {
     <section aria-labelledby={`${spec.id}-title`} className="not-prose my-12 border border-rule bg-white font-sans">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-teal-900 px-5 py-3 text-white md:px-7">
         <p className="eyebrow text-teal-200">Nusantara Scenario Analysis</p>
-        <span className="inline-flex items-center gap-1.5 border border-gold-300/60 px-2 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gold-200">
+        <span className="inline-flex items-center gap-1.5 border border-gold-300/60 px-2 py-1 text-[10.5px] font-medium uppercase tracking-[0.08em] text-gold-200">
           Scenario analysis · not a forecast
         </span>
       </header>
@@ -94,7 +94,7 @@ export function ScenarioAnalysis({ spec }: { spec: ScenarioSpec }) {
           <table className="w-full min-w-[420px] text-[13px]">
             <caption className="sr-only">{spec.title} — scenario values by period</caption>
             <thead>
-              <tr className="border-b border-rule text-left text-[11px] uppercase tracking-[0.1em] text-stone">
+              <tr className="border-b border-rule text-left text-[11px] uppercase tracking-[0.08em] text-stone">
                 <th scope="col" className="py-2 pr-4 font-semibold">Period</th>
                 {rows.map((r) => (
                   <th key={r.key} scope="col" className="py-2 pr-4 text-right font-semibold">

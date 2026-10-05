@@ -160,14 +160,14 @@ export function MarketRibbon({ instruments, provenance }: { instruments: Instrum
           <NStar className="star-breathe h-2.5 w-2.5 text-gold-400" />
           {illustrative ? (
             <span className="leading-tight">
-              <span className="block text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">Market snapshot</span>
+              <span className="block text-[10.5px] font-medium uppercase tracking-[0.08em] text-gold-300">Market snapshot</span>
               <span className="num block text-[10.5px] text-teal-200">
                 <span className="hidden sm:inline">{asOf ? `${time.snapshot(asOf)} · ` : ""}</span>Illustrative
               </span>
             </span>
           ) : (
             <span className="leading-tight">
-              <span className="block text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">{statusTitle(provenance)}</span>
+              <span className="block text-[10.5px] font-medium uppercase tracking-[0.08em] text-gold-300">{statusTitle(provenance)}</span>
               <span className="num hidden text-[10.5px] text-teal-200 sm:block">{asOf ? formatTimestamp(asOf) : ""}</span>
             </span>
           )}
@@ -249,7 +249,7 @@ function Item({ s, copy, on, tabStop, onSelect }: { s: InstrumentSnapshot; copy:
   const body = (
     <>
       {on && <NStar className="h-2 w-2 text-gold-400" />}
-      <span className={`text-[12px] font-semibold uppercase tracking-[0.12em] transition-colors duration-200 ${on ? "text-gold-200" : "text-white"}`}>{inst.shortName}</span>
+      <span className={`text-[12px] font-medium uppercase tracking-[0.08em] transition-colors duration-200 ${on ? "text-gold-200" : "text-white"}`}>{inst.shortName}</span>
       <span className="num text-[13px] text-teal-100">
         {formatValue(s.quote.value, inst.decimals)}
         {inst.unit === "%" ? "%" : ""}

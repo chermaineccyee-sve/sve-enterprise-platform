@@ -24,7 +24,7 @@ export function MarketTable({ rows, histories, period, selectedId, onSelect, cap
         <table className="w-full text-left text-[13.5px]">
           <caption className="sr-only">{caption}</caption>
           <thead>
-            <tr className="border-b border-rule bg-ivory/70 text-[11px] uppercase tracking-[0.12em] text-stone">
+            <tr className="border-b border-rule bg-ivory/70 text-[11px] uppercase tracking-[0.08em] text-stone">
               <th scope="col" className="px-5 py-3 font-semibold">Instrument</th>
               <th scope="col" className="px-4 py-3 text-right font-semibold">Last</th>
               <th scope="col" className="px-4 py-3 text-right font-semibold">Day chg</th>

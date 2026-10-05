@@ -42,7 +42,7 @@ export function GovernanceArchitecture() {
               <li key={l.n} className="border-b border-white/10">
                 <button role="tab" aria-selected={on} onClick={() => setActive(i)} onFocus={() => setActive(i)} className="flex w-full items-baseline gap-4 py-3.5 text-left">
                   <span className={`num text-[12px] ${on ? "text-gold-300" : "text-teal-300/60"}`}>{l.n}</span>
-                  <span className={`font-serif text-[1.35rem] transition-colors ${on ? "text-white" : "text-teal-200/70 hover:text-white"}`}>{l.title}</span>
+                  <span className={`text-[1.0625rem] font-medium transition-colors ${on ? "text-white" : "text-teal-200/70 hover:text-white"}`}>{l.title}</span>
                 </button>
                 <AnimatePresence initial={false}>
                   {on && (

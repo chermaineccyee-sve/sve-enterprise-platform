@@ -100,11 +100,11 @@ export function ProcessStory({ counts }: { counts: { instruments: number; indica
                 className={`flex flex-col justify-center py-16 transition-opacity duration-700 ${i === 0 ? "mt-[1vh]" : ""} ${i === PROCESS_STEPS.length - 1 ? "min-h-[70vh]" : "min-h-[88vh]"}`}
                 style={{ opacity: i === active ? 1 : 0.28 }}
               >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-300">
+                <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-teal-300">
                   {i === 0 ? "Inputs" : "Receives"}
                   <span className="ml-3 font-normal normal-case tracking-normal text-teal-100">{s.input}</span>
                 </p>
-                <p className="num mt-6 font-serif text-[5.5rem] font-light leading-none text-gold-400/90">{s.n}</p>
+                <p className="num mt-6 text-[3rem] font-medium leading-none text-gold-400/90">{s.n}</p>
                 <h3
                   ref={(el) => {
                     headings.current[i] = el;
@@ -137,7 +137,7 @@ export function ProcessStory({ counts }: { counts: { instruments: number; indica
 function Output({ step, next, compact = false }: { step: Step; next?: Step; compact?: boolean }) {
   return (
     <div className={`${compact ? "mt-5 pl-4" : "mt-8 pl-5"} max-w-lg border-l-2 border-gold-400/70`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-300">Output</p>
+      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-gold-300">Output</p>
       <p className={`mt-1.5 font-serif leading-snug text-white ${compact ? "text-[1.15rem]" : "text-[1.3rem]"}`}>{step.output}</p>
       {next && (
         <p className="mt-2 text-[12px] text-teal-300">

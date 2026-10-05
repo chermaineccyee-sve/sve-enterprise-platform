@@ -54,7 +54,7 @@ export function AccessToAllocation() {
                 <tr key={a} className="border-b border-rule-soft">
                   <td className="py-4 text-[15px] text-stone">{a}</td>
                   <td aria-hidden className="py-4 text-center text-gold-600">→</td>
-                  <th scope="row" className="py-4 font-serif text-[1.25rem] font-normal text-teal-900">{b}</th>
+                  <th scope="row" className="py-4 text-[1rem] font-medium text-teal-900">{b}</th>
                 </tr>
               ))}
             </tbody>

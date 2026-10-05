@@ -41,7 +41,7 @@ export function MarketMap({
     const s = id ? instruments[id] : null;
     return (
       <div className="flex items-center justify-between gap-3 border-b border-rule-soft py-2.5">
-        <span className="w-20 text-[11px] uppercase tracking-[0.12em] text-stone">{label}</span>
+        <span className="w-20 text-[11px] uppercase tracking-[0.08em] text-stone">{label}</span>
         {s ? (
           <>
             <span className="flex-1 text-[13px] font-semibold text-ink">
@@ -118,7 +118,7 @@ export function MarketMap({
       <div className="md:col-span-5" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <m.div key={node.id} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone">Market</p>
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone">Market</p>
             <h3 className="mt-2 font-serif text-[2rem] leading-tight text-teal-900">{node.name}</h3>
             <div className="mt-5 border-t border-rule">
               {row(node.index, "Index")}
@@ -127,7 +127,7 @@ export function MarketMap({
             </div>
             {insight && (
               <Link href={`/insights/${insight.slug}`} className="group mt-6 block">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone">Related insight</span>
+                <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone">Related insight</span>
                 <span className="mt-1 block font-serif text-[1.2rem] leading-snug text-teal-900 group-hover:text-teal-700">{insight.title} →</span>
               </Link>
             )}

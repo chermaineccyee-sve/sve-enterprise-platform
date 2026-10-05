@@ -223,3 +223,45 @@ required).
 | Can an outdated Nusantara View be identified and withdrawn? | **Yes** | Past `reviewAt` → withdrawn on the server and, for already-rendered pages, in the browser (tested by letting a published view expire after build) |
 | Can a capability later become an approved product without changing the information architecture? | **Yes** | Set `status: "active-product"`, `stage: "active"` and populate `product`; the detail page shows product fields; integrity rules prevent a partial product |
 | Can prototype mode be replaced by production configuration without rebuilding the website? | **Yes** — configuration and redeploy | `NUSANTARA_ENV=production` removes the banner, sample content and prototype wording, keeps indexing off until decided; verified by a production build |
+
+## 13. Typography
+
+Two typefaces, each with a defined role. Keep this distinction when adding
+or changing anything.
+
+| Typeface | Role | Use it for |
+|---|---|---|
+| **Newsreader** (serif, `font-serif`, `--font-serif`) | **Nusantara's voice and thinking** | Major editorial statements; page and section headings (`display-*`); Insight titles; long-form research prose (`.prose-nt`, about 19 px, line height 1.7); executive summaries and key takeaways; pull quotes and theme statements; Nusantara View signals and Market State readings; selected expressive navigation (the mobile menu) |
+| **IBM Plex Sans** (sans, default body font, `--font-sans`) | **Nusantara's information and interface** | Corporate and body copy outside the research environment; labels, eyebrows and metadata; navigation bar, buttons and controls; tables and table row headings; diagram labels; tabs and selectors; market data and every functional numeral |
+
+Rules:
+
+- **Numerals.** Market figures and quantitative or functional numbers use IBM
+  Plex Sans with tabular figures (`.num`). Never set data numerals in the
+  serif or in a light weight.
+- **Scale.**
+  - Use the tokens in `src/app/(site)/globals.css`; avoid one-off sizes.
+  - `display-xl` reaches about 68 px on desktop, for the largest statements
+    only.
+  - `display-l` is about 52 px, for major section headings.
+  - `display-m` is about 38 px and `display-s` about 26 px.
+  - Mobile minimums are set by the `clamp()` lower bounds.
+  - Featured or hero headlines use these tokens rather than oversized
+    exceptions.
+- **Labels.** Uppercase labels use about 0.08–0.09em letter-spacing
+  (`.eyebrow`, `tracking-[0.08em]`) at weight 500. Do not widen tracking for
+  effect.
+- **Weights.**
+  - Newsreader: regular only, italic for quotes and signals.
+  - IBM Plex Sans: 400 for text, 500 for labels and emphasis, 600 sparingly.
+  - No light weights.
+- **Don't:**
+  - use rounded or "tech" display faces, decorative type, oversized hero type
+    or exaggerated letter-spacing;
+  - move research prose to the sans;
+  - put the serif on functional interface elements.
+
+The intended character is an established institutional investment manager
+with a serious research and editorial identity, not a template, SaaS or
+generic bank site.
+

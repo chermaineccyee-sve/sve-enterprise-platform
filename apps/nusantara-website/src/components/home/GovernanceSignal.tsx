@@ -55,7 +55,7 @@ export function GovernanceSignal() {
                 className="group pt-10"
               >
                 <span className={`num block text-[11px] ${i <= gate ? "text-gold-300" : "text-teal-300/60"}`}>{String(i + 1).padStart(2, "0")}</span>
-                <span className={`mt-1 block text-[12.5px] font-semibold uppercase tracking-[0.12em] transition-colors ${i === gate ? "text-white" : "text-teal-200 group-hover:text-white"}`}>
+                <span className={`mt-1 block text-[12.5px] font-medium uppercase tracking-[0.08em] transition-colors ${i === gate ? "text-white" : "text-teal-200 group-hover:text-white"}`}>
                   {d.title}
                 </span>
               </button>
@@ -70,7 +70,7 @@ export function GovernanceSignal() {
           <li key={d.id}>
             <button type="button" onClick={() => setGate(i)} aria-pressed={i === gate} className={`flex w-full items-center gap-3 border-l-2 py-2 pl-4 text-left ${i === gate ? "border-gold-400 text-white" : "border-white/15 text-teal-200"}`}>
               <span className="num text-[11px] text-gold-300">{String(i + 1).padStart(2, "0")}</span>
-              <span className="text-[13px] font-semibold uppercase tracking-[0.12em]">{d.title}</span>
+              <span className="text-[13px] font-medium uppercase tracking-[0.08em]">{d.title}</span>
             </button>
           </li>
         ))}

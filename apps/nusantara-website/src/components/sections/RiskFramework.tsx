@@ -10,10 +10,10 @@ export function RiskFramework({ showConcepts = true, layout = "split" }: { showC
           <circle cx="200" cy="170" r="145" fill="none" stroke="#12384a" strokeWidth="1.4" />
           <circle cx="360" cy="170" r="145" fill="none" stroke="#12384a" strokeWidth="1.4" />
           <circle cx="280" cy="170" r="58" fill="#f4ecdb" stroke="#b8955a" strokeWidth="1.4" />
-          <text x="135" y="176" textAnchor="middle" className="fill-teal-900 font-serif text-[26px]">Risk</text>
-          <text x="425" y="176" textAnchor="middle" className="fill-teal-900 font-serif text-[26px]">Return</text>
+          <text x="135" y="176" textAnchor="middle" className="fill-teal-900 font-sans text-[22px] font-medium">Risk</text>
+          <text x="425" y="176" textAnchor="middle" className="fill-teal-900 font-sans text-[22px] font-medium">Return</text>
           <text x="280" y="176" textAnchor="middle" className="fill-teal-900 text-[14px] font-semibold">Resilience</text>
-          <text x="280" y="22" textAnchor="middle" className="fill-stone text-[11px] uppercase tracking-[0.2em]">↔</text>
+          <text x="280" y="22" textAnchor="middle" className="fill-stone text-[11px] uppercase tracking-[0.08em]">↔</text>
         </svg>
       </div>
       <div className={split ? "lg:col-span-6" : ""}>

@@ -117,7 +117,7 @@ export function MarketState({
                     transition={{ type: "spring", stiffness: 380, damping: 34 }}
                   />
                 )}
-                <span className={`text-[11.5px] font-semibold uppercase tracking-[0.18em] ${on ? "text-teal-800" : "text-stone"}`}>{dim.label}</span>
+                <span className={`text-[11.5px] font-medium uppercase tracking-[0.08em] ${on ? "text-teal-800" : "text-stone"}`}>{dim.label}</span>
                 <span
                   className={`font-serif leading-none tracking-tight transition-all duration-500 md:order-none ${
                     on ? "text-[2.1rem] text-teal-900 md:text-[2.6rem]" : "text-[1.6rem] text-teal-900/55 md:text-[2rem]"
@@ -138,7 +138,7 @@ export function MarketState({
       <div className="lg:col-span-5 lg:pl-12">
         <div className="lg:sticky lg:top-28">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone">{edition.sample ? "Illustrative reading" : "Nusantara reading"}</p>
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone">{edition.sample ? "Illustrative reading" : "Nusantara reading"}</p>
           </div>
           <AnimatePresence mode="wait" initial={false}>
             <m.div

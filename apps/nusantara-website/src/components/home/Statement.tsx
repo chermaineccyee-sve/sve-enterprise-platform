@@ -23,7 +23,7 @@ export function Statement({ phrases, children }: { phrases: ReactNode[]; childre
   const step = 1 / phrases.length;
   return (
     <div ref={ref} className="relative">
-      <p className="relative max-w-[18ch] font-serif text-[clamp(2.4rem,6.4vw,6.2rem)] leading-[1.02] tracking-[-0.025em] text-teal-900">
+      <p className="relative max-w-[18ch] font-serif text-[clamp(2.4rem,4.8vw,4.25rem)] leading-[1.04] tracking-[-0.015em] text-teal-900">
         {phrases.map((p, i) => (
           <Phrase key={i} progress={scrollYProgress} range={[i * step, Math.min(1, (i + 1) * step + 0.05)]}>
             {p}

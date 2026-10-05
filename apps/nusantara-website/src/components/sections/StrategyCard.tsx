@@ -6,7 +6,7 @@ import { Arrow } from "@/components/ui/CTA";
 export function StatusLabel({ status, tone = "light" }: { status: Strategy["stage"]; tone?: "light" | "dark" }) {
   const dark = tone === "dark";
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${dark ? "text-teal-200" : "text-stone"}`}>
+    <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] ${dark ? "text-teal-200" : "text-stone"}`}>
       {STATUS_INFO[status].label}
     </span>
   );

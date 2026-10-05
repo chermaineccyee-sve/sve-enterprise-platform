@@ -155,12 +155,12 @@ export default async function HomePage() {
             <div className="lg:col-span-5">
               {marketState.framing ? (
                 <>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-800">{marketState.framing.title}</p>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-gold-800">{marketState.framing.title}</p>
                   <p className="mt-2 text-[15px] leading-relaxed text-stone">{marketState.framing.note}</p>
                 </>
               ) : (
                 <>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-800">{marketState.edition}</p>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-gold-800">{marketState.edition}</p>
                   <PublicationStamp p={marketState} className="mt-2" />
                 </>
               )}

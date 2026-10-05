@@ -43,8 +43,8 @@ export function StructuralIndicators({
             return (
               <m.li key={ind.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="border-b border-rule">
                 <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : ind.id)} className="grid w-full grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 py-4 text-left md:grid-cols-[200px_minmax(0,1fr)_120px_110px_90px_20px]">
-                  <span className="hidden text-[11px] uppercase tracking-[0.14em] text-stone md:block">{ind.category}</span>
-                  <span className="font-serif text-[1.15rem] leading-snug text-teal-900">{ind.title}</span>
+                  <span className="hidden text-[11px] uppercase tracking-[0.08em] text-stone md:block">{ind.category}</span>
+                  <span className="text-[1rem] font-medium leading-snug text-teal-900">{ind.title}</span>
                   <span className="hidden md:block">
                     <Sparkline values={ind.series.map((s) => s.v)} width={110} height={26} label={`${ind.title} trend`} className="text-teal-800" />
                   </span>

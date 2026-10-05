@@ -180,7 +180,7 @@ export default async function InvestmentApproachPage() {
                 style={{ minHeight: `${150 + i * 34}px` }}
               >
                 <span className="num text-[12px] text-gold-700">0{i + 1}</span>
-                <span className="mt-2 font-serif text-[1.2rem] leading-tight text-teal-900">{s.stage}</span>
+                <span className="mt-2 text-[1rem] font-medium leading-tight text-teal-900">{s.stage}</span>
                 <span className="mt-2 text-[13px] leading-snug text-stone">{s.detail}</span>
               </li>
             ))}

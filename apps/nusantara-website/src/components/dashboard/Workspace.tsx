@@ -90,7 +90,7 @@ function WorkspaceUnavailable({ provenance }: { provenance: DataProvenance }) {
   return (
     <div className="border-y border-rule bg-white lg:border">
       <div className="flex min-h-[420px] flex-col items-center justify-center gap-4 px-6 py-16 text-center" role="status">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">Market data unavailable</p>
+        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-teal-800">Market data unavailable</p>
         <p className="max-w-md text-[15px] leading-relaxed text-charcoal">
           Market data cannot be shown at the moment. No values are displayed rather than out-of-date or estimated figures.
         </p>
@@ -251,7 +251,7 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings, 
           </div>
 
           <div className="border-t border-rule">
-            <p className="flex items-center justify-between px-5 pt-4 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-stone">
+            <p className="flex items-center justify-between px-5 pt-4 text-[10.5px] font-medium uppercase tracking-[0.08em] text-stone">
               <span>{isMacro ? "Indicators" : mode === "compare" ? `Compare · ${compare.length}/${MAX_COMPARE}` : "Instruments"}</span>
             </p>
             <ul className="no-scrollbar flex gap-1 overflow-x-auto px-3 py-3 lg:block lg:max-h-[560px] lg:space-y-0.5 lg:overflow-y-auto lg:overflow-x-hidden">
@@ -267,7 +267,7 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings, 
                           className={`relative w-full px-3 py-2.5 text-left transition-colors ${on ? "bg-white" : "hover:bg-white/60"}`}
                         >
                           {on && <m.span layoutId="rail-row" className="absolute inset-y-0 left-0 w-[2px] bg-teal-800" />}
-                          <span className="block text-[10.5px] uppercase tracking-[0.12em] text-stone">{ind.category}</span>
+                          <span className="block text-[10.5px] uppercase tracking-[0.08em] text-stone">{ind.category}</span>
                           <span className="mt-0.5 block whitespace-nowrap text-[13px] text-ink lg:whitespace-normal">{ind.title}</span>
                         </button>
                       </li>
@@ -329,7 +329,7 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings, 
         {/* Mobile instrument selector */}
         <div className="border-b border-rule bg-paper px-5 py-4 lg:hidden">
           {!focusUnavailable && <MarketStepper all={all} current={selected} onStep={step} />}
-          <label htmlFor="ws-instrument" className="mt-4 block text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">
+          <label htmlFor="ws-instrument" className="mt-4 block text-[11px] font-medium uppercase tracking-[0.08em] text-stone">
             Instrument
           </label>
           <select
@@ -363,7 +363,7 @@ function WorkspaceBody({ snapshot, initialHistory, indicators, intel, readings, 
         {/* CENTRE — market data */}
         <section aria-label="Market data" className="min-w-0 lg:col-start-2 xl:row-start-1">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule-soft px-5 py-3 md:px-8">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-teal-800">
               Market data <span className="font-normal normal-case tracking-normal text-stone">· {isMacro ? "structural indicator" : mode === "compare" ? "comparison, rebased to 100" : "observed"} · {isMacro && indicator ? statusPhrase(indicator.provenance) : dataPhrase}</span>
             </p>
             {!isMacro && (
@@ -478,7 +478,7 @@ function UnavailableCentre({ item }: { item: UnavailableInstrument }) {
         {inst.name} <span className="num">· {inst.ticker}</span>
       </p>
       <div className="mt-6 flex h-[380px] flex-col items-center justify-center gap-2 border border-dashed border-rule px-6 text-center" role="status">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">Unavailable</p>
+        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-teal-800">Unavailable</p>
         <p className="max-w-sm text-[14px] text-charcoal">{UNAVAILABLE_REASON[item.reason]} No value is shown.</p>
       </div>
     </div>
@@ -531,7 +531,7 @@ function InstrumentCentre({
           )}
         </div>
         <div className="sm:text-right">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-stone">{period === "1D" ? "Day change" : `${period} change`}</p>
+          <p className="text-[11px] uppercase tracking-[0.08em] text-stone">{period === "1D" ? "Day change" : `${period} change`}</p>
           <Change instrument={inst} change={pc.change} changePct={pc.changePct} changeBp={pc.changeBp} size="md" className="mt-1 sm:justify-end" />
         </div>
       </div>
@@ -581,7 +581,7 @@ function InstrumentStats({
   const vol = realisedVol(raw, isYield);
   return (
     <div className="px-5 py-6 md:px-8">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">Market statistics</p>
+      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-teal-800">Market statistics</p>
       <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
         {[
           ["Previous close", <AnimatedNumber key="pc" value={snap.quote.previousClose} format={fmt} />],
@@ -595,7 +595,7 @@ function InstrumentStats({
           </div>
         ))}
       </dl>
-      {related.length > 0 && <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">Related markets</p>}
+      {related.length > 0 && <p className="mt-8 text-[11px] font-medium uppercase tracking-[0.08em] text-teal-800">Related markets</p>}
       <ul className={`mt-2 divide-y divide-rule-soft border-y border-rule-soft ${related.length ? "" : "hidden"}`}>
         {related.map((r) => (
           <li key={r.instrument.id}>
@@ -686,7 +686,7 @@ function IndicatorCentre({ indicator }: { indicator: IntelligenceIndicator }) {
     <div>
       <AnimatePresence mode="wait" initial={false}>
         <m.div key={indicator.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-          <p className="text-[11px] uppercase tracking-[0.14em] text-stone">{indicator.category}</p>
+          <p className="text-[11px] uppercase tracking-[0.08em] text-stone">{indicator.category}</p>
           <h3 className="mt-2 font-serif text-[1.8rem] leading-tight text-teal-900">{indicator.title}</h3>
           <p className="mt-1 text-[13px] text-stone">{indicator.measure}</p>
         </m.div>
@@ -707,7 +707,7 @@ function IndicatorCentre({ indicator }: { indicator: IntelligenceIndicator }) {
 function IntelBlock({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="border-t border-white/10 py-4">
-      <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-teal-200">{label}</p>
+      <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-teal-200">{label}</p>
       <div className="mt-1.5">{children}</div>
     </div>
   );
@@ -746,12 +746,12 @@ function InstrumentIntel({
   return (
     <div className="px-5 py-5 md:px-8 lg:py-7">
       <div className="hidden lg:block">
-        <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</p>
+        <p className="text-[12px] font-medium uppercase tracking-[0.08em] text-white">Nusantara View</p>
         {subline ? <p className="mt-1 text-[11px] font-medium tracking-[0.04em] text-gold-200">{subline}</p> : view && <PublicationStamp p={view} tone="dark" className="mt-1" />}
       </div>
       <button type="button" aria-expanded={open} aria-controls="intel-body" onClick={toggle} className="flex w-full items-center justify-between text-left lg:hidden">
         <span>
-          <span className="block text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</span>
+          <span className="block text-[12px] font-medium uppercase tracking-[0.08em] text-white">Nusantara View</span>
           {subline ? <span className="block mt-1 text-[11px] font-medium tracking-[0.04em] text-gold-200">{subline}</span> : view && <PublicationStamp p={view} tone="dark" className="mt-1" />}
           {view?.signal && !open && <span className="mt-2 block font-serif text-[1.35rem] leading-none text-white">{view.signal}</span>}
         </span>
@@ -763,7 +763,7 @@ function InstrumentIntel({
             {view ? (
               <>
                 <div className="mt-6 pb-5">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">Signal</p>
+                  <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-gold-300">Signal</p>
                   <p className="mt-1 font-serif text-[2.1rem] leading-none text-white">{view.signal}</p>
                   {view.stance && (
                     <div className="mt-4">
@@ -813,7 +813,7 @@ function MarketStepper({ all, current, onStep }: { all: InstrumentSnapshot[]; cu
       <div className="min-w-0 flex-1 text-center" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <m.p key={inst.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.18 }} className="leading-tight">
-            <span className="block text-[13px] font-semibold uppercase tracking-[0.12em] text-ink">{inst.shortName}</span>
+            <span className="block text-[13px] font-medium uppercase tracking-[0.08em] text-ink">{inst.shortName}</span>
             <span className="mt-0.5 flex items-center justify-center gap-2 text-[12.5px]">
               <span className="num text-charcoal">
                 {formatValue(current.quote.value, inst.decimals)}
@@ -860,13 +860,13 @@ function IndicatorIntel({ indicator, reading }: { indicator: IntelligenceIndicat
   const illustrative = indicator.provenance.status === "illustrative";
   return (
     <div className="p-6 md:p-8">
-      <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
+      <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-white">
         Nusantara reading
       </p>
       {current?.sample && <p className="mt-1 text-[11px] font-medium tracking-[0.04em] text-gold-200">{SAMPLE_LABELS.interpretation}</p>}
       <AnimatePresence mode="wait" initial={false}>
         <m.div key={indicator.id} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
-          <p className="mt-6 font-serif text-[2rem] capitalize leading-none text-white">{indicator.direction}</p>
+          <p className="mt-6 text-[1.75rem] font-medium capitalize leading-none text-white">{indicator.direction}</p>
           <p className="mt-2 text-[12px] text-teal-200">
             Direction of the {statusPhrase(indicator.provenance)} series · {indicator.period}
           </p>
@@ -902,7 +902,7 @@ function PeriodStrip({ snap }: { snap: InstrumentSnapshot }) {
   return (
     <div ref={ref} className="border-t border-rule px-5 py-6 md:px-8">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-stone">Historical comparison · {inst.shortName}</p>
+        <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-stone">Historical comparison · {inst.shortName}</p>
         <p className="text-[11.5px] text-stone">
           Change over each period · {isYield ? "basis points" : "percent"} · {statusPhrase(snap.provenance)}
         </p>

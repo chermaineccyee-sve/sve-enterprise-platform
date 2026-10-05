@@ -77,7 +77,7 @@ export function AllocationUniverse({
                 className={`relative flex w-full items-baseline gap-3 border px-3 py-2 text-left lg:border-0 lg:border-b lg:border-rule lg:px-0 lg:py-3.5 ${on ? "border-teal-800" : "border-rule"}`}
               >
                 <span className={`num text-[11px] ${on ? "text-gold-700" : "text-mist"}`}>{String(i + 1).padStart(2, "0")}</span>
-                <span className={`whitespace-nowrap font-serif text-[1.15rem] leading-tight transition-all duration-300 lg:whitespace-normal lg:text-[1.35rem] ${on ? "text-teal-900 lg:translate-x-1" : "text-teal-900/55 hover:text-teal-900"}`}>
+                <span className={`whitespace-nowrap text-[1rem] font-medium leading-tight transition-all duration-300 lg:whitespace-normal lg:text-[1.0625rem] ${on ? "text-teal-900 lg:translate-x-1" : "text-teal-900/55 hover:text-teal-900"}`}>
                   {st.name}
                 </span>
               </button>
@@ -112,7 +112,7 @@ export function AllocationUniverse({
       <div className="lg:col-span-5" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <m.div key={s.slug} id="universe-panel" role="tabpanel" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.35 }}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone">
               {STATUS_INFO[s.stage].label}
               {s.status === "active-product" ? "" : " · not an offered product"}
             </p>
@@ -198,7 +198,7 @@ export function AllocationUniverse({
                 </div>
         {/* Indicative profile */}
                 <div>
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-stone">Indicative asset-class profile</p>
+          <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-stone">Indicative asset-class profile</p>
           {s.profile ? (
             <dl className="mt-3 space-y-3">
               {PROFILE_AXES.map((ax) => {

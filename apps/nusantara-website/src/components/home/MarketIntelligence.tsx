@@ -74,7 +74,7 @@ export function MarketIntelligence({
       {sweep > 0 && <span key={sweep} aria-hidden className="focus-sweep" />}
       {/* SELECT MARKET */}
       <div className="border-b border-rule py-5 lg:col-span-3 lg:border-b-0 lg:border-r lg:py-6 lg:pr-6">
-        <label htmlFor="mi-select" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone lg:hidden">
+        <label htmlFor="mi-select" className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone lg:hidden">
           Select market
         </label>
         <select
@@ -157,7 +157,7 @@ function Observed({ snap, points, provenance }: { snap: InstrumentSnapshot; poin
   const time = useMarketTime(snap.provenance.status);
   return (
     <section aria-label="Market data" className="min-w-0 py-6 lg:col-span-5 lg:px-8 lg:py-6">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">
+      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-teal-800">
         Market data <span className="font-normal normal-case tracking-normal text-stone">· observed · {statusPhrase(provenance)}</span>
       </p>
       <p className="mt-4 text-[13px] text-stone lg:mt-3">
@@ -168,7 +168,7 @@ function Observed({ snap, points, provenance }: { snap: InstrumentSnapshot; poin
           <AnimatedNumber value={snap.quote.value} format={fmt} />
         </p>
         <div className="sm:text-right">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-stone">Day change</p>
+          <p className="text-[11px] uppercase tracking-[0.08em] text-stone">Day change</p>
           <Change instrument={inst} change={snap.quote.change} changePct={snap.quote.changePct} changeBp={snap.quote.changeBp} size="md" className="mt-1 sm:justify-end" />
         </div>
       </div>
@@ -213,7 +213,7 @@ function Interpretation({
   const view = intel?.view && !(now !== null && isPastReview(intel.view, now)) ? intel.view : null;
   return (
     <section aria-label="Nusantara View" className="on-dark min-w-0 bg-teal-900 px-5 py-6 text-white md:px-8 lg:col-span-4 lg:py-6">
-      <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white">Nusantara View</p>
+      <p className="text-[12px] font-medium uppercase tracking-[0.08em] text-white">Nusantara View</p>
       {view && !view.sample ? <PublicationStamp p={view} tone="dark" className="mt-1" /> : <p className="mt-1 text-[11px] font-medium tracking-[0.04em] text-gold-200">{SAMPLE_LABELS.interpretation}</p>}
       <AnimatePresence mode="wait" initial={false}>
         <m.div key={id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
@@ -221,7 +221,7 @@ function Interpretation({
             <>
               {view.signal && (
                 <div className="mt-6 lg:mt-4">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-gold-300">Signal</p>
+                  <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-gold-300">Signal</p>
                   <p className="mt-1 font-serif text-[2rem] leading-none text-white lg:text-[1.8rem]">{view.signal}</p>
                   {view.stance && (
                     <div className="mt-4 lg:mt-3">
@@ -239,7 +239,7 @@ function Interpretation({
           )}
           {intel?.insight && (
             <div className="mt-5 border-t border-white/10 pt-4 lg:mt-3.5 lg:pt-3">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-teal-200">Related insight</p>
+              <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-teal-200">Related insight</p>
               <Link href={`/insights/${intel.insight.slug}`} className="group mt-1.5 block font-serif text-[1.12rem] leading-snug text-white hover:text-gold-200">
                 {intel.insight.title} →
               </Link>
@@ -256,7 +256,7 @@ function Interpretation({
 function Block({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mt-5 border-t border-white/10 pt-4 lg:mt-3.5 lg:pt-3">
-      <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-teal-200">{label}</p>
+      <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-teal-200">{label}</p>
       <p className="mt-1.5 text-[14.5px] leading-snug text-teal-50">{children}</p>
     </div>
   );

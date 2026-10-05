@@ -87,14 +87,14 @@ export default async function MarketDashboardPage() {
                 {snapshot.provenance.status === "illustrative" ? (
                   // One illustrative snapshot exists; it is stated, not selectable.
                   <p className="flex flex-wrap items-baseline gap-x-2.5">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300">Market snapshot</span>
+                    <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-teal-300">Market snapshot</span>
                     <span className="num text-[12px] tracking-[0.04em] text-teal-50">
                       <SnapshotStamp provenance={snapshot.provenance} /> · Illustrative
                     </span>
                   </p>
                 ) : (
                   <p className="flex flex-wrap items-baseline gap-x-2.5">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300">Market data</span>
+                    <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-teal-300">Market data</span>
                     <span className="num text-[12px] text-teal-200">{asAt}</span>
                   </p>
                 )}

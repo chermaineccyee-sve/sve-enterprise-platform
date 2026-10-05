@@ -54,7 +54,7 @@ export function CurrentTime({
 
   return (
     <span className={`inline-flex items-baseline gap-2.5 whitespace-nowrap text-[11px] ${className}`}>
-      <span aria-hidden className={`font-semibold uppercase tracking-[0.16em] ${label}`}>Current time</span>
+      <span aria-hidden className={`font-medium uppercase tracking-[0.08em] ${label}`}>Current time</span>
       <time dateTime={t ? `${t.year}-${t.month}-${t.day}T${t.hh}:${t.mm}:${t.ss}+08:00` : undefined} className={`num text-[12px] tracking-[0.04em] ${value}`}>
         <span aria-hidden className="hidden sm:inline">{full}</span>
         <span aria-hidden className="sm:hidden">{compact}</span>

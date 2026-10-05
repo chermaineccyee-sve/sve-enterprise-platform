@@ -17,7 +17,7 @@ export function FeaturedResearch({ insight, chart, takeaways }: { insight: Insig
         <p className="eyebrow text-teal-200">
           Featured research · {insight.category}
         </p>
-        <h2 className="mt-6 font-serif text-[clamp(2.2rem,4vw,3.6rem)] leading-[1.04] tracking-[-0.02em] text-white">
+        <h2 className="display-l mt-6 text-white">
           <Link href={`/insights/${insight.slug}`} className="hover:text-gold-100">
             {insight.title}
           </Link>
@@ -55,7 +55,7 @@ export function FeaturedResearch({ insight, chart, takeaways }: { insight: Insig
             <div className="flex flex-wrap items-start justify-between gap-4">
               <p className="max-w-md text-[13px] text-teal-100">{chart.caption}</p>
               {chart.illustrative && (
-                <span className="inline-flex items-center gap-1.5 border border-gold-300/50 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gold-200">
+                <span className="inline-flex items-center gap-1.5 border border-gold-300/50 px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-gold-200">
                   Illustrative
                 </span>
               )}

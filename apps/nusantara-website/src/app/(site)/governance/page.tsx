@@ -118,8 +118,8 @@ export default function GovernancePage() {
           <ul className="self-end lg:col-span-6 lg:col-start-7">
             {SHARED.map((s) => (
               <li key={s} className="flex items-center justify-between border-b border-rule py-4">
-                <span className="font-serif text-[1.3rem] text-teal-900">{s}</span>
-                <span className="text-[12px] uppercase tracking-[0.12em] text-stone">Both tracks</span>
+                <span className="text-[1.0625rem] font-medium text-teal-900">{s}</span>
+                <span className="text-[12px] uppercase tracking-[0.08em] text-stone">Both tracks</span>
               </li>
             ))}
           </ul>

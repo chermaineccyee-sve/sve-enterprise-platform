@@ -20,7 +20,7 @@ export function ReviewPlaceholder({
   const dark = tone === "dark";
   return (
     <div role="note" className={`border-l-2 py-1 pl-4 ${dark ? "border-gold-300/60 text-teal-100" : "border-gold-500/70 text-stone"} ${className}`}>
-      <p className={`text-[10.5px] font-semibold uppercase tracking-[0.14em] ${dark ? "text-gold-200" : "text-gold-800"}`}>{label}</p>
+      <p className={`text-[10.5px] font-medium uppercase tracking-[0.08em] ${dark ? "text-gold-200" : "text-gold-800"}`}>{label}</p>
       <div className="mt-1 text-[13.5px] leading-relaxed">{children}</div>
     </div>
   );

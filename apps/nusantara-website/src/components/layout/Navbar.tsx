@@ -133,7 +133,7 @@ export function Navbar({ dataLabel, prototypeNote }: { dataLabel: string; protot
             >
               <NStar className="star-breathe h-2.5 w-2.5 text-gold-500" />
               <span>
-                <span className="block font-semibold uppercase tracking-[0.14em] text-teal-800">Markets</span>
+                <span className="block font-medium uppercase tracking-[0.08em] text-teal-800">Markets</span>
                 <span className="block leading-tight">{dataLabel}</span>
               </span>
             </Link>
@@ -192,7 +192,7 @@ export function Navbar({ dataLabel, prototypeNote }: { dataLabel: string; protot
                   >
                     <span className="flex items-baseline gap-4">
                       <span className="num w-6 text-xs text-mist">{String(i + 1).padStart(2, "0")}</span>
-                      <span className={`font-serif text-[1.75rem] leading-tight ${active ? "text-teal-800" : "text-ink group-hover:text-teal-800"}`}>
+                      <span className={`font-serif text-[1.5rem] leading-tight ${active ? "text-teal-800" : "text-ink group-hover:text-teal-800"}`}>
                         {item.label}
                       </span>
                     </span>

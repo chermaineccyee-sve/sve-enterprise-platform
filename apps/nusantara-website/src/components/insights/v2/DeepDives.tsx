@@ -64,7 +64,7 @@ export function DeepDives({ insights }: { insights: InsightListing[] }) {
             const n = c === "All" ? insights.length : counts.get(c) ?? 0;
             const on = cat === c;
             return (
-              <button key={c} type="button" aria-pressed={on} onClick={() => select(c)} disabled={n === 0} className={`relative flex h-9 shrink-0 items-center gap-2 px-3.5 text-[12px] uppercase tracking-[0.1em] disabled:opacity-35 ${on ? "text-white" : "text-charcoal hover:text-teal-800"}`}>
+              <button key={c} type="button" aria-pressed={on} onClick={() => select(c)} disabled={n === 0} className={`relative flex h-9 shrink-0 items-center gap-2 px-3.5 text-[12px] uppercase tracking-[0.08em] disabled:opacity-35 ${on ? "text-white" : "text-charcoal hover:text-teal-800"}`}>
                 {on && <m.span layoutId="dd-cat" className="absolute inset-0 bg-teal-800" transition={{ type: "spring", stiffness: 420, damping: 36 }} />}
                 <span className="relative">{c}</span>
                 <span className={`num relative text-[11px] ${on ? "text-teal-200" : "text-mist"}`}>{n}</span>
@@ -94,7 +94,7 @@ export function DeepDives({ insights }: { insights: InsightListing[] }) {
                   className="group grid gap-2 py-7 md:grid-cols-[60px_200px_minmax(0,1fr)_170px] md:items-baseline md:gap-6"
                 >
                   <span className="num text-[12px] text-mist">{String(k + 1).padStart(2, "0")}</span>
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone">{i.category}</span>
+                  <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone">{i.category}</span>
                   <span>
                     <span className="block font-serif text-[1.6rem] leading-[1.15] text-teal-900 transition-transform duration-500 group-hover:translate-x-2 md:text-[2rem]">{i.title}</span>
                     <span className="mt-2 block max-w-2xl text-[14.5px] leading-relaxed text-stone">{i.summary}</span>

@@ -47,7 +47,7 @@ export function MarketStatus({
   }
   return (
     <span
-      className={`inline-flex h-6 items-center gap-1.5 border px-2 text-[10.5px] font-semibold uppercase tracking-[0.12em] ${
+      className={`inline-flex h-6 items-center gap-1.5 border px-2 text-[10.5px] font-medium uppercase tracking-[0.08em] ${
         dark ? "border-gold-300/50 text-gold-200" : stale ? STALE_STYLE : STATUS_STYLE[status]
       } ${className}`}
     >
@@ -121,7 +121,7 @@ export function StaleMark({ provenance, tone = "light", className = "" }: { prov
   const stale = useIsStale(provenance);
   if (!stale) return null;
   return (
-    <span className={`text-[10.5px] font-semibold uppercase tracking-[0.12em] ${tone === "dark" ? "text-gold-200" : "text-down"} ${className}`} title={`Not current — last updated ${formatTimestamp(provenance.asOf)}`}>
+    <span className={`text-[10.5px] font-medium uppercase tracking-[0.08em] ${tone === "dark" ? "text-gold-200" : "text-down"} ${className}`} title={`Not current — last updated ${formatTimestamp(provenance.asOf)}`}>
       Stale
     </span>
   );

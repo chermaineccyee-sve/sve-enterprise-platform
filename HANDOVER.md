@@ -270,6 +270,32 @@ Details: `docs/ADMIN_PORTAL.md`.
 | Capabilities (descriptive content, relationships; lifecycle by Reviewer/Admin; no investment products) | Legal pages (`src/content/legal.ts`; a `legalPages` collection and `siteSettings` global exist in the schema but the site does not read them yet) |
 | Media (editorial images/PDFs), incl. Insight cover images | Brand master assets (`public/brand`, `brand-source/`) |
 
+### Typography (keep this distinction)
+
+The two typefaces are already loaded through `next/font` in
+`src/app/(site)/layout.tsx`.
+
+- **Newsreader = Nusantara's voice and thinking.** Use it for:
+  - major editorial statements and headings;
+  - Insight titles;
+  - long-form research prose;
+  - executive summaries and key investment statements;
+  - Nusantara View signals;
+  - selected expressive navigation (the mobile menu).
+- **IBM Plex Sans = Nusantara's information and interface.** Use it for:
+  - corporate body copy;
+  - labels and metadata;
+  - tables and diagrams;
+  - controls;
+  - market data and functional numerals (tabular, `.num`).
+
+Use the scale tokens in `globals.css` rather than one-off sizes:
+- largest statements about 68 px;
+- section headings about 52 px;
+- uppercase labels at about 0.08–0.09em tracking, weight 500.
+
+Full rules: `docs/ARCHITECTURE.md` §13.
+
 ## 10. Market-data architecture
 
 - **Entry point:** `src/lib/market/service.ts` is the single entry point. A
@@ -404,7 +430,7 @@ management approval: complete the GO/NO-GO list in
 | File | Contents |
 |---|---|
 | `README.md` | Public site: features, design phases, how to build the review build |
-| `docs/ARCHITECTURE.md` | Information chain, market-data service and states, publication governance, content models, relationship engine, environments, security |
+| `docs/ARCHITECTURE.md` | Information chain, market-data service and states, publication governance, content models, relationship engine, environments, security, typography (§13) |
 | `docs/ADMIN_PORTAL.md` | Admin Portal: roles, workflow/classification, preview, revalidation, versions, discard, structured Insights, legal-404 fix, regression scripts |
 | `docs/DEPLOYMENT.md` | Infrastructure, provisioning steps, environment matrix, migrations/deploy sequence, bootstrap, media, email/MFA assessment, online test, backup, observability |
 | `docs/CMS_CUTOVER_CHECKLIST.md` | GO/NO-GO cutover gate and open decisions |
