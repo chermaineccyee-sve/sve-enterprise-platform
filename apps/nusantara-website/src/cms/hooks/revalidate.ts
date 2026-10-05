@@ -15,7 +15,7 @@ import type { WorkflowEvent } from "./workflow";
  */
 export const contentTag = (collection: string) => `cms:${collection}`;
 
-function revalidate(collection: string) {
+export function revalidate(collection: string) {
   try {
     revalidateTag(contentTag(collection), { expire: 0 });
     logEvent("info", "cms.revalidate", { collection });

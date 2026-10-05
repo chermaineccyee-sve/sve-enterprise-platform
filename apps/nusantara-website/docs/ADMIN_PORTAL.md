@@ -384,6 +384,37 @@ Content. Instrument and indicator pickers show plain names.
 | `node scripts/parity/parity.mjs` | Public site vs `e803790` (HTML, CSS, headers, APIs, files, screenshots) |
 
 
+### Insight cover visual
+
+Insights → **Cover visual**:
+- **Visual type:**
+  - *Abstract* (default; the generated Nusantara pattern, chosen under
+    *Abstract pattern*);
+  - *Image* (upload or choose from Media, plus an optional caption);
+  - *Research visual* (the article's first chart).
+
+Where the cover shows:
+
+| Surface | Abstract | Image | Research visual |
+|---|---|---|---|
+| Homepage research cards | pattern | image | the lead chart (decorative) |
+| Featured slot (homepage, Insights page) | lead chart if any, else pattern (unchanged) | image, with caption · credit | lead chart if any, else pattern |
+| Article header band | pattern | image, with caption · credit below | pattern (the article shows its charts in the text) |
+
+How it behaves:
+- **Sizing:** images fill the existing containers with `object-fit: cover`
+  around the Media item's focal point. Responsive sizes come from the Media
+  library (800 / 1600 px and the original). No card changes size.
+- **Governance:**
+  - only authorised images, with alt text (required) and source/licence on the
+    Media item;
+  - an image appears publicly only after *Approved for public use*;
+  - granting or withdrawing approval refreshes the public pages at once;
+  - previews show the image to signed-in staff before approval.
+- **Fallback:** without an approved image, or a chart for a research visual,
+  the abstract pattern is shown.
+- **Existing Insights** keep the abstract default.
+
 ## 10. B1B — online readiness
 
 Deployment, environment matrix, provisioning, migrations, bootstrap, media,

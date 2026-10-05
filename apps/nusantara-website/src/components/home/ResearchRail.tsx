@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { InsightVisual } from "@/components/insights/InsightVisual";
+import { CoverImage, InsightCover } from "@/components/insights/InsightCover";
 import { MorphChart } from "@/components/market/MorphChart";
 import { SERIES_COLORS, PRIMARY_LINE } from "@/components/market/chart-utils";
 import { formatInsightDate, type InsightListing } from "@/content/insights/types";
@@ -73,7 +73,16 @@ export function ResearchRail({ featured, chart, items }: { featured: InsightList
               </p>
             </div>
             <div className="border-t border-rule-soft p-5 md:col-span-3 md:border-l md:border-t-0">
-              {chart ? (
+              {featured.cover?.type === "image" ? (
+                <figure>
+                  <div className="aspect-[16/10] overflow-hidden">
+                    <CoverImage image={featured.cover.image} sizes="(min-width: 768px) 480px, 88vw" />
+                  </div>
+                  {(featured.cover.caption || featured.cover.image.credit) && (
+                    <figcaption className="mt-2 text-[11px] text-stone">{[featured.cover.caption, featured.cover.image.credit].filter(Boolean).join(" · ")}</figcaption>
+                  )}
+                </figure>
+              ) : chart ? (
                 <>
                   <p className="text-[12.5px] text-charcoal">{chart.caption}</p>
                   <MorphChart
@@ -87,7 +96,7 @@ export function ResearchRail({ featured, chart, items }: { featured: InsightList
                 </>
               ) : (
                 <div className="aspect-[16/10]">
-                  <InsightVisual insight={featured} />
+                  <InsightCover insight={featured} />
                 </div>
               )}
             </div>
@@ -97,7 +106,7 @@ export function ResearchRail({ featured, chart, items }: { featured: InsightList
           <li key={i.slug} className="w-[72vw] shrink-0 snap-start sm:w-[340px]">
             <Link href={`/insights/${i.slug}`} className="group flex h-full flex-col">
               <div className="relative aspect-[4/3] overflow-hidden">
-                <InsightVisual insight={i} className="transition-transform duration-700 group-hover:scale-[1.04]" />
+                <InsightCover insight={i} className="transition-transform duration-700 group-hover:scale-[1.04]" />
                 <span className="num absolute left-4 top-4 text-[11px] text-gold-300">{String(k + 2).padStart(2, "0")}</span>
               </div>
               <p className="eyebrow mt-5 text-stone">{i.category}</p>

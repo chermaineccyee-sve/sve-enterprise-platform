@@ -2,7 +2,7 @@ import "server-only";
 import config from "@payload-config";
 import { unstable_cache } from "next/cache";
 import { getPayload } from "payload";
-import type { Block, Insight, InsightSource } from "@/content/insights/types";
+import type { Block, Insight, InsightCover, InsightSource } from "@/content/insights/types";
 import type { MarketStateEdition, NusantaraView, Signal, Stance, Theme } from "@/content/model/intelligence";
 import type { Publication } from "@/content/model/publication";
 import type { Strategy } from "@/content/strategies";
@@ -62,7 +62,27 @@ async function readLive(collection: CmsCollection): Promise<Doc[]> {
     sort: ["displayOrder", "createdAt"],
     overrideAccess: true,
   });
-  return res.docs as Doc[];
+  const docs = res.docs as Doc[];
+  if (collection === "insights") await attachCoverMedia(docs);
+  return docs;
+}
+
+/**
+ * Resolves Insight cover images to their Media records (stored as `_coverMedia`).
+ * Only images approved for public use are attached — anonymous visitors cannot
+ * load any other file — except for the item being previewed by a signed-in user.
+ * Media changes revalidate the Insights tag (src/cms/collections/Media.ts).
+ */
+async function attachCoverMedia(docs: Doc[], previewId?: string) {
+  const ids = [...new Set(docs.filter((d) => d.coverType === "image" && d.coverImage != null).map((d) => idOf(d.coverImage)!))];
+  if (!ids.length) return;
+  const payload = await getPayload({ config });
+  const media = await payload.find({ collection: "media", where: { id: { in: ids } }, depth: 0, limit: 0, pagination: false, overrideAccess: true });
+  const byId = new Map((media.docs as Doc[]).map((m) => [String(m.id), m]));
+  for (const d of docs) {
+    const m = byId.get(String(idOf(d.coverImage)));
+    if (m && (m.publicDelivery || String(d.id) === previewId)) d._coverMedia = m;
+  }
 }
 
 /** Live documents of one collection, cached until that collection's live content changes. */
@@ -169,7 +189,37 @@ function toBlock(b: Doc): Block {
   }
 }
 
+/** Same-origin path for a Media URL (Payload returns absolute URLs on its configured origin). */
+const mediaPath = (u: unknown): string | null => (typeof u === "string" && u ? u.replace(/^https?:\/\/[^/]+/, "") : null);
+
+function toCover(d: Doc): InsightCover | undefined {
+  if (d.coverType === "research") return { type: "research" };
+  const m = d._coverMedia as Doc | undefined;
+  const url = mediaPath(m?.url);
+  if (d.coverType !== "image" || !m || !url) return undefined; // abstract (default) or no approved image
+  const candidates = [
+    [mediaPath(m.sizes?.card?.url), m.sizes?.card?.width],
+    [mediaPath(m.sizes?.wide?.url), m.sizes?.wide?.width],
+    [url, m.width],
+  ].filter(([u, w]) => u && w) as [string, number][];
+  return {
+    type: "image",
+    image: {
+      url,
+      alt: String(m.alt ?? ""),
+      ...(candidates.length > 1 ? { srcSet: candidates.map(([u, w]) => `${u} ${w}w`).join(", ") } : {}),
+      ...(m.width ? { width: Number(m.width) } : {}),
+      ...(m.height ? { height: Number(m.height) } : {}),
+      ...(m.focalX != null ? { focalX: Number(m.focalX) } : {}),
+      ...(m.focalY != null ? { focalY: Number(m.focalY) } : {}),
+      ...(m.credit ? { credit: String(m.credit) } : {}),
+    },
+    ...(d.coverCaption ? { caption: String(d.coverCaption) } : {}),
+  };
+}
+
 function toInsight(d: Doc, k: Keys): Insight {
+  const cover = toCover(d);
   const seo = d.seo && (d.seo.title || d.seo.description) ? { ...(d.seo.title ? { title: d.seo.title } : {}), ...(d.seo.description ? { description: d.seo.description } : {}) } : undefined;
   return {
     ...publication(d),
@@ -199,6 +249,7 @@ function toInsight(d: Doc, k: Keys): Insight {
     ),
     ...(d.methodology ? { methodology: d.methodology } : {}),
     body: (Array.isArray(d.body) ? d.body : []).map(toBlock),
+    ...(cover ? { cover } : {}),
     related: many(k.insights, d.related),
     markets: strArr(d.markets),
     themes: many(k.themes, d.themes),
@@ -317,6 +368,7 @@ export async function loadCmsContent(preview: PreviewTarget | null = null, opts:
       const i = list.findIndex((x) => String(x.id) === String(draft.id));
       if (i >= 0) list[i] = draft;
       else list.push(draft);
+      if (preview.collection === "insights") await attachCoverMedia([draft], String(draft.id));
       previewKey = { kind: KIND[preview.collection], key: String(draft.slug ?? draft.key) };
     }
   }

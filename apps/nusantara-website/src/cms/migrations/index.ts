@@ -5,6 +5,7 @@ import * as migration_20261004_102625_market_state_markets_table from './2026100
 import * as migration_20261004_162930_structured_insight_blocks from './20261004_162930_structured_insight_blocks';
 import * as migration_20261004_171724_media_public_delivery from './20261004_171724_media_public_delivery';
 import * as migration_20261004_172404_media_storage_fields from './20261004_172404_media_storage_fields';
+import * as migration_20261005_063521_insight_cover_visual from './20261005_063521_insight_cover_visual';
 
 export const migrations = [
   {
@@ -40,6 +41,11 @@ export const migrations = [
   {
     up: migration_20261004_172404_media_storage_fields.up,
     down: migration_20261004_172404_media_storage_fields.down,
-    name: '20261004_172404_media_storage_fields'
+    name: '20261004_172404_media_storage_fields',
+  },
+  {
+    up: migration_20261005_063521_insight_cover_visual.up,
+    down: migration_20261005_063521_insight_cover_visual.down,
+    name: '20261005_063521_insight_cover_visual'
   },
 ];

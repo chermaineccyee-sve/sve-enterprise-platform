@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TrackedDetails, TrackOnMount } from "@/components/analytics/Track";
 import { ArticleBody } from "@/components/insights/ArticleBody";
-import { InsightVisual } from "@/components/insights/InsightVisual";
+import { InsightCover } from "@/components/insights/InsightCover";
 import { ShareTools } from "@/components/insights/ShareTools";
 import { ArticleToc } from "@/components/insights/v2/ArticleToc";
 import { LayerFocus } from "@/components/insights/v2/LayerFocus";
@@ -262,8 +262,13 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
       </header>
 
       <div className="relative aspect-[16/7] w-full overflow-hidden md:aspect-[24/6]" data-print="hide">
-        <InsightVisual insight={insight} />
+        <InsightCover insight={insight} variant="hero" sizes="100vw" />
       </div>
+      {insight.cover?.type === "image" && (insight.cover.caption || insight.cover.image.credit) && (
+        <p className="container-site pt-3 text-[12px] text-stone" data-print="hide">
+          {[insight.cover.caption, insight.cover.image.credit].filter(Boolean).join(" · ")}
+        </p>
+      )}
 
       <div className="bg-paper">
         <div className="container-site grid gap-12 py-14 md:py-20 lg:grid-cols-12">

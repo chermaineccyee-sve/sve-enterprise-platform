@@ -379,7 +379,6 @@ export interface Insight {
       }[]
     | null;
   featured?: boolean | null;
-  heroMotif: 'arcs' | 'lines' | 'grid' | 'bars' | 'rings';
   tags?: string[] | null;
   related?: (number | Insight)[] | null;
   markets?:
@@ -426,6 +425,22 @@ export interface Insight {
     | null;
   capabilities?: (number | Capability)[] | null;
   marketStateDimensions?: ('growth' | 'rates' | 'liquidity' | 'risk' | 'currencies' | 'commodities')[] | null;
+  /**
+   * Abstract: the generated Nusantara pattern. Image: an editorial image you are authorised to use. Research visual: the article's first chart on cards (the article itself shows its charts in the text). Featured slots show the first chart unless an image is chosen.
+   */
+  coverType: 'abstract' | 'image' | 'research';
+  /**
+   * Used when the visual type is Abstract, and whenever an image or chart is not available.
+   */
+  heroMotif: 'arcs' | 'lines' | 'grid' | 'bars' | 'rings';
+  /**
+   * Upload or choose an image you are authorised to use (no third-party images without a licence). Alternative text, source/licence and the focal point are set on the image in Media. It appears on the website once a Reviewer or Admin has ticked “Approved for public use”; until then the abstract pattern is shown.
+   */
+  coverImage?: (number | null) | Media;
+  /**
+   * Optional. Shown under the image with its source/credit.
+   */
+  coverCaption?: string | null;
   seo?: {
     title?: string | null;
     description?: string | null;
@@ -1649,7 +1664,6 @@ export interface InsightsSelect<T extends boolean = true> {
         id?: T;
       };
   featured?: T;
-  heroMotif?: T;
   tags?: T;
   related?: T;
   markets?: T;
@@ -1657,6 +1671,10 @@ export interface InsightsSelect<T extends boolean = true> {
   assetClasses?: T;
   capabilities?: T;
   marketStateDimensions?: T;
+  coverType?: T;
+  heroMotif?: T;
+  coverImage?: T;
+  coverCaption?: T;
   seo?:
     | T
     | {

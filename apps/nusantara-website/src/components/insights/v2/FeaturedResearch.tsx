@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CoverImage } from "@/components/insights/InsightCover";
 import { MorphChart } from "@/components/market/MorphChart";
 import { formatInsightDate, type InsightListing } from "@/content/insights/types";
 
@@ -40,7 +41,16 @@ export function FeaturedResearch({ insight, chart, takeaways }: { insight: Insig
         </div>
       </div>
       <div className="border-t border-white/10 py-10 lg:col-span-6 lg:border-l lg:border-t-0 lg:py-16 lg:pl-12">
-        {chart && (
+        {insight.cover?.type === "image" ? (
+          <figure>
+            <div className="aspect-[16/10] overflow-hidden">
+              <CoverImage image={insight.cover.image} sizes="(min-width: 1024px) 560px, 100vw" />
+            </div>
+            {(insight.cover.caption || insight.cover.image.credit) && (
+              <figcaption className="mt-3 text-[12px] text-teal-200">{[insight.cover.caption, insight.cover.image.credit].filter(Boolean).join(" · ")}</figcaption>
+            )}
+          </figure>
+        ) : chart && (
           <>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <p className="max-w-md text-[13px] text-teal-100">{chart.caption}</p>

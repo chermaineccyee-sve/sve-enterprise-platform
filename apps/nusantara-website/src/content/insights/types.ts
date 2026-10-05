@@ -162,13 +162,33 @@ export type Insight = Omit<Publication, "author"> & {
   /** Market State dimension ids (in addition to dimensions that cite this article). */
   marketStateDimensions?: string[];
   seo?: InsightSeo;
+  /** Cover visual chosen in the Admin Portal. Absent = the Nusantara abstract visual (hero.motif). */
+  cover?: InsightCover;
 };
+
+/** An editorial cover image from the CMS Media library (approved for public use). */
+export type InsightCoverImage = {
+  url: string;
+  alt: string;
+  /** Responsive candidates, e.g. "/api/cms/media/file/x-800w.jpg 800w, …". */
+  srcSet?: string;
+  width?: number;
+  height?: number;
+  /** Focal point in percent (Media library), used for cropping. */
+  focalX?: number;
+  focalY?: number;
+  credit?: string;
+};
+export type InsightCover = { type: "image"; image: InsightCoverImage; caption?: string } | { type: "research" };
+
+/** The article's lead chart, as used by research visuals on cards and featured slots. */
+export type InsightLeadChart = { caption: string; xLabels: string[]; series: { id: string; label: string; values: number[] }[]; decimals: number; unit?: string; illustrative: boolean };
 
 /** Lightweight shape for lists and cards (no article body). */
 export type InsightListing = Pick<
   Insight,
-  "slug" | "title" | "subtitle" | "category" | "date" | "updatedAt" | "author" | "summary" | "tags" | "hero" | "featured" | "status" | "sample"
-> & { readingTime: number };
+  "slug" | "title" | "subtitle" | "category" | "date" | "updatedAt" | "author" | "summary" | "tags" | "hero" | "featured" | "status" | "sample" | "cover"
+> & { readingTime: number; /** Present when the cover is a research visual and the article has a chart. */ coverChart?: InsightLeadChart };
 
 export function formatInsightDate(iso: string) {
   const d = new Date(`${iso}T00:00:00Z`);

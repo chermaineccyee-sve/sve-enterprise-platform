@@ -6,7 +6,7 @@ import { q4MarketOutlook } from "./q4-2026-market-outlook";
 import { ratesCurrencies } from "./rates-currencies-and-the-regional-allocator";
 import { resilienceLens } from "./the-resilience-lens";
 import { shariahCapable } from "./shariah-capable-allocation";
-import type { Block, Insight, InsightListing } from "./types";
+import type { Block, Insight, InsightLeadChart, InsightListing } from "./types";
 
 export * from "./types";
 
@@ -80,5 +80,13 @@ export function toListing(i: Insight): InsightListing {
     status: i.status,
     sample: i.sample,
     readingTime: readingMinutes(i),
+    ...(i.cover ? { cover: i.cover } : {}),
+    ...(i.cover?.type === "research" && leadChart(i) ? { coverChart: leadChart(i)! } : {}),
   };
+}
+
+/** The first chart in the article body, if any. */
+export function leadChart(i: Insight): InsightLeadChart | null {
+  const b = i.body.find((x) => x.type === "chart");
+  return b && b.type === "chart" ? { caption: b.caption, xLabels: b.xLabels, series: b.series, decimals: b.decimals, unit: b.unit, illustrative: b.illustrative } : null;
 }

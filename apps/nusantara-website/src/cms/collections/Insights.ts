@@ -180,7 +180,6 @@ export const Insights = governed({
           label: "Relationships",
           fields: [
             { name: "featured", type: "checkbox" },
-            { name: "heroMotif", label: "Hero motif", type: "select", required: true, defaultValue: "arcs", options: heroMotifOptions },
             { name: "tags", type: "text", hasMany: true },
             { name: "related", type: "relationship", relationTo: "insights", hasMany: true },
             { name: "markets", type: "select", hasMany: true, options: instrumentOptions },
@@ -188,6 +187,57 @@ export const Insights = governed({
             { name: "assetClasses", label: "Asset classes", type: "select", hasMany: true, options: researchAssetClassOptions },
             { name: "capabilities", type: "relationship", relationTo: "capabilities", hasMany: true },
             { name: "marketStateDimensions", label: "Market State dimensions", type: "select", hasMany: true, options: marketStateDimensionOptions },
+          ],
+        },
+        {
+          label: "Cover visual",
+          description: "The picture shown for this Insight on cards, the featured slot and the article header.",
+          fields: [
+            {
+              name: "coverType",
+              label: "Visual type",
+              type: "select",
+              required: true,
+              defaultValue: "abstract",
+              options: [
+                { label: "Abstract — Nusantara pattern (default)", value: "abstract" },
+                { label: "Image — from the Media library", value: "image" },
+                { label: "Research visual — the article's first chart", value: "research" },
+              ],
+              admin: {
+                description:
+                  "Abstract: the generated Nusantara pattern. Image: an editorial image you are authorised to use. Research visual: the article's first chart on cards (the article itself shows its charts in the text). Featured slots show the first chart unless an image is chosen.",
+              },
+            },
+            {
+              name: "heroMotif",
+              label: "Abstract pattern",
+              type: "select",
+              required: true,
+              defaultValue: "arcs",
+              options: heroMotifOptions,
+              admin: { description: "Used when the visual type is Abstract, and whenever an image or chart is not available." },
+            },
+            {
+              name: "coverImage",
+              label: "Cover image",
+              type: "upload",
+              relationTo: "media",
+              filterOptions: { mimeType: { contains: "image" } },
+              admin: {
+                condition: (data) => data?.coverType === "image",
+                description:
+                  "Upload or choose an image you are authorised to use (no third-party images without a licence). Alternative text, source/licence and the focal point are set on the image in Media. It appears on the website once a Reviewer or Admin has ticked “Approved for public use”; until then the abstract pattern is shown.",
+              },
+              validate: (value: unknown, { siblingData }: { siblingData: Record<string, unknown> }) =>
+                siblingData?.coverType === "image" && !value ? "Choose an image, or set the visual type back to Abstract." : true,
+            },
+            {
+              name: "coverCaption",
+              label: "Caption",
+              type: "text",
+              admin: { condition: (data) => data?.coverType === "image", description: "Optional. Shown under the image with its source/credit." },
+            },
           ],
         },
         {

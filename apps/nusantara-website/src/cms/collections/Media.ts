@@ -1,6 +1,7 @@
 import { APIError, type CollectionBeforeChangeHook, type CollectionConfig } from "payload";
 import { adminsOnly, approverField, editors, isStaff } from "../access/roles";
 import { auditAfterChange, auditAfterDelete } from "../hooks/audit";
+import { revalidate } from "../hooks/revalidate";
 import { logEvent } from "../log";
 
 /**
@@ -51,7 +52,12 @@ export const Media: CollectionConfig = {
     update: editors,
     delete: adminsOnly,
   },
-  hooks: { beforeChange: [checkFile], afterChange: [auditAfterChange], afterDelete: [auditAfterDelete] },
+  hooks: {
+    beforeChange: [checkFile],
+    // Insight cover images: an approval granted or withdrawn (or a deleted file) updates the public pages at once.
+    afterChange: [auditAfterChange, ({ doc }) => (revalidate("insights"), doc)],
+    afterDelete: [auditAfterDelete, ({ doc }) => (revalidate("insights"), doc)],
+  },
   upload: {
     staticDir: "media",
     mimeTypes: MEDIA_MIME_TYPES,

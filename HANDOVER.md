@@ -219,6 +219,23 @@ All checks are server-side, for the UI, REST and Local API alike.
 **Workflow** (authoritative): Draft → In Review → Approved → Published →
 Archived. **Classification** is separate: Illustrative / Management Review /
 Approved Corporate Content.
+**Insight cover visual** (Insights → *Cover visual* tab):
+- **Abstract** (default): the generated Nusantara pattern.
+- **Image:** an image from the Media library, with alt text, source/licence
+  and focal point set on the Media item.
+- **Research visual:** the article's first chart, shown on cards.
+
+The cover fills the existing visual containers:
+- homepage research cards;
+- the featured slots (an image replaces the lead chart there);
+- the article header (abstract or image).
+
+The research library rows have no visual. An image appears publicly only once
+a Reviewer or Admin has approved it for public use. Until then, and whenever an
+image or chart is missing, the abstract pattern is shown. Code:
+`src/components/insights/InsightCover.tsx`; loader: `toCover` in
+`src/lib/content/cms-source.ts`.
+
 Public Insight dates are the CMS publication date, never the current date.
 Unless an Insight is Approved Corporate Content, its date carries a quiet
 "Illustrative" qualifier (e.g. `1 October 2026 · Illustrative · 3 min`).
@@ -251,7 +268,7 @@ Details: `docs/ADMIN_PORTAL.md`.
 | Market State (edition + dimensions) | Taxonomies (§5) |
 | Signals, Themes | Homepage copy, About, Contact, navigation, footer, corporate information |
 | Capabilities (descriptive content, relationships; lifecycle by Reviewer/Admin; no investment products) | Legal pages (`src/content/legal.ts`; a `legalPages` collection and `siteSettings` global exist in the schema but the site does not read them yet) |
-| Media (editorial images/PDFs) | Brand master assets (`public/brand`, `brand-source/`) |
+| Media (editorial images/PDFs), incl. Insight cover images | Brand master assets (`public/brand`, `brand-source/`) |
 
 ## 10. Market-data architecture
 
@@ -406,8 +423,11 @@ management approval: complete the GO/NO-GO list in
   - no indexing;
   - legal text pending counsel review.
 - Pages outside the CMS (§9) still need a code change.
-- After cutover, a cacheable delivery path for public CMS images is a
-  deliberate follow-up. Media is currently served `private, no-store`.
+- Approved CMS images, including Insight covers, are served through the
+  access-controlled route with `private, no-store`. That is correct, but every
+  view is fetched from the server function and S3. Before heavy image use after
+  cutover, add a cacheable delivery path for approved images (for example,
+  Netlify Image CDN or CloudFront in front of the bucket).
 - Netlify's local `netlify serve` shows some 403 responses as 404. The
   regression scripts accept that when `NETLIFY_LOCAL_PROXY=1`.
 - In local-disk media mode (development only), a deleted file returns 500
