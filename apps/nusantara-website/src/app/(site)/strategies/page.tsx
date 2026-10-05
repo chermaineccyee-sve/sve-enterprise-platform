@@ -39,7 +39,7 @@ export default async function StrategiesPage() {
         crumbs={[{ label: "Home", href: "/" }, { label: "Strategies" }]}
       />
 
-      <section aria-labelledby="modular" className="border-b border-rule bg-white">
+      <section aria-labelledby="modular" className="border-b border-rule bg-ivory">
         <div className="container-site grid gap-6 py-10 md:grid-cols-3">
           {["Curated, not crowded.", "Modular, not scattered.", "Governed, not promotional."].map((t) => (
             <p key={t} className="font-serif text-[1.45rem] text-teal-900">
@@ -52,7 +52,7 @@ export default async function StrategiesPage() {
         </div>
       </section>
 
-      <section aria-labelledby="capabilities" className="bg-paper">
+      <section aria-labelledby="capabilities" className="bg-ivory">
         <div className="mx-auto max-w-[1560px] px-5 py-16 md:px-10 md:py-24">
           <div className="mb-12 grid gap-6 lg:grid-cols-12 lg:items-end">
             <h2 id="capabilities" className="display-m text-teal-900 lg:col-span-6">
@@ -100,7 +100,7 @@ export default async function StrategiesPage() {
         </div>
       </section>
 
-      <section className="bg-paper">
+      <section className="bg-ivory">
         <div className="container-site py-12">
           <ReviewPlaceholder>
             Objectives, time horizons, documents and terms will be published only for approved strategies. Capability descriptions

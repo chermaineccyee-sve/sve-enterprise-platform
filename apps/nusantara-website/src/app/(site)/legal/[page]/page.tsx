@@ -27,7 +27,7 @@ export default async function LegalPageView({ params }: PageProps<"/legal/[page]
   return (
     <>
       <PageHero eyebrow="Legal" title={p.title} lede={p.summary} crumbs={[{ label: "Home", href: "/" }, { label: p.title }]} />
-      <section className="bg-paper">
+      <section className="bg-ivory">
         <div className="container-site grid gap-12 py-16 md:py-24 lg:grid-cols-12">
           <nav aria-label="Legal pages" className="lg:col-span-3">
             <ul className="space-y-2 border-l border-rule">

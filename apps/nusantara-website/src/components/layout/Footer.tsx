@@ -37,7 +37,7 @@ const columns = (scenarioHref: string | null): FooterColumn[] => [
 
 export function Footer({ prototype, scenarioHref }: { prototype: boolean; scenarioHref: string | null }) {
   return (
-    <footer className="on-dark bg-teal-950 text-teal-100" data-print="hide">
+    <footer className="on-dark border-t border-white/10 bg-teal-900 text-teal-100" data-print="hide">
       <div className="container-site pt-16 pb-10 md:pt-24">
         <div className="grid gap-12 lg:grid-cols-12">
           <div className="lg:col-span-4">

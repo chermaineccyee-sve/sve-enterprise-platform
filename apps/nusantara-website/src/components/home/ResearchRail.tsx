@@ -59,7 +59,7 @@ export function ResearchRail({ featured, chart, items }: { featured: InsightList
       >
         {/* Featured */}
         <li className="w-[88vw] shrink-0 snap-start md:w-[min(820px,72vw)]">
-          <article className="grid h-full border border-teal-800 bg-white md:grid-cols-5">
+          <article className="grid h-full border border-teal-800 bg-paper md:grid-cols-5">
             <div className="flex flex-col p-6 md:col-span-2 md:p-8">
               <p className="eyebrow text-stone">Featured research · {featured.category}</p>
               <h3 className="mt-4 font-serif text-[1.8rem] leading-[1.1] text-teal-900">

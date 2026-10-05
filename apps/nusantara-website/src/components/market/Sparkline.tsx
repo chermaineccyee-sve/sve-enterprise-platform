@@ -1,4 +1,4 @@
-import { linePath, PRIMARY_LINE } from "./chart-utils";
+import { linePath } from "./chart-utils";
 
 type SparklineProps = {
   values: number[];
@@ -18,7 +18,7 @@ export function Sparkline({
   values,
   width = 120,
   height = 36,
-  color = PRIMARY_LINE,
+  color = "currentColor",
   baseline = true,
   area = true,
   className = "",

@@ -82,7 +82,7 @@ export default async function InvestmentApproachPage() {
         crumbs={[{ label: "Home", href: "/" }, { label: "Investment Approach" }]}
       />
 
-      <section aria-labelledby="philosophy" className="bg-paper">
+      <section aria-labelledby="philosophy" className="bg-ivory">
         <div className="container-site grid gap-12 py-20 md:py-28 lg:grid-cols-12">
           <div className="lg:col-span-5">
             <p className="eyebrow text-stone">Our philosophy</p>
@@ -123,7 +123,7 @@ export default async function InvestmentApproachPage() {
         </div>
       </section>
 
-      <section aria-labelledby="stages" className="bg-paper">
+      <section aria-labelledby="stages" className="bg-ivory">
         <div className="container-site py-20 md:py-28">
           <SectionHeader eyebrow="In detail" title={<span id="stages">How each stage works.</span>} />
           <div className="mt-14 border-t border-teal-800">
@@ -165,7 +165,7 @@ export default async function InvestmentApproachPage() {
         </div>
       </section>
 
-      <section aria-labelledby="pathway" className="bg-white">
+      <section aria-labelledby="pathway" className="bg-ivory">
         <div className="container-site py-20 md:py-28">
           <SectionHeader
             eyebrow="Information pathway"
@@ -189,7 +189,7 @@ export default async function InvestmentApproachPage() {
         </div>
       </section>
 
-      <section aria-labelledby="pillars" className="border-t border-rule bg-paper">
+      <section aria-labelledby="pillars" className="border-t border-rule bg-ivory">
         <div className="container-site grid gap-12 py-20 md:py-24 lg:grid-cols-12">
           <div className="lg:col-span-4">
             <p className="eyebrow text-stone">Four pillars</p>

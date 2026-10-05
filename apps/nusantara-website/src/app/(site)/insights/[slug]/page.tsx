@@ -140,7 +140,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
               <Link
                 href={routes.market(s.instrument.id)}
                 aria-label={`${s.instrument.shortName}: open market view`}
-                className="group block border-l-2 border-teal-800 bg-white px-4 py-3 transition-colors hover:border-gold-500"
+                className="group block border-l-2 border-teal-800 bg-paper px-4 py-3 transition-colors hover:border-gold-500"
               >
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-[13px] font-semibold text-ink">
@@ -270,7 +270,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
         </p>
       )}
 
-      <div className="bg-paper">
+      <div className="bg-ivory">
         <div className="container-site grid gap-12 py-14 md:py-20 lg:grid-cols-12">
           <aside className="lg:col-span-3 xl:col-span-2" data-print="hide">
             <div className="lg:sticky lg:top-28">
@@ -289,7 +289,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
               </p>
             )}
 
-            <section id="summary" aria-labelledby="summary-heading" className="border-t-2 border-teal-800 bg-white p-6 md:p-8">
+            <section id="summary" aria-labelledby="summary-heading" className="border-t-2 border-teal-800 bg-paper p-6 md:p-8">
               <h2 id="summary-heading" className="eyebrow text-stone">
                 Executive summary
               </h2>
@@ -340,7 +340,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
                 ))}
               </ol>
               {insight.methodology && (
-                <details className="group mt-6 border border-rule bg-white p-5">
+                <details className="group mt-6 border border-rule bg-paper p-5">
                   <summary className="flex cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden">
                     <span className="eyebrow text-stone">Methodology</span>
                     <span aria-hidden className="text-teal-800 transition-transform group-open:rotate-45">+</span>

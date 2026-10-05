@@ -68,7 +68,7 @@ export default async function MarketDashboardPage() {
   return (
     <MarketFocusProvider initial="klci" targetId="workspace">
       {/* Masthead */}
-      <section className="on-dark relative overflow-hidden bg-teal-950 text-white">
+      <section className="on-dark relative overflow-hidden bg-teal-900 text-white">
         <div className="container-site relative pt-8 pb-10 md:pt-10 md:pb-14">
           <Breadcrumb tone="dark" items={[{ label: "Home", href: "/" }, { label: "Market Dashboard" }]} />
           <div className="mt-10 grid gap-8 lg:grid-cols-12 lg:items-end">
@@ -108,7 +108,7 @@ export default async function MarketDashboardPage() {
       </div>
 
       {/* Workspace */}
-      <section id="workspace" aria-label="Market workspace" className="bg-paper">
+      <section id="workspace" aria-label="Market workspace" className="surface-deep on-dark bg-teal-900">
         <div className="mx-auto max-w-[1720px] py-8 lg:px-8 lg:py-10">
           <Workspace snapshot={snapshot} initialHistory={h1m} indicators={intelligence.indicators} intel={intel} readings={readings} dimensions={dimensions} />
         </div>
@@ -116,7 +116,7 @@ export default async function MarketDashboardPage() {
 
       {/* Cross-asset + map */}
       {measures && (
-      <section aria-label="Cross-asset view and markets we monitor" className="hidden border-t border-rule bg-white md:block">
+      <section aria-label="Cross-asset view and markets we monitor" className="surface-deep on-dark hidden border-t border-rule bg-teal-900 md:block">
         <div className="mx-auto grid max-w-[1720px] grid-cols-[minmax(0,1fr)] gap-16 px-5 py-16 md:px-10 lg:grid-cols-2 lg:px-8 lg:py-24">
           <div>
             <p className="eyebrow text-stone">
@@ -142,7 +142,7 @@ export default async function MarketDashboardPage() {
 
       {/* Structural indicators */}
       {intelligence.indicators.length > 0 && (
-      <section aria-labelledby="structural" className="border-t border-rule bg-ivory">
+      <section aria-labelledby="structural" className="surface-deep on-dark border-t border-rule bg-teal-900">
         <div className="container-site py-16 md:py-24">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-7">
@@ -167,7 +167,7 @@ export default async function MarketDashboardPage() {
       )}
 
       {/* From data to meaning */}
-      <section className="on-dark bg-teal-900 text-white">
+      <section className="on-dark border-t border-white/10 bg-teal-900 text-white">
         <div className="container-site grid gap-8 py-14 md:py-16 lg:grid-cols-12 lg:items-center">
           <p className="display-s lg:col-span-7">Market data answers what happened. Our signals say what we are watching. Our research asks what it may mean.</p>
           <div className="flex flex-wrap gap-3 lg:col-span-5 lg:justify-end">
@@ -184,7 +184,7 @@ export default async function MarketDashboardPage() {
       </section>
 
       {/* Methodology */}
-      <section aria-labelledby="methodology" className="bg-paper">
+      <section aria-labelledby="methodology" className="surface-deep on-dark border-t border-rule bg-teal-900">
         <div className="container-site grid gap-12 py-16 md:py-20 lg:grid-cols-12">
           <div className="lg:col-span-4">
             <p className="eyebrow text-stone">Data methodology</p>

@@ -8,18 +8,18 @@ export function ContactCTA({
   text?: string;
 }) {
   return (
-    <section aria-labelledby="contact-cta" className="on-dark relative overflow-hidden bg-teal-800 text-white">
+    <section aria-labelledby="contact-cta" className="relative overflow-hidden border-t border-rule bg-ivory">
       <div className="container-site relative grid gap-10 py-20 md:py-28 lg:grid-cols-12 lg:items-end">
         <div className="lg:col-span-7">
-          <p className="eyebrow text-teal-200">Contact</p>
-          <h2 id="contact-cta" className="display-l mt-6">
+          <p className="eyebrow text-gold-700">Contact</p>
+          <h2 id="contact-cta" className="display-l mt-6 text-teal-900">
             {title}
           </h2>
         </div>
         <div className="lg:col-span-5">
-          <p className="lede text-teal-100">{text}</p>
+          <p className="lede text-stone">{text}</p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <CTA href="/contact" variant="light">
+            <CTA href="/contact">
               Make an enquiry
             </CTA>
           </div>

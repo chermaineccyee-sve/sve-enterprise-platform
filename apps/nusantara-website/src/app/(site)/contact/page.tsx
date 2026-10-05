@@ -25,7 +25,7 @@ export default function ContactPage() {
         lede="Tell us a little about your enquiry and we will direct it to the appropriate team."
         crumbs={[{ label: "Home", href: "/" }, { label: "Contact" }]}
       />
-      <section className="bg-paper">
+      <section className="bg-ivory">
         <div className="container-site grid gap-16 py-16 md:py-24 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <h2 className="sr-only">Enquiry form</h2>

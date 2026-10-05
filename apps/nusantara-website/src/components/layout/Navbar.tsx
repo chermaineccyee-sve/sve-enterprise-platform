@@ -78,8 +78,8 @@ export function Navbar({ dataLabel, prototypeNote }: { dataLabel: string; protot
         ref={headerRef}
         className={`sticky top-0 z-50 transition-[background-color,box-shadow,border-color] duration-500 ${
           scrolled || open
-            ? "border-b border-rule bg-paper/92 shadow-[0_1px_30px_-14px_rgba(14,45,59,0.25)] backdrop-blur-md"
-            : "border-b border-transparent bg-paper"
+            ? "border-b border-rule bg-ivory/92 shadow-[0_1px_30px_-14px_rgba(14,45,59,0.25)] backdrop-blur-md"
+            : "border-b border-transparent bg-ivory"
         }`}
         data-print="hide"
       >
@@ -175,7 +175,7 @@ export function Navbar({ dataLabel, prototypeNote }: { dataLabel: string; protot
         ref={panelRef}
         hidden={!open}
         style={{ top: panelTop }}
-        className="fixed inset-x-0 bottom-0 z-40 overflow-y-auto border-t border-rule bg-paper xl:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 overflow-y-auto border-t border-rule bg-ivory xl:hidden"
         data-print="hide"
       >
         <nav aria-label="Mobile" className="container-site flex min-h-full flex-col py-6">

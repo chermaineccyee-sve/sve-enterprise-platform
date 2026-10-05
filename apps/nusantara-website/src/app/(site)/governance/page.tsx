@@ -29,25 +29,24 @@ export default function GovernancePage() {
   return (
     <>
       <PageHero
-        tone="teal"
         eyebrow="Governance"
         title={<>Governance is part of the investment process.</>}
         lede="Governance is not a back-office function. It is part of how investment decisions are made, examined and explained."
         crumbs={[{ label: "Home", href: "/" }, { label: "Governance" }]}
       />
 
-      <section aria-labelledby="flow" className="on-dark bg-teal-950 text-white">
+      <section aria-labelledby="flow" className="border-t border-rule bg-ivory">
         <div className="container-site py-20 md:py-28">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-7">
-              <p className="eyebrow text-teal-200">
+              <p className="eyebrow text-gold-700">
                 The decision path
               </p>
-              <h2 id="flow" className="display-l mt-6">
+              <h2 id="flow" className="display-l mt-6 text-teal-900">
                 Every decision passes the same gates.
               </h2>
             </div>
-            <p className="text-[15.5px] leading-relaxed text-teal-100 lg:col-span-5">
+            <p className="text-[15.5px] leading-relaxed text-charcoal lg:col-span-5">
               Follow a decision from market signal to reporting. Each gate asks one question and stops one kind of error. Select a gate
               to hold it.
             </p>
@@ -75,7 +74,7 @@ export default function GovernancePage() {
         </div>
       </section>
 
-      <section aria-labelledby="principles" className="border-t border-rule bg-white">
+      <section aria-labelledby="principles" className="border-t border-rule bg-ivory">
         <div className="container-site py-20 md:py-28">
           <SectionHeader eyebrow="Principles" title={<span id="principles">How discipline is maintained.</span>} />
           <ol className="mt-14 grid border-t border-teal-800 sm:grid-cols-2 lg:grid-cols-5">
@@ -103,7 +102,7 @@ export default function GovernancePage() {
         </div>
       </section>
 
-      <section aria-labelledby="dual-track" className="bg-paper">
+      <section aria-labelledby="dual-track" className="bg-ivory">
         <div className="container-site grid gap-12 py-20 md:py-24 lg:grid-cols-12">
           <div className="lg:col-span-5">
             <p className="eyebrow text-stone">One standard</p>
@@ -126,7 +125,7 @@ export default function GovernancePage() {
         </div>
       </section>
 
-      <section aria-labelledby="pending" className="border-t border-rule bg-white">
+      <section aria-labelledby="pending" className="border-t border-rule bg-ivory">
         <div className="container-site py-16 md:py-20">
           <h2 id="pending" className="eyebrow text-stone">
             Governance information pending approval

@@ -12,6 +12,10 @@ export const SCENARIO_COLORS = { downside: "#7A8387", base: "#12384A", upside: "
 /** Single-series ink. */
 export const PRIMARY_LINE = "#12384A";
 
+/** The same roles on the deep-teal surface (Market Dashboard, homepage market intelligence): ivory ink, light teal, gold, grey. */
+export const SERIES_COLORS_DEEP = ["#E8E1D1", "#6FB0C6", "#CDAE73", "#98A5AA"] as const;
+export const PRIMARY_LINE_DEEP = "#E8E1D1";
+
 export function niceStep(range: number, targetTicks: number) {
   const raw = range / Math.max(targetTicks, 1);
   const mag = 10 ** Math.floor(Math.log10(raw));

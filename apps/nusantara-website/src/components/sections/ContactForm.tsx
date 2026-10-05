@@ -78,7 +78,7 @@ export function ContactForm() {
 
   if (state === "done") {
     return (
-      <div ref={doneRef} tabIndex={-1} role="status" className="border border-teal-800 bg-white p-8 outline-none">
+      <div ref={doneRef} tabIndex={-1} role="status" className="border border-teal-800 bg-paper p-8 outline-none">
         <p className="eyebrow text-stone">Enquiry received</p>
         <h2 className="display-s mt-4 text-teal-900">Thank you, {values.name.split(" ")[0]}.</h2>
         {delivery === "delivered" ? (
@@ -107,7 +107,7 @@ export function ContactForm() {
 
   const errorList = FIELD_ORDER.filter((k) => errors[k]);
   const inputCls = (bad?: string) =>
-    `mt-2 block w-full border bg-white px-4 py-3 text-[15px] text-ink placeholder:text-mist focus:outline-none focus:ring-2 focus:ring-gold-500/40 ${
+    `mt-2 block w-full border bg-paper px-4 py-3 text-[15px] text-ink placeholder:text-mist focus:outline-none focus:ring-2 focus:ring-gold-500/40 ${
       bad ? "border-down" : "border-rule focus:border-teal-800"
     }`;
 
@@ -143,7 +143,7 @@ export function ContactForm() {
             <label
               key={t.id}
               className={`flex cursor-pointer gap-3 border p-4 transition-colors ${
-                values.topic === t.id ? "border-teal-800 bg-teal-50" : "border-rule bg-white hover:border-teal-600"
+                values.topic === t.id ? "border-teal-800 bg-teal-50" : "border-rule bg-paper hover:border-teal-600"
               }`}
             >
               <input

@@ -74,7 +74,7 @@ export default async function StrategyPage({ params }: PageProps<"/strategies/[s
         </div>
       </section>
 
-      <div className="bg-paper">
+      <div className="bg-ivory">
         <div className="container-site grid gap-12 py-14 md:py-20 lg:grid-cols-12">
           <nav aria-label="On this page" className="hidden lg:col-span-3 lg:block">
             <ol className="sticky top-32 space-y-2.5 border-l border-rule">
@@ -133,7 +133,7 @@ export default async function StrategyPage({ params }: PageProps<"/strategies/[s
             <Row id="characteristics" title="Key characteristics">
               <ul className="flex flex-wrap gap-2">
                 {s.characteristics.map((c) => (
-                  <li key={c} className="border border-rule bg-white px-3 py-1.5 text-[13.5px] text-charcoal">
+                  <li key={c} className="border border-rule bg-paper px-3 py-1.5 text-[13.5px] text-charcoal">
                     {c}
                   </li>
                 ))}

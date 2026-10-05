@@ -136,7 +136,7 @@ export function MarketRibbon({ instruments, provenance }: { instruments: Instrum
   return (
     <section
       aria-label={`Market ribbon (${statusPhrase(provenance)} data)`}
-      className="ribbon on-dark relative z-10 border-y border-white/10 bg-teal-950 text-white"
+      className="ribbon on-dark relative z-10 border-y border-white/10 bg-teal-900 text-white"
       onPointerEnter={(e) => {
         if (e.pointerType === "mouse") hover.current = true;
       }}
@@ -156,7 +156,7 @@ export function MarketRibbon({ instruments, provenance }: { instruments: Instrum
       }}
     >
       <div className="flex items-stretch">
-        <div className="flex shrink-0 items-center gap-3 border-r border-white/10 bg-teal-950 px-4 md:px-6">
+        <div className="flex shrink-0 items-center gap-3 border-r border-white/10 bg-teal-900 px-4 md:px-6">
           <NStar className="star-breathe h-2.5 w-2.5 text-gold-400" />
           {illustrative ? (
             <span className="leading-tight">

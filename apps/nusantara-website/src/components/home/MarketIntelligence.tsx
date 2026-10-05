@@ -4,7 +4,7 @@ import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StateGauge } from "@/components/identity/StateGauge";
-import { PRIMARY_LINE } from "@/components/market/chart-utils";
+import { PRIMARY_LINE_DEEP as PRIMARY_LINE } from "@/components/market/chart-utils";
 import { useMarketTime } from "@/components/market/MarketTime";
 import { ViewEvidence, type EvidenceTab } from "@/components/market/ViewEvidence";
 import { Change } from "@/components/market/Change";
@@ -175,6 +175,7 @@ function Observed({ snap, points, provenance }: { snap: InstrumentSnapshot; poin
       <div className="mt-5 lg:mt-4">
         {values.length > 1 ? (
           <MorphChart
+            tone="dark"
             series={[{ id: "mi", label: inst.shortName, color: PRIMARY_LINE, values }]}
             labels={stamps.map((t) => time.stamp(t, { time: false }))}
             format={fmt}

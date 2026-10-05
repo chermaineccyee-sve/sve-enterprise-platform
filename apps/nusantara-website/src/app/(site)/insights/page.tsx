@@ -81,7 +81,7 @@ export default async function InsightsPage() {
 
       {/* Latest signals */}
       {signals.length > 0 && (
-      <section aria-labelledby="signals" className="bg-paper">
+      <section aria-labelledby="signals" className="bg-ivory">
         <div className="container-site py-16 md:py-24">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div>
@@ -102,7 +102,7 @@ export default async function InsightsPage() {
       )}
 
       {/* Deep dives */}
-      <section aria-labelledby="deep-dives" className="border-t border-rule bg-white">
+      <section aria-labelledby="deep-dives" className="border-t border-rule bg-ivory">
         <div className="container-site py-16 md:py-24">
           <p className="eyebrow text-stone">
             Deep dives
@@ -122,12 +122,12 @@ export default async function InsightsPage() {
 
       {/* Themes */}
       {themes.length > 0 && (
-      <section aria-labelledby="themes" className="on-dark overflow-hidden bg-teal-950 text-white">
+      <section aria-labelledby="themes" className="overflow-hidden border-t border-rule bg-ivory">
         <div className="container-site py-16 md:py-24">
-          <p className="eyebrow text-teal-200">
+          <p className="eyebrow text-gold-700">
             Themes we are watching
           </p>
-          <h2 id="themes" className="display-m mt-4 max-w-2xl">
+          <h2 id="themes" className="display-m mt-4 max-w-2xl text-teal-900">
             {COUNT_WORDS[themes.length] ?? themes.length} {themes.length === 1 ? "thread that runs" : "threads that run"} through our research.
           </h2>
           <div className="mt-12">

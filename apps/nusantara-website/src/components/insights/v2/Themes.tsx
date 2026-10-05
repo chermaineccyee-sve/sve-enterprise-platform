@@ -44,10 +44,10 @@ export function Themes({
                 aria-controls="theme-panel"
                 onClick={() => setActive(i)}
                 onMouseEnter={() => setActive(i)}
-                className="group flex w-full items-baseline gap-4 border-b border-white/10 py-4 text-left"
+                className="group flex w-full items-baseline gap-4 border-b border-rule py-4 text-left"
               >
-                <span className={`num text-[12px] ${on ? "text-gold-300" : "text-teal-300/60"}`}>{String(i + 1).padStart(2, "0")}</span>
-                <span className={`font-serif text-[1.7rem] leading-tight transition-all duration-500 md:text-[2.1rem] ${on ? "translate-x-2 text-white" : "text-teal-200/70 group-hover:text-white"}`}>{th.title}</span>
+                <span className={`num text-[12px] ${on ? "text-gold-700" : "text-mist"}`}>{String(i + 1).padStart(2, "0")}</span>
+                <span className={`font-serif text-[1.7rem] leading-tight transition-all duration-500 md:text-[2.1rem] ${on ? "translate-x-2 text-teal-900" : "text-stone group-hover:text-teal-900"}`}>{th.title}</span>
               </button>
             </li>
           );
@@ -56,29 +56,29 @@ export function Themes({
       <div className="relative lg:col-span-6 lg:col-start-7">
         <AnimatePresence mode="wait" initial={false}>
           <m.div key={t.id} id="theme-panel" role="tabpanel" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.35 }} className="relative">
-            <p className="font-serif text-[1.8rem] leading-snug text-gold-200 md:text-[2.2rem]">“{t.statement}”</p>
-            <p className="eyebrow mt-10 text-teal-200">Research</p>
-            <ul className="mt-3 divide-y divide-white/10 border-y border-white/10">
+            <p className="font-serif text-[1.8rem] leading-snug text-teal-900 md:text-[2.2rem]">“{t.statement}”</p>
+            <p className="eyebrow mt-10 text-stone">Research</p>
+            <ul className="mt-3 divide-y divide-rule border-y border-rule">
               {t.insights.map((s) => insights[s]).filter(Boolean).map((i) => (
                 <li key={i.slug}>
                   <Link href={`/insights/${i.slug}`} className="group flex items-baseline justify-between gap-4 py-3">
-                    <span className="font-serif text-[1.15rem] text-white group-hover:text-gold-200">{i.title}</span>
-                    <span className="text-gold-300 transition-transform group-hover:translate-x-1">→</span>
+                    <span className="font-serif text-[1.15rem] text-teal-900 group-hover:text-teal-700">{i.title}</span>
+                    <span className="text-gold-600 transition-transform group-hover:translate-x-1">→</span>
                   </Link>
                 </li>
               ))}
             </ul>
             {(t.instruments.length > 0 || t.indicators.length > 0) && (
               <>
-                <p className="eyebrow mt-8 text-teal-200">Signals behind it · {statusPhrase(provenance)}</p>
+                <p className="eyebrow mt-8 text-stone">Signals behind it · {statusPhrase(provenance)}</p>
                 <ul className="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
                   {t.instruments.map((id) => instruments[id]).filter(Boolean).map((s) => (
-                    <li key={s.instrument.id} className="border-b border-white/10 text-[13px]">
+                    <li key={s.instrument.id} className="border-b border-rule text-[13px]">
                       <Link href={routes.market(s.instrument.id)} aria-label={`${s.instrument.shortName}: open market view`} className="group flex items-center justify-between gap-3 py-2">
-                        <span className="font-semibold text-white group-hover:text-gold-200">
+                        <span className="font-semibold text-teal-900 group-hover:text-teal-700">
                           {s.instrument.shortName} <StaleMark provenance={s.provenance} tone="dark" />
                         </span>
-                        <span className="num text-teal-100">
+                        <span className="num text-charcoal">
                           {formatValue(s.quote.value, s.instrument.decimals)}
                           {s.instrument.unit === "%" ? "%" : ""}
                         </span>
@@ -87,11 +87,11 @@ export function Themes({
                     </li>
                   ))}
                   {t.indicators.map((id) => indicators[id]).filter(Boolean).map((ind) => (
-                    <li key={ind.id} className="flex items-center justify-between gap-3 border-b border-white/10 py-2 text-[13px]">
-                      <span className="flex items-center gap-2 text-white">
+                    <li key={ind.id} className="flex items-center justify-between gap-3 border-b border-rule py-2 text-[13px]">
+                      <span className="flex items-center gap-2 text-teal-900">
                         {ind.title}
                       </span>
-                      <span className="num text-teal-100">
+                      <span className="num text-charcoal">
                         {formatValue(ind.value, ind.decimals)}
                         {ind.unit ?? ""}
                       </span>

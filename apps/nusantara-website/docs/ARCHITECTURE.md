@@ -265,3 +265,57 @@ The intended character is an established institutional investment manager
 with a serious research and editorial identity, not a template, SaaS or
 generic bank site.
 
+
+## 14. Colour
+
+The public site uses **two principal surface tones**. Gold is an accent, not a
+surface. Tokens are defined in `src/app/(site)/globals.css`.
+
+| Token | Value | Role |
+|---|---|---|
+| **Warm Ivory** `--color-ivory` (`bg-ivory`) | `#f8f5ee` | The light surface: corporate information, editorial content, reading and contact. Page background, header and every light full-width section. |
+| Paper `--color-paper` (`bg-paper`) | `#fdfcf9` | Cards and inputs on ivory only. Never a principal full-width surface. |
+| **Deep Teal** `--color-teal-900` (`bg-teal-900`) | `#0e2d3b` | The dark surface: market intelligence, Nusantara interpretation, investment process and high-emphasis institutional content. Every dark full-width section and the footer. |
+| Teal 800 `--color-teal-800` | `#12384a` | Nested Nusantara View panels inside a deep-teal section. Not another page surface. |
+| Gold `--color-gold-100`…`800` | existing range | Restrained brand accent only: logo, fine rules, the star, small indicators, selected states, limited emphasis. Never a surface. |
+| Up / down | existing | Market data only. |
+
+Where each surface is used:
+
+| Area | Surface |
+|---|---|
+| Homepage hero | Warm Ivory |
+| Homepage market intelligence (ribbon and "Markets observed") | Deep Teal |
+| Homepage six-stage process | Deep Teal |
+| Market Dashboard | Deep Teal throughout (the market-intelligence environment) |
+| Insights | Warm Ivory; Featured Research in Deep Teal |
+| Insight articles | Warm Ivory; deep teal only for in-article Nusantara interpretation blocks |
+| Investment Approach six-stage environment | Deep Teal |
+| Governance control architecture | Deep Teal |
+| "Begin a conversation" (contact) | Warm Ivory |
+| Footer | Deep Teal |
+| All other sections | Warm Ivory |
+
+Rules:
+
+- **Choose the surface by meaning, not by position.** A section is deep teal
+  only if it carries market intelligence, Nusantara interpretation, the
+  investment process or high-emphasis institutional content. Everything else is
+  Warm Ivory.
+- **Do not add section-background variants to create alternating rhythm.** No
+  white, paper, ivory-deep, teal-950 or teal-800 full-width bands, and no
+  mechanical light/dark striping. Adjacent ivory sections are separated by
+  spacing or a fine `border-rule`, adjacent deep-teal sections by
+  `border-white/10`.
+- **No new colours and no gradients.**
+- **Light components on deep teal.** A section marked `surface-deep` (with
+  `on-dark bg-teal-900`) lets components written for ivory (the dashboard
+  workspace, tables, heatmap, indicators) render on deep teal without
+  separate markup: neutral tokens are re-pointed and a few teal/white
+  utilities are mapped, in the "Deep-teal surface" block of `globals.css`.
+  Charts on deep teal use `tone="dark"` and `SERIES_COLORS_DEEP` /
+  `PRIMARY_LINE_DEEP` from `components/market/chart-utils.ts`. Use
+  `surface-deep` only for market-intelligence sections.
+- **Contrast.** Body text stays at WCAG AA or better on both surfaces. On
+  deep teal, secondary text uses the re-pointed `text-stone` (`#a9bfc7`); on
+  ivory, gold text uses `gold-700` or darker.

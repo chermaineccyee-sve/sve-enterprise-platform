@@ -95,7 +95,7 @@ export default async function HomePage() {
 
       {/* Market intelligence — selecting a market anywhere above updates it */}
       {ribbon.length > 0 && (
-        <section id="market-intelligence" aria-labelledby="mi-title" className="bg-paper">
+        <section id="market-intelligence" aria-labelledby="mi-title" className="surface-deep on-dark bg-teal-900">
           <div className="container-site pt-16 pb-16 md:pt-20 md:pb-24 lg:pt-14 lg:pb-16">
             <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
               <div className="lg:col-span-7">
@@ -119,7 +119,7 @@ export default async function HomePage() {
       )}
 
       {/* Who we are */}
-      <section aria-labelledby="who-title" className="overflow-hidden border-t border-rule bg-paper">
+      <section aria-labelledby="who-title" className="overflow-hidden border-t border-rule bg-ivory">
         <div className="container-site py-24 md:py-36">
           <h2 id="who-title" className="eyebrow text-stone">
             Who we are
@@ -144,7 +144,7 @@ export default async function HomePage() {
 
       {/* Nusantara Market State — rendered only while an edition may be shown */}
       {marketState && (
-      <section id="market-state" aria-labelledby="state-title" className="bg-paper">
+      <section id="market-state" aria-labelledby="state-title" className="bg-ivory">
         <div className="container-site py-20 md:py-28">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-7">
@@ -203,26 +203,26 @@ export default async function HomePage() {
 
       {/* Research rail — rendered only while research may be shown */}
       {featured && (
-        <section id="research" aria-label="Nusantara Insights" className="bg-paper py-20 md:py-28">
+        <section id="research" aria-label="Nusantara Insights" className="bg-ivory py-20 md:py-28">
           <ResearchRail featured={featured} chart={chart} items={listings.filter((l) => l.slug !== featured.slug).slice(0, 6)} />
         </section>
       )}
 
       {/* Governance signal */}
-      <section id="governance" aria-labelledby="gov-title" className="on-dark bg-teal-950 text-white">
+      <section id="governance" aria-labelledby="gov-title" className="border-t border-rule bg-ivory">
         <div className="container-site py-20 md:py-28">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-7">
-              <p className="eyebrow text-teal-200">
+              <p className="eyebrow text-gold-700">
                 Governance
               </p>
-              <h2 id="gov-title" className="display-l mt-6">
+              <h2 id="gov-title" className="display-l mt-6 text-teal-900">
                 Every decision passes the same gates.
               </h2>
             </div>
             <div className="lg:col-span-5">
-              <p className="text-[15.5px] leading-relaxed text-teal-100">Governance is part of the investment process, not an afterthought. It improves decisions; it does not remove investment risk.</p>
-              <Link href="/governance" className="link-underline mt-4 inline-block text-[14px] text-gold-300 hover:text-white">
+              <p className="text-[15.5px] leading-relaxed text-charcoal">Governance is part of the investment process, not an afterthought. It improves decisions; it does not remove investment risk.</p>
+              <Link href="/governance" className="link-underline mt-4 inline-block text-[14px] text-teal-800 hover:text-teal-900">
                 Our governance →
               </Link>
             </div>

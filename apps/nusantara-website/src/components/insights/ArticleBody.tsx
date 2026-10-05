@@ -157,7 +157,7 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
                 {/* Mobile: stacked definition cards */}
                 <ul className="mt-4 space-y-3 md:hidden">
                   {b.rows.map((r, k) => (
-                    <li key={k} className="border-l-2 border-teal-800 bg-white px-4 py-3">
+                    <li key={k} className="border-l-2 border-teal-800 bg-paper px-4 py-3">
                       <p className="font-semibold text-teal-900">{r[0]}</p>
                       <dl className="mt-2 space-y-2 text-[14px]">
                         {r.slice(1).map((cell, c) => (
@@ -203,7 +203,7 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
             );
           case "callout":
             return (
-              <aside key={i} className="my-10 border border-rule bg-white p-5 font-sans">
+              <aside key={i} className="my-10 border border-rule bg-paper p-5 font-sans">
                 <p className="eyebrow text-stone">{b.title}</p>
                 <p className="mt-2 text-[14.5px] leading-relaxed text-charcoal">{b.text}</p>
               </aside>

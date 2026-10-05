@@ -30,7 +30,7 @@ export function ScenarioAnalysis({ spec }: { spec: ScenarioSpec }) {
     `${new Intl.NumberFormat("en-GB", { minimumFractionDigits: spec.decimals, maximumFractionDigits: spec.decimals }).format(v)}${spec.unit ?? ""}`;
 
   return (
-    <section aria-labelledby={`${spec.id}-title`} className="not-prose my-12 border border-rule bg-white font-sans">
+    <section aria-labelledby={`${spec.id}-title`} className="not-prose my-12 border border-rule bg-paper font-sans">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-teal-900 px-5 py-3 text-white md:px-7">
         <p className="eyebrow text-teal-200">Nusantara Scenario Analysis</p>
         <span className="inline-flex items-center gap-1.5 border border-gold-300/60 px-2 py-1 text-[10.5px] font-medium uppercase tracking-[0.08em] text-gold-200">

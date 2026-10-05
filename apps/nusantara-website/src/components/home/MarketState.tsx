@@ -209,7 +209,7 @@ export function MarketState({
               </div>
 
               {insight && (
-                <Link href={`/insights/${insight.slug}`} className="group mt-8 block border-l-2 border-teal-800 bg-white px-5 py-4 transition-colors hover:border-gold-500">
+                <Link href={`/insights/${insight.slug}`} className="group mt-8 block border-l-2 border-teal-800 bg-paper px-5 py-4 transition-colors hover:border-gold-500">
                   <span className="eyebrow text-stone">What it may mean · {insight.category}</span>
                   <span className="mt-2 block font-serif text-[1.25rem] leading-snug text-teal-900 group-hover:text-teal-700">{insight.title}</span>
                   <span className="mt-2 inline-flex items-center gap-2 text-[13px] text-teal-800">

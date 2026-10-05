@@ -2,9 +2,16 @@
 
 /*
  * Nusantara Fund Management — design tokens.
- * Derived from the existing Nusantara materials: Nusantara Gold, Deep Teal,
- * Warm Ivory, White, Charcoal and muted neutral grey. Gold is an accent,
- * teal carries authority, ivory/white give editorial breathing space.
+ * Two principal surface tones:
+ *  - Warm Ivory (--color-ivory): the light surface for corporate, editorial and
+ *    reading areas. --color-paper is the same family, one step lighter, for
+ *    raised cards and inputs on ivory; it is never a section band.
+ *  - Deep Teal (--color-teal-900): the dark surface for market intelligence,
+ *    Nusantara's interpretation and high-emphasis institutional areas. Panels
+ *    inside a deep-teal section step to teal-800; nothing else is a surface.
+ * Gold is the brand accent only (logo, fine rules, small indicators, selected
+ * states, limited emphasis), never a surface. Up/down are reserved for data.
+ * Rules and surface map: docs/ARCHITECTURE.md §14.
  */
 @theme {
   --color-teal-950: #0a2330;
@@ -27,9 +34,9 @@
   --color-gold-200: #ebdcbb;
   --color-gold-100: #f4ecdb;
 
-  --color-ivory: #f7f3ea;
+  --color-ivory: #f8f5ee;
   --color-ivory-deep: #efe8da;
-  --color-paper: #fbf9f4;
+  --color-paper: #fdfcf9;
   --color-ink: #16191b;
   --color-charcoal: #2a2f33;
   --color-stone: #575f64;
@@ -54,7 +61,7 @@
     text-rendering: optimizeLegibility;
   }
   body {
-    background: var(--color-paper);
+    background: var(--color-ivory);
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-feature-settings: "kern", "liga";
@@ -371,3 +378,52 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .focus-sweep { display: none; }
 }
+
+/* ------------------------------------------------------------------ */
+/* Deep-teal surface                                                   */
+/* ------------------------------------------------------------------ */
+/* A section marked `surface-deep` (with bg-teal-900) carries market
+   intelligence. Components written for the ivory surface (workspace, tables,
+   charts) take the deep-teal palette here without separate markup: the neutral
+   tokens are re-pointed, and the few teal/white utilities that mean "ink" or
+   "card" on ivory are mapped below. Gold stays an accent. */
+.surface-deep {
+  --color-ink: #f3efe6;
+  --color-charcoal: #dbe5e8;
+  --color-stone: #a9bfc7;
+  --color-mist: #89a4ae;
+  --color-rule: rgba(255, 255, 255, 0.16);
+  --color-rule-soft: rgba(255, 255, 255, 0.09);
+  --color-paper: #0e2d3b;
+  --color-ivory: #11323f;
+  --color-ivory-deep: #1a3c4a;
+  --color-up: #8fd1b0;
+  --color-down: #f0a397;
+  --color-up-soft: rgba(143, 209, 176, 0.14);
+  --color-down-soft: rgba(240, 163, 151, 0.14);
+  color: var(--color-ink);
+}
+/* Ink: headings and strong text */
+.surface-deep :is(.text-teal-950, .text-teal-900, .text-teal-800) { color: #f3efe6; }
+.surface-deep :is(.text-teal-700, .text-teal-600, .text-teal-500) { color: #c4d5db; }
+.surface-deep :is(.text-gold-800, .text-gold-700, .text-gold-600) { color: var(--color-gold-300); }
+.surface-deep :is(.hover\:text-teal-950, .hover\:text-teal-900, .hover\:text-teal-800, .hover\:text-teal-700, .hover\:text-teal-50):hover,
+.surface-deep .group:hover .group-hover\:text-teal-700,
+.surface-deep .focus-visible\:text-teal-900:focus-visible { color: #fff; }
+/* Cards and frames: one step off the surface */
+.surface-deep .bg-white { background-color: #11323f; }
+.surface-deep .bg-white\/95 { background-color: rgba(10, 35, 48, 0.96); }
+.surface-deep :is(.bg-teal-50, .bg-teal-100, .active\:bg-teal-50:active) { background-color: rgba(255, 255, 255, 0.07); }
+.surface-deep :is(.hover\:bg-white\/60, .hover\:bg-ivory\/50):hover { background-color: rgba(255, 255, 255, 0.05); }
+/* Nusantara interpretation panels step up; selected chips use a lighter teal */
+.surface-deep .bg-teal-900 { background-color: var(--color-teal-800); }
+.surface-deep .bg-teal-800 { background-color: var(--color-teal-600); }
+/* Emphasis borders */
+.surface-deep :is(.border-teal-800, .border-teal-800\/40, .border-teal-800\/35, .border-teal-600\/40, .focus\:border-teal-800:focus, .hover\:border-teal-800:hover, .hover\:border-teal-600:hover) {
+  border-color: rgba(196, 213, 219, 0.5);
+}
+/* Selected-row marker: gold, the accent for selected states */
+.surface-deep .w-\[2px\].bg-teal-800 { background-color: var(--color-gold-400); }
+/* Light data cells keep dark ink; status tint stays in the gold family */
+.surface-deep :is(.bg-teal-300, .bg-gold-300).text-teal-950 { color: var(--color-teal-950); }
+.surface-deep :is(.bg-gold-100, .bg-gold-100\/60) { background-color: rgba(205, 174, 115, 0.12); }

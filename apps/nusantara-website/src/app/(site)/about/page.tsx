@@ -27,7 +27,7 @@ export default function AboutPage() {
         crumbs={[{ label: "Home", href: "/" }, { label: "About Us" }]}
       />
 
-      <section aria-labelledby="who" className="bg-paper">
+      <section aria-labelledby="who" className="bg-ivory">
         <div className="container-site grid gap-12 py-20 md:py-28 lg:grid-cols-12">
           <div className="lg:col-span-4">
             <p className="eyebrow text-stone">Who we are</p>
@@ -53,7 +53,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section aria-labelledby="purpose" className="overflow-hidden border-y border-rule bg-paper">
+      <section aria-labelledby="purpose" className="overflow-hidden border-y border-rule bg-ivory">
         <div className="container-site py-24 md:py-32">
           <h2 id="purpose" className="eyebrow text-stone">
             Our purpose
@@ -87,7 +87,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section aria-labelledby="principles" className="bg-paper">
+      <section aria-labelledby="principles" className="bg-ivory">
         <div className="container-site py-20 md:py-28">
           <SectionHeader eyebrow="Our principles" title={<span id="principles">Four commitments.</span>} />
           <ol className="mt-14 border-t border-teal-800">
@@ -102,7 +102,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section aria-labelledby="how-we-think" className="border-t border-rule bg-white">
+      <section aria-labelledby="how-we-think" className="border-t border-rule bg-ivory">
         <div className="container-site py-20 md:py-28">
           <SectionHeader
             eyebrow="How we think"
@@ -145,7 +145,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section aria-labelledby="corporate" className="bg-paper">
+      <section aria-labelledby="corporate" className="bg-ivory">
         <div className="container-site py-20 md:py-24">
           <SectionHeader eyebrow="Corporate information" title={<span id="corporate">Leadership and corporate details.</span>} />
           <div className="mt-12 grid gap-6 md:grid-cols-2">

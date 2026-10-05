@@ -296,6 +296,30 @@ Use the scale tokens in `globals.css` rather than one-off sizes:
 
 Full rules: `docs/ARCHITECTURE.md` §13.
 
+### Colour (two principal tones)
+
+- **Warm Ivory = corporate information, editorial content, reading and
+  contact.**
+- **Deep Teal = market intelligence, Nusantara interpretation, investment
+  process and high-emphasis institutional content.**
+- **Gold = restrained brand accent only.** Logo, fine rules, small indicators,
+  selected states. Never a surface.
+
+| Token | Value | Use |
+|---|---|---|
+| Warm Ivory `--color-ivory` | `#f8f5ee` | Principal light surface |
+| Paper `--color-paper` | `#fdfcf9` | Cards and inputs only; not a full-width surface |
+| Deep Teal `--color-teal-900` | `#0e2d3b` | Principal dark surface, including the footer |
+| Teal 800 `--color-teal-800` | `#12384a` | Nested Nusantara View panels only; not a page surface |
+| Gold range | existing | Accent only |
+
+Choose a section's surface by what it carries, not to alternate the page. Do
+not add section-background variants (white, paper, teal-950, teal-800 bands)
+simply to create visual rhythm, and do not add colours or gradients. The
+Market Dashboard is deep teal throughout; Insights and articles are ivory.
+
+Full rules and the surface map: `docs/ARCHITECTURE.md` §14.
+
 ## 10. Market-data architecture
 
 - **Entry point:** `src/lib/market/service.ts` is the single entry point. A
@@ -430,7 +454,7 @@ management approval: complete the GO/NO-GO list in
 | File | Contents |
 |---|---|
 | `README.md` | Public site: features, design phases, how to build the review build |
-| `docs/ARCHITECTURE.md` | Information chain, market-data service and states, publication governance, content models, relationship engine, environments, security, typography (§13) |
+| `docs/ARCHITECTURE.md` | Information chain, market-data service and states, publication governance, content models, relationship engine, environments, security, typography (§13), colour (§14) |
 | `docs/ADMIN_PORTAL.md` | Admin Portal: roles, workflow/classification, preview, revalidation, versions, discard, structured Insights, legal-404 fix, regression scripts |
 | `docs/DEPLOYMENT.md` | Infrastructure, provisioning steps, environment matrix, migrations/deploy sequence, bootstrap, media, email/MFA assessment, online test, backup, observability |
 | `docs/CMS_CUTOVER_CHECKLIST.md` | GO/NO-GO cutover gate and open decisions |

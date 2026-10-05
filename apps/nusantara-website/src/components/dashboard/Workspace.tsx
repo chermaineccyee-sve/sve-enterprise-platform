@@ -7,7 +7,7 @@ import { useMarketFocus } from "@/components/home/MarketFocus";
 import { StateGauge } from "@/components/identity/StateGauge";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { Change } from "@/components/market/Change";
-import { PRIMARY_LINE, SERIES_COLORS } from "@/components/market/chart-utils";
+import { PRIMARY_LINE_DEEP as PRIMARY_LINE, SERIES_COLORS_DEEP as SERIES_COLORS } from "@/components/market/chart-utils";
 import { Provenance, StaleMark, useIsStale } from "@/components/market/MarketStatus";
 import { MarketTable } from "@/components/market/MarketTable";
 import { MorphChart } from "@/components/market/MorphChart";
@@ -538,6 +538,7 @@ function InstrumentCentre({
       <div className={`mt-6 transition-opacity duration-300 ${loading ? "opacity-50" : ""}`} aria-busy={loading}>
         {values.length > 1 ? (
           <MorphChart
+            tone="dark"
             series={[{ id: "main", label: inst.shortName, color: PRIMARY_LINE, values }]}
             labels={stamps.map((t) => time.stamp(t, { time: period === "1D" || period === "1W" }))}
             format={fmt}
@@ -661,6 +662,7 @@ function CompareCentre({
       <div className={`mt-6 transition-opacity ${loading ? "opacity-50" : ""}`}>
         {series.length ? (
           <MorphChart
+            tone="dark"
             series={series}
             labels={stamps.map((t) => time.stamp(t, { time: period === "1D" || period === "1W" }))}
             format={(v) => formatValue(v, 2)}
@@ -695,7 +697,7 @@ function IndicatorCentre({ indicator }: { indicator: IntelligenceIndicator }) {
         <AnimatedNumber value={indicator.value} format={fmt} />
       </p>
       <div className="mt-6">
-        <MorphChart series={[{ id: "ind", label: indicator.title, color: PRIMARY_LINE, values }]} labels={labels} format={fmt} height={340} ariaLabel={`${indicator.title}, ${statusPhrase(indicator.provenance)} quarterly series`} />
+        <MorphChart tone="dark" series={[{ id: "ind", label: indicator.title, color: PRIMARY_LINE, values }]} labels={labels} format={fmt} height={340} ariaLabel={`${indicator.title}, ${statusPhrase(indicator.provenance)} quarterly series`} />
       </div>
       <div className="mt-5">
         <Provenance provenance={indicator.provenance} showTime={false} />

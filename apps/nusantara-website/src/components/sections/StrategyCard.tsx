@@ -18,7 +18,7 @@ export function StrategyCard({ strategy, index, variant = "row" }: { strategy: S
     return (
       <Link
         href={`/strategies/${strategy.slug}`}
-        className="group flex h-full flex-col border border-rule-soft bg-white p-6 transition-colors hover:border-teal-800"
+        className="group flex h-full flex-col border border-rule-soft bg-paper p-6 transition-colors hover:border-teal-800"
       >
         <div className="flex items-center justify-between">
           <span className="num text-[12px] text-stone">{String(index + 1).padStart(2, "0")}</span>

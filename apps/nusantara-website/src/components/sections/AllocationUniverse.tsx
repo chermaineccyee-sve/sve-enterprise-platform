@@ -164,7 +164,7 @@ export function AllocationUniverse({
             )}
 
             {insight && (
-              <Link href={`/insights/${insight.slug}`} className="group mt-8 block border-l-2 border-teal-800 bg-white px-5 py-4 hover:border-gold-500">
+              <Link href={`/insights/${insight.slug}`} className="group mt-8 block border-l-2 border-teal-800 bg-paper px-5 py-4 hover:border-gold-500">
                 <span className="eyebrow text-stone">Related insight</span>
                 <span className="mt-1 block font-serif text-[1.2rem] text-teal-900 group-hover:text-teal-700">{insight.title} →</span>
               </Link>
