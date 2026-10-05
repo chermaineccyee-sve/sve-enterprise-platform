@@ -101,7 +101,7 @@ export function DeepDives({ insights }: { insights: InsightListing[] }) {
                   </span>
                   <span className="num text-[12px] text-stone md:text-right">
                     {formatInsightDate(i.date)}
-                    <br className="hidden md:block" /> <span className="md:hidden">·</span> {i.readingTime} min read
+                    <br className="hidden md:block" /> <span className="md:hidden">·</span> {i.sample ? "Illustrative · " : ""}{i.readingTime} min read
                   </span>
                 </Link>
               </m.li>

@@ -219,6 +219,9 @@ All checks are server-side, for the UI, REST and Local API alike.
 **Workflow** (authoritative): Draft → In Review → Approved → Published →
 Archived. **Classification** is separate: Illustrative / Management Review /
 Approved Corporate Content.
+Public Insight dates are the CMS publication date, never the current date.
+Unless an Insight is Approved Corporate Content, its date carries a quiet
+"Illustrative" qualifier (e.g. `1 October 2026 · Illustrative · 3 min`).
 
 - **Nusantara Views and Market State: Editor ≠ Approver.**
   - The approver or publisher must differ from the creator, submitter and

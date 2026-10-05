@@ -236,6 +236,7 @@ export default async function InsightArticlePage({ params }: PageProps<"/insight
                 <dt className="text-stone">Published</dt>
                 <dd className="text-ink">
                   <time dateTime={insight.date}>{formatInsightDate(insight.date)}</time>
+                  {insight.sample && <span className="text-stone"> · Illustrative</span>}
                 </dd>
               </div>
               {updated && (

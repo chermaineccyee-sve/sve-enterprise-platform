@@ -69,7 +69,7 @@ export function ResearchRail({ featured, chart, items }: { featured: InsightList
               </h3>
               <p className="mt-4 text-[14.5px] leading-relaxed text-stone">{featured.summary}</p>
               <p className="num mt-auto pt-6 text-[12px] text-stone">
-                {formatInsightDate(featured.date)} · {featured.readingTime} min
+                {formatInsightDate(featured.date)} · {featured.sample ? "Illustrative · " : ""}{featured.readingTime} min
               </p>
             </div>
             <div className="border-t border-rule-soft p-5 md:col-span-3 md:border-l md:border-t-0">
@@ -103,7 +103,7 @@ export function ResearchRail({ featured, chart, items }: { featured: InsightList
               <p className="eyebrow mt-5 text-stone">{i.category}</p>
               <h3 className="mt-2 font-serif text-[1.35rem] leading-snug text-teal-900 group-hover:text-teal-700">{i.title}</h3>
               <p className="num mt-auto pt-4 text-[12px] text-stone">
-                {formatInsightDate(i.date)} · {i.readingTime} min
+                {formatInsightDate(i.date)} · {i.sample ? "Illustrative · " : ""}{i.readingTime} min
               </p>
             </Link>
           </li>

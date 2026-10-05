@@ -35,7 +35,7 @@ export function FeaturedResearch({ insight, chart, takeaways }: { insight: Insig
             Read the research <span aria-hidden>→</span>
           </Link>
           <span className="num text-[12px] text-teal-200">
-            {formatInsightDate(insight.date)} · {insight.author} · {insight.readingTime} min
+            {formatInsightDate(insight.date)} · {insight.sample ? "Illustrative · " : ""}{insight.author} · {insight.readingTime} min
           </span>
         </div>
       </div>
