@@ -46,9 +46,9 @@ test("openMeeting() opens a Meeting Brief with Client/Engagement/Matter/Workstre
   const html = sandbox.__appEl.innerHTML;
   assert.match(html, /drawer open/);
   assert.match(html, /VT Worldwide — HR Transformation Review/);
-  assert.match(html, /HR Transformation \/ HR Advisory/); // Engagement
-  assert.match(html, /HR Transformation</); // Matter
-  assert.match(html, /HR Policy Framework, HR Digitalisation \/ HRMS/); // Related Workstreams
+  assert.match(html, /HR Transformation \/ HR Advisory/); // Engagement — unchanged
+  assert.match(html, /Policy & Documentation Close-Out</); // Matter — renamed 6 Oct 2026 (now at final review / close-out)
+  assert.match(html, /HR Policy Framework, HR Digitalisation \/ HRMS/); // Related Workstreams — the meeting's own field, separate from the Matter's, unchanged
   assert.match(html, /Ravi Menon \(Group CHRO\)/);
 });
 
@@ -145,7 +145,7 @@ test("clicking a Matter row deep-links into its Client Workspace, filtered to th
   const sandbox = loadApp();
   sandbox.navigate("#/client/vt-worldwide?tab=documents&matter=matter-vt-hrtransform");
   const html = sandbox.__appEl.innerHTML;
-  assert.match(html, /Matter: HR Transformation/);
+  assert.match(html, /Matter: Policy & Documentation Close-Out/);
 });
 
 test("Actions & Follow-Up splits open tasks into On Me and Waiting On Others", () => {

@@ -113,10 +113,13 @@ test("generateUpdateText() defaults to the Ongoing scope and is unchanged from b
   const sandbox = loadApp();
   const text = sandbox.generateUpdateText("email");
   assert.match(text, /VT Worldwide/);
-  assert.match(text, /MRE Asia/);
   assert.match(text, /Nusantara Project/);
-  assert.match(text, /SVE Group Enterprise Platform/);
-  assert.match(text, /direction required/i);
+  assert.match(text, /Internal Governance/);
+  assert.match(text, /PQCAL/);
+  assert.match(text, /CY – Appraisal/);
+  assert.match(text, /for review/i);
+  assert.doesNotMatch(text, /MRE Asia/); // no longer management-visible
+  assert.doesNotMatch(text, /SVE Group Enterprise Platform/); // no longer management-visible
 });
 
 test("generateUpdateText() never leaks a private entry in any scope", () => {

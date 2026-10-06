@@ -157,10 +157,15 @@ const ENGAGEMENTS = [
 // Management fields (managementVisible/managementStatus/currentPosition/
 // nextStep/managementAttentionLevel/managementAttentionNote/managementUpdated)
 // supplement the existing Matter record — architecture doc §16.2. Default is
-// managementVisible:false (privacy by default, §16.3); only the four Matters
-// the brief itself described are opted in. Internal Governance's policy and
-// litigation Matters are deliberately left out — a live demonstration that
-// the default actually withholds something.
+// managementVisible:false (privacy by default, §16.3); as at 6 Oct 2026 the
+// five current management-visible workstreams are: VT Worldwide (Final
+// Review & Close-Out), PQCAL (Shared Administration), Nusantara (Document
+// Master Registry Finalisation), SVE – Governance Pack (HR & Company
+// Policies), and CY – Appraisal. Internal Governance's litigation Matter
+// stays deliberately left out even though its sibling policy Matter (the
+// Governance Pack) is now opted in — a live demonstration that the default
+// actually withholds something, and that visibility is set per-Matter, not
+// per-Client.
 const MATTERS = [
   {
     id: "matter-vt-hrtransform", engagementId: "eng-vt-hr", name: "Policy & Documentation Close-Out", status: "active",

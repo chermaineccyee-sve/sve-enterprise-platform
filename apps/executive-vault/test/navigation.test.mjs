@@ -44,8 +44,8 @@ test("client workspace renders the client's own contacts, name, and Engagement/M
   const html = sandbox.__appEl.innerHTML;
   assert.match(html, /VT Worldwide/);
   assert.match(html, /Ravi Menon/);
-  assert.match(html, /HR Transformation \/ HR Advisory/); // Engagement name
-  assert.match(html, /HR Digitalisation \/ HRMS/); // Workstream name
+  assert.match(html, /HR Transformation \/ HR Advisory/); // Engagement name — unchanged
+  assert.match(html, /Document Release/); // Workstream name — Matter renamed 6 Oct 2026 (now Final Review / Document Release / Handover)
 });
 
 test("the Legacy client's workspace still renders directly (findable on purpose) with a Legacy callout", () => {
