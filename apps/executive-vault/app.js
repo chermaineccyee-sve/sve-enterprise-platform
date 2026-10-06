@@ -78,7 +78,20 @@ refreshClock();
 
 const DECISION_TYPES = ["Resolution", "Management Paper"];
 const MANAGEMENT_STATUSES = ["In Progress", "Awaiting Input", "Decision Required", "Complete", "On Hold"];
-const ATTENTION_LEVELS = ["Decision Required", "For Review", "Direction Required", "Approval Required"];
+// Attention vocabulary (Executive Vault dashboard redesign, Oct 2026) — what
+// Eric/Management needs to do about a Matter, kept strictly separate from
+// MATTER_STAGES below (where the Matter sits in its own lifecycle). "No
+// Action" is never stored explicitly — a null/unset managementAttentionLevel
+// means it, so existing truthy-checks (`m.managementAttentionLevel`) keep
+// working unchanged; attentionLabel() below is the only place that renders
+// null as the words "No Action". "Overdue" is likewise never stored — it is
+// always computed from a Matter's own targetDate (see isMatterOverdue()),
+// since a static field would drift out of date the moment a deadline passed.
+const ATTENTION_LEVELS = ["For Information", "For Review", "Approval Required", "Decision Required"];
+// Lifecycle vocabulary for currentStage (data.js) — a Matter's own position
+// in its delivery arc, read by the new Workstream Snapshot/Stage chip.
+// Deliberately closed (not freeform) so every chip has a known colour.
+const MATTER_STAGES = ["Not Started", "Mobilisation", "In Progress", "Finalising", "Close-Out", "Completed", "On Hold"];
 
 const DRAFT_STATUSES = ["Draft", "Working Draft"];
 const REVIEW_STATUSES = ["Internal Review", "Management Review", "Client Review", "Pending Information"];
@@ -104,6 +117,9 @@ const STATE = {
   mgmtView: "ongoing",         // "ongoing" | "weekly" | "monthly" — active Management Progress tab
   mgmtWeekStart: null,         // ISO Monday; lazily defaulted to weekStart(TODAY) on first view
   mgmtMonth: null,             // "YYYY-MM"; lazily defaulted to TODAY.slice(0,7) on first view
+  mgmtPerspective: "executive", // "executive" | "my-work" | "portfolio" — which lens the Ongoing tab shows (dashboard redesign, Oct 2026); Weekly/Monthly Review are unaffected by this
+  mgmtSnapshotFilter: "all",   // "all" | "needs-eric" | "this-week" | "my-actions" — Workstream Snapshot's own filter row
+  previewWorkstreamId: null,   // Matter id for the Level-2 drill-down drawer (read-only view; distinct from previewMatterId, the existing edit drawer)
   vaultSort: { key: "modified", dir: "desc" },
   expandedFolders: new Set(),
   showLegend: false,
@@ -347,6 +363,110 @@ function lastManagementUpdate() {
   return dates.length ? dates.sort().slice(-1)[0] : null;
 }
 
+/* ---------- Executive Vault dashboard redesign (Oct 2026) — a genuine
+ * 5-second command centre for Eric: Executive Overview → Needs Your
+ * Attention → Upcoming → Workstream Snapshot → Level-2 drill-down. Every
+ * function below reads ONLY from managementVisibleMatters()/the other
+ * privacy-gated functions already above — the redesign changes how the
+ * same management-visible data is organised and presented, never what
+ * passes the existing privacy boundary. ---------- */
+
+/** A Matter is overdue when it carries its own targetDate and that date has
+ * passed — computed fresh every render, never a stored field, so it can
+ * never silently drift out of date the way a manually-set flag would. */
+function isMatterOverdue(m) { return !!(m && m.targetDate && m.targetDate < TODAY); }
+
+/** null (the stored "no attention" value) displays as "No Action" — the only
+ * place that mapping happens, so every existing `m.managementAttentionLevel`
+ * truthy-check elsewhere keeps working unchanged (see ATTENTION_LEVELS's own
+ * comment). Overdue is reported distinctly from whatever explicit level (if
+ * any) is also set, since a Matter can be both e.g. "For Review" AND overdue. */
+function attentionLabel(level) { return level || "No Action"; }
+const ATTENTION_SEVERITY = { "Decision Required": 0, "Approval Required": 1, "Overdue": 1, "For Review": 2, "For Information": 3 };
+
+/** Everything that currently needs Eric's/Management's action: any visible
+ * Matter with an explicit attention level (Decision Required/Approval
+ * Required/For Review), plus any visible Matter whose own targetDate has
+ * passed (Overdue, computed — see isMatterOverdue()), sorted so the most
+ * consequential items lead. A Matter that is both gets ONE combined entry,
+ * never two — the primary badge is the more severe of the two. */
+function computeNeedsAttention() {
+  return managementVisibleMatters()
+    .map((m) => {
+      const overdue = isMatterOverdue(m);
+      if (!m.managementAttentionLevel && !overdue) return null;
+      const primary = overdue && (!m.managementAttentionLevel || ATTENTION_SEVERITY.Overdue < ATTENTION_SEVERITY[m.managementAttentionLevel])
+        ? "Overdue" : m.managementAttentionLevel;
+      return { matter: m, level: primary, overdue, note: m.managementAttentionNote || "" };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (ATTENTION_SEVERITY[a.level] ?? 9) - (ATTENTION_SEVERITY[b.level] ?? 9));
+}
+
+/** Imminent meetings and deadlines for visible Matters only, merged and
+ * date-sorted — meetings from managementMeetings() (already matter/
+ * visibility-gated) plus each visible Matter's own Client's keyDates, so a
+ * dated commitment that isn't a formal calendar meeting (a submission
+ * deadline, a renewal) still surfaces here exactly once. Past keyDates are
+ * excluded — this section is "what's ahead", not a history. */
+function computeUpcomingItems(windowDays) {
+  const horizon = addDays(TODAY, windowDays == null ? 14 : windowDays);
+  const items = [];
+  managementMeetings().forEach((m) => {
+    items.push({ kind: "meeting", date: m.date, time: m.startTime || "", label: m.title, clientName: clientName(m.clientId), clientId: m.clientId, meetingId: m.id });
+  });
+  managementVisibleMatters().forEach((m) => {
+    const eng = getEngagementRecord(m.engagementId);
+    const cl = eng ? getClient(eng.clientId) : null;
+    if (!cl) return;
+    (cl.keyDates || []).forEach((kd) => {
+      if (kd.date < TODAY || kd.date > horizon) return;
+      items.push({ kind: "deadline", date: kd.date, time: "", label: kd.label, clientName: cl.name, clientId: cl.id, meetingId: null });
+    });
+  });
+  const seen = new Set();
+  return items
+    .filter((it) => { const k = it.date + "|" + it.label; if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => (a.date + (a.time || "99:99")).localeCompare(b.date + (b.time || "99:99")));
+}
+
+/** True when a Matter has an Upcoming item (meeting or deadline) within the
+ * next 7 days — the Workstream Snapshot's "This Week" filter reads this. */
+function matterIsThisWeek(m) {
+  const eng = getEngagementRecord(m.engagementId);
+  const clientId = eng ? eng.clientId : null;
+  return clientId != null && computeUpcomingItems(7).some((it) => it.clientId === clientId);
+}
+
+/** "Needs Eric" = an explicit attention level that isn't purely informational, or overdue — the complement of "My Actions" (still Ching Yee's own, routine, no escalation yet). */
+function matterNeedsEric(m) {
+  return isMatterOverdue(m) || (m.managementAttentionLevel && m.managementAttentionLevel !== "For Information");
+}
+
+/** One row per management-visible Matter — the Workstream Snapshot's data
+ * source, shared by all three perspectives (Executive/My Work/Portfolio)
+ * and both the desktop table and mobile card rendering. */
+function computeWorkstreamSnapshot() {
+  return managementVisibleMatters().map((m) => {
+    const eng = getEngagementRecord(m.engagementId);
+    const cl = eng ? getClient(eng.clientId) : null;
+    const overdue = isMatterOverdue(m);
+    const needsEric = matterNeedsEric(m);
+    return {
+      matter: m, clientName: cl ? cl.name : "—", stage: m.currentStage || "Not Started",
+      attentionLevel: m.managementAttentionLevel, overdue, needsEric,
+      myAction: !needsEric, thisWeek: matterIsThisWeek(m),
+      progressPercent: typeof m.progressPercent === "number" ? m.progressPercent : null,
+    };
+  });
+}
+function snapshotFilterMatch(row, filter) {
+  if (filter === "needs-eric") return row.needsEric;
+  if (filter === "this-week") return row.thisWeek;
+  if (filter === "my-actions") return row.myAction;
+  return true;
+}
+
 function computeVaultDocs(query) {
   let list = activeClassifiedDocs();
   if (query.clientId) list = list.filter((d) => d.clientId === query.clientId);
@@ -485,6 +605,7 @@ function closeAllDrawers() {
   STATE.previewId = null; STATE.previewMeetingId = null; STATE.previewMatterId = null; STATE.meetingPrepMode = false;
   STATE.previewProgressEditId = null; STATE.progressDraft = null;
   STATE.previewGoogleEventKey = null; STATE.calendarLinkDraft = null;
+  STATE.previewWorkstreamId = null;
 }
 function openDocument(id) { closeAllDrawers(); STATE.previewId = id; STATE.showLegend = false; render(); }
 function closeDrawer() { closeAllDrawers(); render(); }
@@ -1409,13 +1530,15 @@ function renderDrawer() {
   const d = STATE.previewId ? getDocument(STATE.previewId) : null;
   const m = STATE.previewMeetingId ? getMeeting(STATE.previewMeetingId) : null;
   const mt = STATE.previewMatterId ? getMatter(STATE.previewMatterId) : null;
+  const ws = STATE.previewWorkstreamId ? getMatter(STATE.previewWorkstreamId) : null;
   const editingProgress = STATE.previewProgressEditId ? PROGRESS_UPDATES.find((p) => p.id === STATE.previewProgressEditId) : null;
   const googleEvent = STATE.previewGoogleEventKey ? findGoogleEventByKey(STATE.previewGoogleEventKey) : null;
-  const open = !!(d || m || mt || editingProgress || STATE.progressDraft || googleEvent);
+  const open = !!(d || m || mt || ws || editingProgress || STATE.progressDraft || googleEvent);
   let body = "";
   if (d) body = drawerContent(d);
   else if (m) body = STATE.meetingPrepMode ? meetingPrepContent(m) : meetingBriefContent(m);
   else if (mt) body = matterEditorContent(mt);
+  else if (ws) body = workstreamDrillDownContent(ws);
   else if (editingProgress) body = progressUpdateFormContent(editingProgress, true, editingProgress.id);
   else if (STATE.progressDraft) body = progressUpdateFormContent(STATE.progressDraft, false, null);
   else if (googleEvent) body = googleEventDrawerContent(googleEvent);
@@ -1621,9 +1744,9 @@ function renderExecutiveTimelineGoogle(events) {
 }
 
 /** Reuses the same Current Position/Next Step/Management Attention fields
- * mgmtMatterCard() shows on Management Progress, in Executive Home's own
- * (visually stronger) card — a deliberately distinct component so restyling
- * one never touches the other's deliberately calmer treatment. */
+ * the Management Progress Workstream Snapshot/drill-down read, in Executive
+ * Home's own (visually stronger) card — a deliberately distinct component
+ * so restyling one never touches the other's deliberately calmer treatment. */
 function execMatterCard(m) {
   const cl = getClient(matterClientId(m));
   const shown = m.workstreams.slice(0, 3);
@@ -2320,28 +2443,235 @@ function mgmtLabel(clientId, title) {
   return title.toLowerCase().includes(firstWord.toLowerCase()) ? title : `${cn} — ${title}`;
 }
 
-function mgmtMatterCard(m) {
+/* ---------- Executive Vault dashboard redesign: chips, snapshot rows, and
+ * the Level-2 drill-down drawer. stageChip()/attentionChip() are the only
+ * two places a Stage or Attention value becomes a coloured badge, so the
+ * two vocabularies' colour languages only ever need to be defined once. ---------- */
+function stageChip(stage) { return `<span class="stage-chip stage-chip-${slug(stage || "not-started")}">${stage || "Not Started"}</span>`; }
+function attentionChip(level, overdue) {
+  if (overdue) return `<span class="attn-chip attn-chip-overdue">Overdue</span>`;
+  if (!level) return `<span class="attn-chip attn-chip-no-action">No Action</span>`;
+  return `<span class="attn-chip attn-chip-${slug(level)}">${level}</span>`;
+}
+function progressBarHtml(pct) {
+  if (pct == null) return `<span class="muted" style="font-size:11px">—</span>`;
+  return `<div class="ws-progress" title="${pct}%"><div class="ws-progress-bar" style="width:${Math.max(0, Math.min(100, pct))}%"></div></div><span class="ws-progress-pct">${pct}%</span>`;
+}
+
+function openWorkstreamDrillDown(matterId) { closeAllDrawers(); STATE.previewWorkstreamId = matterId; render(); }
+/** Switching perspective resets the Snapshot filter to that perspective's
+ * own sensible default — My Work starts on "My Actions", the other two
+ * start unfiltered — but never fights the user's own filter clicks
+ * afterward (the reset happens here, once, on the switch itself, never on
+ * every render). */
+function setMgmtPerspective(p) {
+  STATE.mgmtPerspective = p;
+  STATE.mgmtSnapshotFilter = p === "my-work" ? "my-actions" : "all";
+  render();
+}
+function setMgmtSnapshotFilter(f) { STATE.mgmtSnapshotFilter = f; render(); }
+
+/** Level-2 drill-down — the existing detailed workstream content (Current
+ * Position/Next Step/Management Action/Work Areas), now read-only and in a
+ * drawer rather than a landing-page card, PLUS Recent Updates and Documents
+ * (both already privacy-gated via managementProgressNotes()/
+ * managementVisibleDocs() — the same functions the rest of Management
+ * Progress reads, never a separate unfiltered list). "Update controls"
+ * reuses the EXISTING Management Snapshot editor via openMatterEditor()
+ * rather than duplicating edit fields in a second place. */
+function workstreamDrillDownContent(m) {
   const eng = getEngagementRecord(m.engagementId);
   const cn = clientName(eng.clientId);
-  // "the latest approved update may determine the Ongoing current position"
-  // (brief §9) — an additive line, never replacing the Matter's own
-  // separately-curated Current Position field above it.
-  const latest = latestManagementProgressUpdate(m.id);
+  const updates = managementProgressNotes().filter((p) => p.matterId === m.id).slice(0, 5);
+  const docs = managementVisibleDocs().filter((d) => d.matterId === m.id);
   return `
-    <div class="mgmt-card">
-      <div class="mgmt-card-top">
-        <div>
-          <div class="mgmt-card-client">${cn}</div>
-          <div class="mgmt-card-name">${m.name}</div>
-        </div>
-        <span class="mgmt-status mgmt-status-${slug(m.managementStatus || "")}">${m.managementStatus || "—"}</span>
+    <div class="drawer-head">
+      <div>
+        <div class="breadcrumbs">${cn} · Workstream</div>
+        <h3 style="font-size:17px;max-width:340px">${m.name}</h3>
       </div>
-      <div class="mgmt-field"><span class="mgmt-field-label">Current Position</span>${m.currentPosition || "—"}</div>
-      ${latest ? `<div class="mgmt-field"><span class="mgmt-field-label">Latest Progress</span>${attrSafe(latest.text)}<span class="muted"> · ${fmtDate(latest.date)}</span></div>` : ""}
-      ${m.workstreams.length ? `<div class="mgmt-field"><span class="mgmt-field-label">Active Workstreams</span>${m.workstreams.join(", ")}</div>` : ""}
-      <div class="mgmt-field"><span class="mgmt-field-label">Next Step</span>${m.nextStep || "—"}</div>
-      <div class="mgmt-field"><span class="mgmt-field-label">Management Attention</span>${m.managementAttentionNote || "None."}</div>
-      <div class="mgmt-field"><span class="mgmt-field-label">Last Updated</span>${fmtDate(m.managementUpdated)}</div>
+      <button class="drawer-close" onclick="${call("closeDrawer")}">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">${stageChip(m.currentStage)}${attentionChip(m.managementAttentionLevel, isMatterOverdue(m))}</div>
+      <div class="dfield"><div class="dfield-label">Current Position</div><div class="dfield-value">${m.currentPosition || "—"}</div></div>
+      <div class="dfield"><div class="dfield-label">Next Step</div><div class="dfield-value">${m.nextStep || "—"}</div></div>
+      <div class="dfield"><div class="dfield-label">Management Action</div><div class="dfield-value">${m.managementAttentionNote || "None."}</div></div>
+      ${m.workstreams.length ? `<div class="dfield"><div class="dfield-label">Work Areas</div><div class="dfield-value">${m.workstreams.map((w) => `<span class="chip fn-chip">${w}</span>`).join(" ")}</div></div>` : ""}
+      <div class="dfield"><div class="dfield-label">Recent Updates</div>
+        ${updates.length ? updates.map((u) => `<div class="mgmt-line">✓ ${attrSafe(u.text)} <span class="muted">· ${fmtDate(u.date)}</span></div>`).join("") : `<div class="mgmt-empty">No progress updates shared to Management yet.</div>`}
+      </div>
+      <div class="dfield"><div class="dfield-label">Documents</div>
+        ${docs.length ? docs.map((d) => `<div class="mgmt-line mgmt-line-click" onclick="${call("openDocument", d.id)}"><span class="mgmt-doc-tag">${(d.managementVisibility || "None").toUpperCase()}</span> ${d.title}</div>`).join("") : `<div class="mgmt-empty">No documents selected for management visibility.</div>`}
+      </div>
+      <div class="dfield"><div class="dfield-label">Last Updated</div><div class="dfield-value">${fmtDate(m.managementUpdated)}</div></div>
+      <div class="drawer-actions">
+        <button class="btn btn-gold" onclick="${call("openMatterEditor", m.id)}">Update Management Snapshot</button>
+      </div>
+    </div>`;
+}
+
+function executiveOverviewHtml() {
+  const matters = managementVisibleMatters();
+  const decisionRequired = matters.filter((m) => m.managementAttentionLevel === "Decision Required").length;
+  const forReview = matters.filter((m) => m.managementAttentionLevel === "For Review").length;
+  const upcoming = computeUpcomingItems(7).length;
+  const tiles = [
+    { num: matters.length, label: "Active Workstreams", filter: "all" },
+    { num: decisionRequired, label: "Decision Required", warn: decisionRequired > 0, filter: "needs-eric" },
+    { num: forReview, label: "For Review", filter: "needs-eric" },
+    { num: upcoming, label: "Upcoming", filter: "this-week" },
+  ];
+  return `
+    <div class="mgmt-section">
+      <div class="mgmt-section-title">Executive Overview</div>
+      <div class="summary-strip pulse-strip">${tiles.map((t) => `<span class="summary-chip" onclick="${call("setMgmtSnapshotFilter", t.filter)}"><span class="summary-chip-num${t.warn ? " warn" : ""}">${t.num}</span><span class="summary-chip-label">${t.label}</span></span>`).join('<span class="summary-sep"></span>')}</div>
+    </div>`;
+}
+
+function needsAttentionHtml() {
+  const items = computeNeedsAttention();
+  return `
+    <div class="mgmt-section">
+      <div class="mgmt-section-title">Needs Your Attention</div>
+      ${items.length ? items.map(({ matter: m, level, overdue, note }) => {
+        const eng = getEngagementRecord(m.engagementId);
+        const cn = clientName(eng.clientId);
+        return `
+        <div class="mgmt-attention-card${overdue ? " mgmt-attention-card-overdue" : ""}">
+          <div class="mgmt-attention-top">
+            <span class="mgmt-attention-level">${level}</span>
+            <span class="mgmt-attention-who">${cn} — ${m.name}</span>
+          </div>
+          <div class="mgmt-attention-note">${note}</div>
+          <div class="mgmt-attention-actions">
+            <button class="btn btn-sm" onclick="${call("openWorkstreamDrillDown", m.id)}">View Workstream</button>
+          </div>
+        </div>`;
+      }).join("") : '<div class="mgmt-empty">No immediate management action required.</div>'}
+    </div>`;
+}
+
+function upcomingHtml() {
+  const items = computeUpcomingItems(14);
+  return `
+    <div class="mgmt-section">
+      <div class="mgmt-section-title">Upcoming</div>
+      ${items.length ? items.map((it) => `
+        <div class="mgmt-line${it.meetingId ? " mgmt-line-click" : ""}"${it.meetingId ? ` onclick="${call("openMeeting", it.meetingId)}"` : ""}>
+          <b>${fmtDate(it.date)}${it.time ? ` · ${it.time}` : ""}</b> — ${it.clientName} — ${it.label}
+        </div>`).join("") : '<div class="mgmt-empty">Nothing imminent in the next two weeks.</div>'}
+    </div>`;
+}
+
+const SNAPSHOT_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "needs-eric", label: "Needs Eric" },
+  { id: "this-week", label: "This Week" },
+  { id: "my-actions", label: "My Actions" },
+];
+/** Identity/Stage/Progress/Next action/Attention only — Current Position,
+ * Work Areas, Recent Updates and Documents stay one tap away in the Level-2
+ * drill-down, not duplicated in a compact row (same "stay one tap away"
+ * discipline matterRecordCardHtml()'s own doc comment already states). */
+function workstreamSnapshotRowHtml(row) {
+  const m = row.matter;
+  return `
+    <tr onclick="${call("openWorkstreamDrillDown", m.id)}">
+      <td><b>${row.clientName}</b> — ${m.name}</td>
+      <td>${stageChip(row.stage)}</td>
+      <td>${progressBarHtml(row.progressPercent)}</td>
+      <td>${m.nextStep || "—"}</td>
+      <td>${attentionChip(row.attentionLevel, row.overdue)}</td>
+    </tr>`;
+}
+function workstreamSnapshotCardHtml(row) {
+  const m = row.matter;
+  return `
+    <div class="record-card" onclick="${call("openWorkstreamDrillDown", m.id)}">
+      <div class="record-card-id">${row.clientName} — ${m.name}</div>
+      <div class="record-card-context">${m.nextStep || "—"}</div>
+      <div class="record-card-state">
+        ${stageChip(row.stage)}${attentionChip(row.attentionLevel, row.overdue)}${progressBarHtml(row.progressPercent)}
+      </div>
+    </div>`;
+}
+function workstreamSnapshotHtml() {
+  const filter = STATE.mgmtSnapshotFilter || "all";
+  const rows = computeWorkstreamSnapshot().filter((r) => snapshotFilterMatch(r, filter));
+  return `
+    <div class="mgmt-section">
+      <div class="mgmt-section-title">Workstream Snapshot</div>
+      <div class="view-toggle" style="margin-bottom:14px">
+        ${SNAPSHOT_FILTERS.map((f) => `<button class="${filter === f.id ? "active" : ""}" onclick="${call("setMgmtSnapshotFilter", f.id)}">${f.label}</button>`).join("")}
+      </div>
+      ${rows.length ? `
+      <div class="table-wrap desktop-register">
+        <table class="reg">
+          <thead><tr><th>Workstream</th><th>Stage</th><th>Progress</th><th>Next Action</th><th>Attention</th></tr></thead>
+          <tbody>${rows.map(workstreamSnapshotRowHtml).join("")}</tbody>
+        </table>
+      </div>
+      <div class="record-list">${rows.map(workstreamSnapshotCardHtml).join("")}</div>`
+      : '<div class="mgmt-empty">No workstreams match this filter.</div>'}
+    </div>`;
+}
+
+/** The EXECUTIVE perspective — the new 5-second-scan hierarchy. */
+function renderMgmtExecutive() {
+  return executiveOverviewHtml() + needsAttentionHtml() + upcomingHtml() + workstreamSnapshotHtml();
+}
+/** MY WORK — Ching Yee's own open actions across these same visible
+ * workstreams (the complement of "Needs Eric"), plus the existing Waiting
+ * On / Progress Since Last Update / Next 7 Days sections, which were
+ * already written from her own operational point of view. */
+function renderMgmtMyWork() {
+  const matters = managementVisibleMatters();
+  const waiting = managementWaitingOn();
+  const notes = managementProgressNotes();
+  return `
+    ${workstreamSnapshotHtml()}
+    <div class="mgmt-section">
+      <div class="mgmt-section-title">Waiting On — Awaiting Input / External Dependency</div>
+      ${waiting.length ? waiting.map((t) => `
+        <div class="mgmt-line"><b>${clientName(t.clientId)}</b> — ${t.title}${t.waitingOn ? ` <span class="muted">(${t.waitingOn})</span>` : ""}</div>
+      `).join("") : '<div class="mgmt-empty">Nothing currently awaiting external input.</div>'}
+    </div>
+    <div class="grid grid-2" style="gap:24px;align-items:start">
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Progress Since Last Update</div>
+        ${notes.length ? notes.map((n) => `<div class="mgmt-line">✓ ${n.text}</div>`).join("") : '<div class="mgmt-empty">Nothing selected yet.</div>'}
+      </div>
+      <div class="mgmt-section">
+        <div class="mgmt-section-title">Next 7 Days</div>
+        ${matters.filter((m) => m.nextStep).length ? matters.filter((m) => m.nextStep).map((m) => {
+          const cn = clientName(getEngagementRecord(m.engagementId).clientId);
+          return `<div class="mgmt-line"><b>${cn}</b> — ${m.nextStep}</div>`;
+        }).join("") : '<div class="mgmt-empty">Nothing notable in the coming week.</div>'}
+      </div>
+    </div>`;
+}
+/** PORTFOLIO — the full, unfiltered register plus the two existing
+ * reference sections (pending decisions, supporting documents) that suit a
+ * "browse everything" view better than a 5-second triage one. */
+function renderMgmtPortfolio() {
+  const decisions = computeManagementDecisions();
+  const docs = managementVisibleDocs();
+  return `
+    ${workstreamSnapshotHtml()}
+    <div class="mgmt-section">
+      <div class="mgmt-section-title">Decisions / Direction Required</div>
+      ${decisions.length ? decisions.map((d) => `
+        <div class="mgmt-line mgmt-line-click" onclick="${call("openDocument", d.id)}">
+          <b>${mgmtLabel(d.clientId, d.title)}</b> <span class="muted">· Requested ${fmtDate(d.created)} · ${decisionDisplayStatus(d)}</span>
+        </div>`).join("") : '<div class="mgmt-empty">Nothing currently pending a decision.</div>'}
+    </div>
+    <div class="mgmt-section">
+      <div class="mgmt-section-title">Supporting Documents</div>
+      ${docs.length ? docs.map((d) => `
+        <div class="mgmt-line mgmt-line-click" onclick="${call("openDocument", d.id)}">
+          <span class="mgmt-doc-tag">${(d.managementVisibility || "None").toUpperCase()}</span> ${mgmtLabel(d.clientId, d.title)}
+        </div>`).join("") : '<div class="mgmt-empty">No documents selected for management visibility.</div>'}
     </div>`;
 }
 
@@ -2412,85 +2742,31 @@ function progressUpdateMgmtLine(u, field) {
   return `<div class="mgmt-line"><b>${mgmtLabel(u.clientId, m ? m.name : "")}</b> — ${attrSafe(field ? u[field] : u.text)} <span class="muted">· ${fmtDate(u.date)}</span></div>`;
 }
 
+const MGMT_PERSPECTIVES = [
+  { id: "executive", label: "Executive" },
+  { id: "my-work", label: "My Work" },
+  { id: "portfolio", label: "Portfolio" },
+];
+/** The Ongoing tab's content — now led by the EXECUTIVE/MY WORK/PORTFOLIO
+ * perspective switch (dashboard redesign, Oct 2026). Every existing section
+ * this used to show unconditionally (Current Priorities, Management
+ * Attention, Waiting On, Progress Since Last Update, Next 7 Days, Decisions,
+ * Supporting Documents, Meetings — Upcoming) still renders somewhere across
+ * the three perspectives — restructured into the new hierarchy where the
+ * brief asked for that (Current Priorities/Management Attention/Meetings →
+ * Executive's Workstream Snapshot/Needs Your Attention/Upcoming), kept as-is
+ * where it wasn't (Waiting On and Progress Since Last Update/Next 7 Days →
+ * My Work; Decisions and Supporting Documents → Portfolio) — nothing is
+ * removed, every existing function call is unchanged, only which perspective
+ * shows it moved. */
 function renderMgmtOngoing() {
-  const matters = managementVisibleMatters();
-  const attentionMatters = matters.filter((m) => m.managementAttentionLevel);
-  const waiting = managementWaitingOn();
-  const notes = managementProgressNotes();
-  const decisions = computeManagementDecisions();
-  const docs = managementVisibleDocs();
-  const meetings = managementMeetings();
+  const perspective = STATE.mgmtPerspective || "executive";
+  const body = perspective === "my-work" ? renderMgmtMyWork() : perspective === "portfolio" ? renderMgmtPortfolio() : renderMgmtExecutive();
   return `
-      <div class="mgmt-section">
-        <div class="mgmt-section-title">Current Priorities</div>
-        ${matters.length ? matters.map(mgmtMatterCard).join("") : '<div class="mgmt-empty">No Matters currently selected for management visibility.</div>'}
+      <div class="view-toggle mgmt-perspective-toggle">
+        ${MGMT_PERSPECTIVES.map((p) => `<button class="${perspective === p.id ? "active" : ""}" onclick="${call("setMgmtPerspective", p.id)}">${p.label}</button>`).join("")}
       </div>
-
-      <div class="mgmt-section">
-        <div class="mgmt-section-title">Management Attention</div>
-        ${attentionMatters.length ? attentionMatters.map((m) => {
-          const eng = getEngagementRecord(m.engagementId);
-          const cn = clientName(eng.clientId);
-          const supportingDoc = docs.find((d) => d.matterId === m.id && d.managementVisibility === "For Review");
-          return `
-          <div class="mgmt-attention-card">
-            <div class="mgmt-attention-top">
-              <span class="mgmt-attention-level">${m.managementAttentionLevel}</span>
-              <span class="mgmt-attention-who">${cn} — ${m.name}</span>
-            </div>
-            <div class="mgmt-attention-note">${m.managementAttentionNote || ""}</div>
-            <div class="mgmt-attention-actions">
-              <button class="btn btn-sm" onclick="${call("navigate", "#/client/" + eng.clientId + "?tab=documents&matter=" + m.id)}">View Matter</button>
-              ${supportingDoc ? `<button class="btn btn-sm btn-ghost" onclick="${call("openDocument", supportingDoc.id)}">View Supporting Document</button>` : ""}
-            </div>
-          </div>`;
-        }).join("") : '<div class="mgmt-empty">No immediate management action required.</div>'}
-      </div>
-
-      <div class="mgmt-section">
-        <div class="mgmt-section-title">Waiting On — Awaiting Input / External Dependency</div>
-        ${waiting.length ? waiting.map((t) => `
-          <div class="mgmt-line"><b>${clientName(t.clientId)}</b> — ${t.title}${t.waitingOn ? ` <span class="muted">(${t.waitingOn})</span>` : ""}</div>
-        `).join("") : '<div class="mgmt-empty">Nothing currently awaiting external input.</div>'}
-      </div>
-
-      <div class="grid grid-2" style="gap:24px;align-items:start">
-        <div class="mgmt-section">
-          <div class="mgmt-section-title">Progress Since Last Update</div>
-          ${notes.length ? notes.map((n) => `<div class="mgmt-line">✓ ${n.text}</div>`).join("") : '<div class="mgmt-empty">Nothing selected yet.</div>'}
-        </div>
-        <div class="mgmt-section">
-          <div class="mgmt-section-title">Next 7 Days</div>
-          ${matters.filter((m) => m.nextStep).length ? matters.filter((m) => m.nextStep).map((m) => {
-            const cn = clientName(getEngagementRecord(m.engagementId).clientId);
-            return `<div class="mgmt-line"><b>${cn}</b> — ${m.nextStep}</div>`;
-          }).join("") : '<div class="mgmt-empty">Nothing notable in the coming week.</div>'}
-        </div>
-      </div>
-
-      <div class="mgmt-section">
-        <div class="mgmt-section-title">Decisions / Direction Required</div>
-        ${decisions.length ? decisions.map((d) => `
-          <div class="mgmt-line mgmt-line-click" onclick="${call("openDocument", d.id)}">
-            <b>${mgmtLabel(d.clientId, d.title)}</b> <span class="muted">· Requested ${fmtDate(d.created)} · ${decisionDisplayStatus(d)}</span>
-          </div>`).join("") : '<div class="mgmt-empty">Nothing currently pending a decision.</div>'}
-      </div>
-
-      <div class="mgmt-section">
-        <div class="mgmt-section-title">Supporting Documents</div>
-        ${docs.length ? docs.map((d) => `
-          <div class="mgmt-line mgmt-line-click" onclick="${call("openDocument", d.id)}">
-            <span class="mgmt-doc-tag">${(d.managementVisibility || "None").toUpperCase()}</span> ${mgmtLabel(d.clientId, d.title)}
-          </div>`).join("") : '<div class="mgmt-empty">No documents selected for management visibility.</div>'}
-      </div>
-
-      ${meetings.length ? `
-      <div class="mgmt-section">
-        <div class="mgmt-section-title">Meetings — Upcoming</div>
-        ${meetings.map((m) => `
-          <div class="mgmt-line mgmt-line-click" onclick="${call("openMeeting", m.id)}">${mgmtLabel(m.clientId, m.title)} <span class="muted">· ${fmtDate(m.date)} · ${m.startTime}</span></div>
-        `).join("")}
-      </div>` : ""}
+      ${body}
   `;
 }
 
@@ -2595,7 +2871,7 @@ function renderManagementProgress() {
       <span>You are previewing the Management View — this is exactly what would be shared.</span>
       <button class="btn btn-sm" onclick="${call("navigate", "#/home")}">Exit Preview</button>
     </div>
-    <div class="mgmt-page">
+    <div class="mgmt-page${view === "ongoing" ? " mgmt-page-wide" : ""}">
       <div class="mgmt-header">
         <div>
           <span class="eyebrow">Executive Briefing</span>
@@ -2605,7 +2881,7 @@ function renderManagementProgress() {
         <div class="mgmt-updated">Last Updated: ${lastUpdated ? fmtDate(lastUpdated) : "—"}</div>
       </div>
 
-      <div class="mgmt-summary">${summaryLine}</div>
+      ${view === "ongoing" && (STATE.mgmtPerspective || "executive") === "executive" ? "" : `<div class="mgmt-summary">${summaryLine}</div>`}
 
       <div class="view-toggle mgmt-view-toggle">
         <button class="${view === "ongoing" ? "active" : ""}" onclick="${call("setMgmtView", "ongoing")}">Ongoing</button>

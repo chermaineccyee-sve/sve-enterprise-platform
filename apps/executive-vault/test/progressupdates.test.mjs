@@ -37,13 +37,14 @@ test("Management Progress (Ongoing, the default tab) never renders the private p
   assert.doesNotMatch(html, /not yet ready to raise with management/);
 });
 
-test("Ongoing tab's Current Priorities cards show a Latest Progress line sourced from a real, visible Progress Update", () => {
+test("The Level-2 workstream drill-down shows a Recent Updates line sourced from a real, visible Progress Update", () => {
   const sandbox = loadApp();
   sandbox.navigate("#/management");
+  sandbox.openWorkstreamDrillDown("matter-vt-hrtransform");
   const html = sandbox.__appEl.innerHTML;
-  assert.match(html, /Latest Progress/);
-  // pn7/pn8 (21 Sep) are the newest visible entries for their Matters
-  assert.match(html, /Progress Updates &amp; Management Reporting layer specified and build started|Performance management implementation materials drafted for review/);
+  assert.match(html, /Recent Updates/);
+  // pn8 (21 Sep) is VT Worldwide's newest visible entry
+  assert.match(html, /Performance management implementation materials drafted for review/);
 });
 
 test("the Management Progress tab bar offers Ongoing / Weekly Review / Monthly Review, defaulting to Ongoing", () => {
@@ -53,8 +54,9 @@ test("the Management Progress tab bar offers Ongoing / Weekly Review / Monthly R
   assert.match(html, /Ongoing/);
   assert.match(html, /Weekly Review/);
   assert.match(html, /Monthly Review/);
-  // Default tab is Ongoing: Current Priorities (Ongoing-only heading) must be present without switching tabs first.
-  assert.match(html, /Current Priorities/);
+  // Default tab is Ongoing, default perspective is Executive: Executive Overview/Workstream Snapshot (Ongoing+Executive-only content) must be present without switching tabs first.
+  assert.match(html, /Executive Overview/);
+  assert.match(html, /Workstream Snapshot/);
 });
 
 /* ---------- Weekly Review ---------- */
@@ -117,9 +119,10 @@ test("generateUpdateText() defaults to the Ongoing scope and is unchanged from b
   assert.match(text, /Internal Governance/);
   assert.match(text, /PQCAL/);
   assert.match(text, /CY – Appraisal/);
+  assert.match(text, /SVE Group Enterprise Platform/); // re-opted in at its decision gate
   assert.match(text, /for review/i);
-  assert.doesNotMatch(text, /MRE Asia/); // no longer management-visible
-  assert.doesNotMatch(text, /SVE Group Enterprise Platform/); // no longer management-visible
+  assert.match(text, /decision required/i);
+  assert.doesNotMatch(text, /MRE Asia/); // still not management-visible
 });
 
 test("generateUpdateText() never leaks a private entry in any scope", () => {
@@ -228,7 +231,15 @@ test("openProgressUpdateEditor() edits the live record in place and stamps a new
 
 test("Recent Movement's progress-update entries open the Progress Update editor, not a bare matter navigation", () => {
   const sandbox = loadApp();
-  sandbox.navigate("#/home");
-  const html = sandbox.__appEl.innerHTML;
-  assert.match(html, /openProgressUpdateEditor/);
+  // Checked via computeRecentMovement() directly (a generous limit, not the
+  // default top-6 the page renders) rather than scraping #/home's HTML: with
+  // six Matters now sharing the exact same managementUpdated date (6 Oct
+  // 2026, the dashboard redesign), their "position updated" entries alone
+  // fill the real page's default top-6 window, which is correct recency
+  // behaviour, not a bug — but it means this capability (a progress-update
+  // entry uses openProgressUpdateEditor, never a bare matter navigate) isn't
+  // reliably provable from that window alone.
+  const events = sandbox.computeRecentMovement(20);
+  const progressEvents = events.filter((e) => e.onclick.includes("openProgressUpdateEditor"));
+  assert.ok(progressEvents.length > 0, "at least one Recent Movement entry must be a Progress Update");
 });

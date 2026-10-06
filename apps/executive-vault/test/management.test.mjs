@@ -8,7 +8,7 @@ test("only management-visible, non-legacy Matters appear in managementVisibleMat
   const visible = sandbox.managementVisibleMatters();
   const expectedIds = MATTERS.filter((m) => m.managementVisible).map((m) => m.id).sort();
   assert.deepEqual(visible.map((m) => m.id).sort(), expectedIds);
-  assert.ok(visible.length === 5, "fixture should expose exactly the five current management-visible workstreams (as at 6 Oct 2026)");
+  assert.ok(visible.length === 6, "fixture should expose exactly the six current management-visible workstreams (as at 6 Oct 2026, dashboard redesign — SVE Group Enterprise Platform re-opted in at its decision gate)");
   assert.ok(!visible.some((m) => m.id === "matter-legacy-resort"), "the legacy Matter must never be management-visible even if flagged");
 });
 
@@ -34,10 +34,11 @@ test("Management Progress page never renders Legacy, litigation, or unrelated in
   assert.doesNotMatch(html, /Business Continuity Plan/);
 });
 
-test("Management Progress shows exactly the five current management-visible Matters as Current Priorities, with real content from the actual Matter records (as at 6 Oct 2026)", () => {
+test("Management Progress's Workstream Snapshot (Executive perspective, the default) shows exactly the six current management-visible Matters, with real content from the actual Matter records (as at 6 Oct 2026)", () => {
   const sandbox = loadApp();
   sandbox.navigate("#/management");
   const html = sandbox.__appEl.innerHTML;
+  assert.match(html, /Workstream Snapshot/);
   assert.match(html, /VT Worldwide/);
   assert.match(html, /Policy & Documentation Close-Out/);
   assert.match(html, /Nusantara Project/);
@@ -47,21 +48,27 @@ test("Management Progress shows exactly the five current management-visible Matt
   assert.match(html, /PQCAL/);
   assert.match(html, /Shared Administration/);
   assert.match(html, /CY – Appraisal/);
+  assert.match(html, /SVE Group Enterprise Platform/); // re-opted in at its decision gate
   assert.match(html, /release outstanding documents and close out the handover/); // real VT Worldwide nextStep text, not a copy
-  assert.doesNotMatch(html, /MRE Asia/); // no longer management-visible
-  assert.doesNotMatch(html, /SVE Group Enterprise Platform/); // no longer management-visible
+  assert.doesNotMatch(html, /MRE Asia/); // still not management-visible
 });
 
-test("Management Attention lists only Matters with a non-null managementAttentionLevel — VT Worldwide and the SVE Governance Pack, both 'For Review' as at 6 Oct 2026", () => {
+test("Needs Your Attention lists only Matters with a non-null managementAttentionLevel or an overdue targetDate — VT Worldwide and the SVE Governance Pack at 'For Review', SVE Group Enterprise Platform at 'Decision Required', as at 6 Oct 2026", () => {
   const sandbox = loadApp();
-  const attention = sandbox.managementVisibleMatters().filter((m) => m.managementAttentionLevel);
-  assert.equal(attention.length, 2);
-  assert.ok(attention.some((m) => m.id === "matter-intgov-policy"));
-  assert.ok(attention.some((m) => m.id === "matter-vt-hrtransform"));
-  for (const m of attention) assert.equal(m.managementAttentionLevel, "For Review");
+  const attention = sandbox.computeNeedsAttention();
+  assert.equal(attention.length, 3);
+  const ids = attention.map((a) => a.matter.id);
+  assert.ok(ids.includes("matter-intgov-policy"));
+  assert.ok(ids.includes("matter-vt-hrtransform"));
+  assert.ok(ids.includes("matter-svegip-platform"));
+  // Decision Required is the most severe level, so it must lead the sorted list.
+  assert.equal(attention[0].matter.id, "matter-svegip-platform");
+  assert.equal(attention[0].level, "Decision Required");
   sandbox.navigate("#/management");
   const html = sandbox.__appEl.innerHTML;
+  assert.match(html, /Needs Your Attention/);
   assert.match(html, /For Review/i);
+  assert.match(html, /Decision Required/i);
   assert.match(html, /Final walkthrough with Eric before release \/ close-out/i);
   assert.match(html, /Governance Pack to be presented for Management review once final harmonisation is completed/i);
 });
@@ -80,29 +87,31 @@ test("managementVisibleDocs() excludes documents with managementVisibility None 
   assert.ok(!visible.some((d) => d.id === "d17d"));
 });
 
-test("Supporting Documents section resolves to real Vault documents, opening the same Document Detail drawer", () => {
+test("Supporting Documents section (Portfolio perspective) resolves to real Vault documents, opening the same Document Detail drawer", () => {
   const sandbox = loadApp();
   sandbox.navigate("#/management");
-  // d12 (SVE Group Enterprise Platform — Management Review) no longer qualifies:
-  // its Matter (matter-svegip-platform) is no longer management-visible. d19d
-  // (VT Worldwide) is now the live example of a management-visible document.
-  assert.match(sandbox.__appEl.innerHTML, /Policy Closure Summary/);
-  sandbox.openDocument("d19d");
+  sandbox.setMgmtPerspective("portfolio");
   const html = sandbox.__appEl.innerHTML;
-  assert.match(html, /drawer open/);
+  // d12 (SVE Group Enterprise Platform) is back now that its Matter is
+  // management-visible again; d19d (VT Worldwide) remains visible throughout.
+  assert.match(html, /SVE Group Enterprise Platform — Management Review/);
   assert.match(html, /Policy Closure Summary/);
+  sandbox.openDocument("d19d");
+  assert.match(sandbox.__appEl.innerHTML, /drawer open/);
+  assert.match(sandbox.__appEl.innerHTML, /Policy Closure Summary/);
 });
 
-test("Decisions / Direction Required reuses computeDecisionsRequired() and applies visibility on top — currently empty, since the one qualifying decision document (d12) belongs to a Matter that is no longer management-visible", () => {
+test("Decisions / Direction Required (Portfolio perspective) reuses computeDecisionsRequired() and applies visibility on top — d12 is back now that SVE Group Enterprise Platform is management-visible again", () => {
   const sandbox = loadApp();
   const decisions = sandbox.computeManagementDecisions();
   const base = sandbox.computeDecisionsRequired();
   for (const d of decisions) assert.ok(base.includes(d), "every management decision must come from the same base decision computation");
-  assert.equal(decisions.length, 0);
-  assert.ok(!decisions.some((d) => d.id === "d12")); // SVE Group Enterprise Platform — no longer management-visible
+  assert.equal(decisions.length, 1);
+  assert.ok(decisions.some((d) => d.id === "d12"));
   assert.ok(!decisions.some((d) => d.id === "d17d")); // litigation resolution stays private
   sandbox.navigate("#/management");
-  assert.match(sandbox.__appEl.innerHTML, /Nothing currently pending a decision/); // graceful empty state, not a broken section
+  sandbox.setMgmtPerspective("portfolio");
+  assert.match(sandbox.__appEl.innerHTML, /SVE Group Enterprise Platform — Management Review/);
 });
 
 test("decisionDisplayStatus() derives Pending/Decided/Superseded from the document's existing Status field", () => {
@@ -131,12 +140,12 @@ test("Progress Since Last Update only shows notes with includeInManagementUpdate
   assert.ok(!notes.some((n) => n.text === "Internal admin filing cleanup completed"), "excluded note (includeInManagementUpdate:false) must not appear");
 });
 
-test("computeManagementSummary() counts are fully derived and match the fixture (as at 6 Oct 2026 — five In Progress workstreams, none Awaiting Input or Decision Required)", () => {
+test("computeManagementSummary() counts are fully derived and match the fixture (as at 6 Oct 2026 — six visible Matters, SVE Group Enterprise Platform the sole Decision Required one by its own managementStatus field)", () => {
   const sandbox = loadApp();
   const s = sandbox.computeManagementSummary();
-  assert.equal(s.activeMatters, 5);
+  assert.equal(s.activeMatters, 6);
   assert.equal(s.awaitingInput, 0);
-  assert.equal(s.decisionRequired, 0);
+  assert.equal(s.decisionRequired, 1);
   assert.equal(s.forReview, sandbox.computeManagementDecisions().length);
 });
 
@@ -148,9 +157,10 @@ test("Generate Management Update produces editable text mentioning every visible
   assert.match(text, /Internal Governance/);
   assert.match(text, /PQCAL/);
   assert.match(text, /CY – Appraisal/);
+  assert.match(text, /SVE Group Enterprise Platform/); // re-opted in at its decision gate
   assert.match(text, /for review/i); // Management attention section — VT Worldwide and the Governance Pack
-  assert.doesNotMatch(text, /MRE Asia/); // no longer management-visible
-  assert.doesNotMatch(text, /SVE Group Enterprise Platform/); // no longer management-visible
+  assert.match(text, /decision required/i); // Management attention section — SVE Group Enterprise Platform
+  assert.doesNotMatch(text, /MRE Asia/); // still not management-visible
   sandbox.navigate("#/management");
   sandbox.toggleGenerateUpdate();
   const html = sandbox.__appEl.innerHTML;

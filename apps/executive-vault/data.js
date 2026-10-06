@@ -116,7 +116,11 @@ const CLIENTS = [
     owner: "Me", pinned: true, legacy: false,
     summary: "Shared Administration mobilisation and operational coordination.",
     contacts: [{ name: "Mr. Sham", role: "Client Coordination" }, { name: "Mr. Imtiaz", role: "Client Coordination" }],
-    keyDates: [{ label: "Physical meeting with Mr. Sham", date: "2026-10-08" }],
+    // The physical meeting with Mr. Sham is now meeting m11 (MEETINGS, below) —
+    // a timed, participant-bound event belongs there, not as a bare keyDate,
+    // so it surfaces everywhere meetings already do (My Day, This Week,
+    // Management Progress's Upcoming) rather than only in one place.
+    keyDates: [],
     driveFolder: "Clients & Engagements / PQCAL",
   },
   {
@@ -158,18 +162,31 @@ const ENGAGEMENTS = [
 // nextStep/managementAttentionLevel/managementAttentionNote/managementUpdated)
 // supplement the existing Matter record — architecture doc §16.2. Default is
 // managementVisible:false (privacy by default, §16.3); as at 6 Oct 2026 the
-// five current management-visible workstreams are: VT Worldwide (Final
-// Review & Close-Out), PQCAL (Shared Administration), Nusantara (Document
-// Master Registry Finalisation), SVE – Governance Pack (HR & Company
-// Policies), and CY – Appraisal. Internal Governance's litigation Matter
-// stays deliberately left out even though its sibling policy Matter (the
-// Governance Pack) is now opted in — a live demonstration that the default
-// actually withholds something, and that visibility is set per-Matter, not
-// per-Client.
+// six current management-visible workstreams are: VT Worldwide (Close-Out),
+// SVE – Governance Pack (HR & Company Policies, Finalising), Nusantara
+// (Document Master Registry Finalisation, Finalising), CY – Appraisal
+// (Finalising), PQCAL (Shared Administration, Mobilisation), and SVE Group
+// Enterprise Platform (On Hold, pending Management direction at its decision
+// gate). Internal Governance's litigation Matter stays deliberately left out
+// even though its sibling policy Matter (the Governance Pack) is opted in —
+// a live demonstration that the default actually withholds something, and
+// that visibility is set per-Matter, not per-Client.
+//
+// `currentStage` (§16.2 extension, Executive Vault dashboard redesign, Oct
+// 2026) is deliberately a SEPARATE dimension from managementAttentionLevel
+// below: currentStage answers "where is this workstream in its lifecycle"
+// (MATTER_STAGES in app.js — Not Started/Mobilisation/In Progress/
+// Finalising/Close-Out/Completed/On Hold), never "does it need Eric's
+// attention right now" — a Matter can be Finalising AND need no attention,
+// or On Hold AND be the single most urgent item on the page (SVE Group
+// Enterprise Platform is exactly that case). `progressPercent` (0-100,
+// optional — omitted where no meaningful single number exists, e.g. a
+// Matter blocked at a decision gate) is a new, additive field read only by
+// the new Workstream Snapshot; nothing existing reads it.
 const MATTERS = [
   {
     id: "matter-vt-hrtransform", engagementId: "eng-vt-hr", name: "Policy & Documentation Close-Out", status: "active",
-    owner: "Me", startDate: "2026-04-01", targetDate: null, currentStage: "Close-Out",
+    owner: "Me", startDate: "2026-04-01", targetDate: null, currentStage: "Close-Out", progressPercent: 90,
     workstreams: ["Final Review", "Document Release", "Handover"],
     managementVisible: true, managementStatus: "In Progress",
     currentPosition: "VT Worldwide engagement is at final review and documentation close-out stage.",
@@ -179,7 +196,7 @@ const MATTERS = [
   },
   {
     id: "matter-mre-opmodel", engagementId: "eng-mre-hr", name: "HR Operating Model Design", status: "active",
-    owner: "Me", startDate: "2026-08-15", targetDate: "2026-11-30", currentStage: "Proposal",
+    owner: "Me", startDate: "2026-08-15", targetDate: "2026-11-30", currentStage: "Not Started",
     workstreams: ["Operating Model Design"],
     managementVisible: false, managementStatus: "Awaiting Input",
     currentPosition: "Client brief and proposed operating structure prepared following initial engagement.",
@@ -189,7 +206,7 @@ const MATTERS = [
   },
   {
     id: "matter-nus-strategy", engagementId: "eng-nus-strategy", name: "Document Master Registry Finalisation", status: "active",
-    owner: "Me", startDate: "2026-09-01", targetDate: null, currentStage: "Finalisation",
+    owner: "Me", startDate: "2026-09-01", targetDate: null, currentStage: "Finalising", progressPercent: 75,
     workstreams: ["Master Document Registry", "Document Reconciliation", "Knowledge Base"],
     managementVisible: true, managementStatus: "In Progress",
     currentPosition: "Master Document Registry is being finalised against the latest fund, governance and corporate documentation.",
@@ -198,24 +215,32 @@ const MATTERS = [
     managementUpdated: "2026-10-06",
   },
   {
+    // Re-opted into Management Progress (6 Oct 2026, Executive Vault dashboard
+    // redesign) — previously turned off on 21 Sep 2026 pending a decision that
+    // is now itself the point: this Matter is stalled at its own decision
+    // gate, which is precisely the kind of item "Needs Your Attention" exists
+    // to surface, not hide. currentStage "On Hold" reflects that it is not
+    // progressing on its own momentum right now; no progressPercent is given
+    // — a single completion number would misstate a Matter that is blocked,
+    // not partway through routine delivery.
     id: "matter-svegip-platform", engagementId: "eng-svegip", name: "Platform Architecture & Rollout", status: "active",
-    owner: "Me", startDate: "2026-02-01", targetDate: null, currentStage: "Build",
+    owner: "Me", startDate: "2026-02-01", targetDate: null, currentStage: "On Hold",
     workstreams: ["Platform Architecture", "Management Reporting"],
-    managementVisible: false, managementStatus: "Decision Required",
+    managementVisible: true, managementStatus: "Decision Required",
     currentPosition: "Management concept, architecture and supporting governance framework prepared.",
     nextStep: "Proceed to priority implementation following management direction.",
     // Attention level standardised on "Decision Required" (matches managementStatus) per
     // the 21 Sep 2026 decision record — the description, not the level, carries the nuance
     // that what's needed is management direction.
     managementAttentionLevel: "Decision Required", managementAttentionNote: "Management direction required on next-stage platform direction / priority implementation.",
-    managementUpdated: "2026-09-21",
+    managementUpdated: "2026-10-06",
   },
   {
     // Confirmed decision (21 Sep 2026): stays private to the Command Centre —
     // available to switch on later (via "Edit Management Snapshot") where
     // management visibility is actually required, never broadened by default.
     id: "matter-intgov-policy", engagementId: "eng-intgov", name: "SVE – Governance Pack (HR & Company Policies)", status: "active",
-    owner: "Me", startDate: "2026-01-01", targetDate: null, currentStage: "Final Harmonisation",
+    owner: "Me", startDate: "2026-01-01", targetDate: null, currentStage: "Finalising", progressPercent: 80,
     workstreams: ["HR Policies", "Company Policies", "Master Policy Registry"],
     managementVisible: true, managementStatus: "In Progress",
     currentPosition: "Final harmonisation and review of the SVE HR & Company Policies is in progress, including cross-references, numbering and related governance instruments.",
@@ -228,14 +253,14 @@ const MATTERS = [
     // clearest case for keeping the default off until visibility is a
     // deliberate, explicit choice.
     id: "matter-intgov-litigation", engagementId: "eng-intgov", name: "Contract Dispute — Vendor XYZ", status: "active",
-    owner: "Me", startDate: "2026-08-01", targetDate: null, currentStage: "Active Dispute",
+    owner: "Me", startDate: "2026-08-01", targetDate: null, currentStage: "In Progress",
     workstreams: [],
     managementVisible: false, managementStatus: null, currentPosition: "", nextStep: "",
     managementAttentionLevel: null, managementAttentionNote: "", managementUpdated: null,
   },
   {
     id: "matter-pqcal-shared-admin", engagementId: "eng-pqcal-admin", name: "Shared Administration", status: "active",
-    owner: "Me", startDate: "2026-10-02", targetDate: null, currentStage: "Mobilisation",
+    owner: "Me", startDate: "2026-10-02", targetDate: null, currentStage: "Mobilisation", progressPercent: 35,
     workstreams: ["Email & Access", "Administration Tracking", "Corporate Communications", "MD / Visa Coordination", "Weekly Reporting"],
     managementVisible: true, managementStatus: "In Progress",
     currentPosition: "Shared Admin mobilisation and operational setup commenced following the kick-off discussion.",
@@ -245,7 +270,7 @@ const MATTERS = [
   },
   {
     id: "matter-cy-appraisal", engagementId: "eng-cy-appraisal", name: "CY – Appraisal", status: "active",
-    owner: "Me", startDate: "2026-01-01", targetDate: null, currentStage: "Preparation",
+    owner: "Me", startDate: "2026-01-01", targetDate: null, currentStage: "Finalising", progressPercent: 70,
     workstreams: ["2026 Self-Appraisal", "Key Contributions", "Development Areas", "2027 Objectives"],
     managementVisible: true, managementStatus: "In Progress",
     currentPosition: "2026 self-appraisal is being finalised with consolidation of key projects, deliverables and expanded Executive Office responsibilities.",
@@ -255,7 +280,7 @@ const MATTERS = [
   },
   {
     id: "matter-legacy-resort", engagementId: "eng-legacy-sabah", name: "Resort Development Programme (Historical)", status: "closed",
-    owner: "Me", startDate: "2019-01-01", targetDate: "2024-12-31", currentStage: "Closed",
+    owner: "Me", startDate: "2019-01-01", targetDate: "2024-12-31", currentStage: "Completed",
     workstreams: [],
     managementVisible: false, managementStatus: null, currentPosition: "", nextStep: "",
     managementAttentionLevel: null, managementAttentionNote: "", managementUpdated: null,
@@ -823,6 +848,10 @@ const MEETINGS = [
     clientId: "internal-governance", matterId: "matter-intgov-policy", workstreams: ["Board & Governance"],
     participants: [{ name: "Board Secretariat", role: "Coordination" }],
     location: "Boardroom, HQ", status: "Confirmed", agendaDocId: null, documentId: "d14b", decisions: [] },
+  { id: "m11", title: "PQCAL — Physical Meeting with Mr. Sham", date: "2026-10-08", startTime: "09:30", endTime: "13:00",
+    clientId: "pqcal", matterId: "matter-pqcal-shared-admin", workstreams: ["Administration Tracking"],
+    participants: [{ name: "Mr. Sham", role: "Client Coordination" }, { name: "Mr. Imtiaz", role: "Client Coordination" }],
+    location: "PQCAL Office", status: "Confirmed", agendaDocId: null, documentId: null, decisions: [] },
 ];
 
 // TASKS (Actions & Follow-Up): waitingOn names who the NEXT action actually

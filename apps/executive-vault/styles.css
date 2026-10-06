@@ -498,6 +498,36 @@ table.reg tbody tr:last-child td{border-bottom:0}
 .mgmt-line-click:hover{color:var(--gold-deep)}
 .mgmt-doc-tag{font-size:9px;font-weight:800;letter-spacing:.04em;color:var(--ink-faint);border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-right:4px}
 
+/* ===== Executive Vault dashboard redesign (Oct 2026): Stage and Attention
+   are two deliberately separate chip vocabularies — reusing the existing
+   colour tokens throughout, no new hues introduced. A Matter's Stage chip
+   says where it sits in its own lifecycle (calm, informational); its
+   Attention chip says whether Eric/Management needs to do something about
+   it right now (the only chip that ever reads as urgent). ===== */
+.mgmt-page-wide{max-width:1180px}
+.mgmt-perspective-toggle{margin-bottom:20px}
+
+.stage-chip,.attn-chip{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.stage-chip-not-started{background:var(--tier-g-bg);color:var(--tier-g)}
+.stage-chip-mobilisation{background:var(--tier-c-bg);color:var(--tier-c)}
+.stage-chip-in-progress{background:var(--tier-r-bg);color:var(--tier-r)}
+.stage-chip-finalising{background:var(--gold-soft);color:var(--gold-deep)}
+.stage-chip-close-out{background:var(--status-final-bg);color:var(--status-final)}
+.stage-chip-completed{background:var(--status-final);color:#fff}
+.stage-chip-on-hold{background:var(--tier-ct-bg);color:var(--tier-ct)}
+
+.attn-chip-no-action{background:var(--tier-g-bg);color:var(--tier-g)}
+.attn-chip-for-information{background:var(--tier-ct-bg);color:var(--tier-ct)}
+.attn-chip-for-review{background:var(--tier-r-bg);color:var(--tier-r)}
+.attn-chip-approval-required{background:var(--tier-c-bg);color:var(--tier-c)}
+.attn-chip-decision-required{background:var(--tier-hc-bg);color:var(--tier-hc)}
+.attn-chip-overdue{background:var(--tier-hc);color:#fff}
+.mgmt-attention-card-overdue{border-color:var(--tier-hc);background:var(--tier-hc-bg)}
+
+.ws-progress{display:inline-block;width:60px;height:6px;border-radius:999px;background:var(--line-soft);overflow:hidden;vertical-align:middle;margin-right:6px}
+.ws-progress-bar{height:100%;background:var(--gold);border-radius:999px}
+.ws-progress-pct{font-size:11px;color:var(--ink-soft);vertical-align:middle}
+
 .mgmt-generate{margin-top:36px;padding-top:20px;border-top:1px solid var(--line)}
 .mgmt-generate-panel{margin-top:14px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
 

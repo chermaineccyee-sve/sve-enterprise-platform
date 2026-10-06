@@ -51,12 +51,12 @@ test("clicking a mobile record card opens the same Document Detail drawer as cli
   assert.match(sandbox.__appEl.innerHTML, /Lark Digital Acknowledgement Workflow Specification/);
 });
 
-test("Management Progress is unchanged by this pass — no record-card/desktop-register markup, its own purpose-designed layout only", () => {
+test("Management Progress's Workstream Snapshot (dashboard redesign, Oct 2026) reuses the same desktop-register/record-card responsive pattern as Document Vault/Matters/Archive, alongside its own purpose-designed sections", () => {
   const sandbox = loadApp();
   sandbox.navigate("#/management");
   const html = sandbox.__appEl.innerHTML;
-  assert.doesNotMatch(html, /class="record-list"/);
-  assert.doesNotMatch(html, /desktop-register/);
+  assert.match(html, /class="record-list"/);
+  assert.match(html, /desktop-register/);
   assert.match(html, /mgmt-page/);
 });
 
