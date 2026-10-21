@@ -9,7 +9,8 @@ It currently contains one working application and architecture scaffolding (cont
 ```
 sve-enterprise-platform/
 ├── apps/
-│   └── svegip/            ← the existing SVE Group Internal Portal (current status: working, deployed)
+│   ├── svegip/            ← the existing SVE Group Internal Portal (current status: working, deployed)
+│   └── nusantara-website/ ← Nusantara Fund Management public website (management-review prototype; self-contained Next.js app)
 ├── platform-services/
 │   ├── identity/          ← IMPLEMENTED: the SVE Identity & Access Foundation (see below)
 │   ├── core/  organisation/  workflow/  documents/  notifications/
